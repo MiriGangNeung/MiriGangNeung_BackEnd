@@ -1,5 +1,43 @@
 # Work Log
 
+## 2026-08-08
+
+### 시간 미기록 ~ 17:41 — clone 후 AI 에이전트 인수인계 문서 보완
+
+**Agent:** Codex
+**작업 유형:** Documentation
+
+**작업 내용:**
+
+- 루트 `docs/CODEX_START_HERE.md` 진입 문서를 추가했다.
+- 안전한 환경변수 템플릿 `.env.example`을 추가했다.
+- README와 AGENTS.md에 clone 후 시작 순서, 환경변수, Docker 포트 충돌 대응을 명시했다.
+- 현재 상태 문서에 최신 상태 문서 commit 정보를 추가했다.
+
+**주요 변경 파일:**
+
+- `docs/CODEX_START_HERE.md`
+- `.env.example`
+- `README.md`
+- `AGENTS.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- 문서 경로와 Git 추적 대상 확인
+- `.env`는 계속 `.gitignore` 대상이며 `.env.example`에는 실제 secret이 없음
+- 코드 로직 변경 없음; 기존 테스트 결과는 `BUILD SUCCESSFUL`, 2 tests passed
+
+**발생한 문제와 해결 방법:**
+
+- 상세 시작 문서가 루트 `docs/`가 아닌 문서 세트 하위에 있어 루트 진입 문서를 추가했다.
+- clone 환경에는 실제 `.env`가 없으므로 복사 가능한 비밀값 없는 템플릿을 추가했다.
+
+**관련 commit:**
+
+- 문서 보완 commit 전 기록
+
 ## 2026-08-08 — Initial backend implementation baseline
 
 **시작 시간:** 시간 미기록

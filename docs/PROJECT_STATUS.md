@@ -11,6 +11,7 @@ Last Updated By: Codex
 - Java/Spring Boot/Gradle 프로젝트가 루트에 있다.
 - Gradle Wrapper가 포함되어 있다.
 - 구현·Docker·API 검증 변경은 `46fbdd7` (`feat: add Docker deployment and verify P0 API flow`)에 기록되어 있다.
+- 최신 상태 문서 커밋은 `fb78ec5` (`docs: record final Docker and API verification`)이다. 이후 문서 보완 작업은 별도 commit으로 기록한다.
 
 ## 현재 코드에 존재하는 영역
 

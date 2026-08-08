@@ -1,5 +1,7 @@
 # AGENTS.md — MiriGangNeung Backend
 
+clone 직후에는 이 파일과 함께 루트 `docs/CODEX_START_HERE.md`를 읽는다. 상세 명세의 실제 위치는 `MiriGangNeung_BackEnd_Codex_MD_Set/docs/`이며, 루트 시작 문서는 해당 문서 세트로 연결되는 진입점이다.
+
 이 문서는 Codex, Orca, Antigravity 등 서로 다른 코딩 에이전트가 이 저장소에서 작업할 때 따라야 하는 공통 지침이다. 상세 명세를 복사하지 않고, 현재 상태 문서와 영역별 원문 문서를 참조한다.
 
 ## 1. 프로젝트 개요
