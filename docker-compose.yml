@@ -1,0 +1,59 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: mirigangneung
+      MYSQL_USER: ${DB_USERNAME:-miri}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-miri_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/mirigangneung?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true
+      DB_DRIVER: com.mysql.cj.jdbc.Driver
+      DB_USERNAME: ${DB_USERNAME:-miri}
+      DB_PASSWORD: ${DB_PASSWORD:-miri_password}
+      JPA_DDL_AUTO: update
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      TOUR_API_KEY: ${TOUR_API_KEY:-}
+      TOUR_API_BASE_URL: ${TOUR_API_BASE_URL:-https://apis.data.go.kr/B551011/KorService2}
+      KAKAO_API_KEY: ${KAKAO_API_KEY:-}
+      KAKAO_API_BASE_URL: ${KAKAO_API_BASE_URL:-https://apis-navi.kakaomobility.com}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      IMAGE_TEMP_DIR: /tmp/mirigangneung
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+
+volumes:
+  mysql_data:
+  redis_data:
