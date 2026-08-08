@@ -36,7 +36,7 @@
 
 **관련 commit:**
 
-- 문서 보완 commit 전 기록
+- `0b6090f` — `docs: improve AI agent onboarding`
 
 ## 2026-08-08 — Initial backend implementation baseline
 
