@@ -1,0 +1,1 @@
+package com.mirigangneung.infrastructure.kakao; import org.springframework.boot.context.properties.ConfigurationProperties; @ConfigurationProperties(prefix="kakao.api") public record KakaoRouteProperties(String baseUrl,String key){}

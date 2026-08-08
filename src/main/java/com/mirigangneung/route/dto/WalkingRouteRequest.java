@@ -1,0 +1,1 @@
+package com.mirigangneung.route.dto;import jakarta.validation.Valid;import jakarta.validation.constraints.*;public record WalkingRouteRequest(@Valid @NotNull Coordinate origin,@Valid @NotNull Coordinate destination){public record Coordinate(@NotNull Double latitude,@NotNull Double longitude){}}

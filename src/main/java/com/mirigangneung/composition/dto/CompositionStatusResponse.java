@@ -1,0 +1,2 @@
+package com.mirigangneung.composition.dto; import com.mirigangneung.composition.domain.*; import java.time.*;
+public record CompositionStatusResponse(String jobId,String status,Integer progress,String stage,boolean resultAvailable,String downloadUrl,Object place,String error){public static CompositionStatusResponse from(CompositionJob j,boolean available){return new CompositionStatusResponse(j.getId().toString(),j.getStatus().name(),j.getProgress(),j.getStage(),available,available?"/api/v1/compositions/"+j.getId()+"/download":null,null,j.getErrorCode());}}

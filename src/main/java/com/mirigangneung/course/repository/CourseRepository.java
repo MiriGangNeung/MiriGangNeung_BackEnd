@@ -1,0 +1,1 @@
+package com.mirigangneung.course.repository; import com.mirigangneung.course.domain.Course; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*; public interface CourseRepository extends JpaRepository<Course,UUID>{Optional<Course> findByShareTokenHash(String hash);}

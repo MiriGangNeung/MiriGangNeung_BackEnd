@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: mirigangneung-backend
+  datasource:
+    url: ${DB_URL:jdbc:h2:mem:mirigangneung;MODE=MySQL;DB_CLOSE_DELAY=-1}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
+    driver-class-name: ${DB_DRIVER:org.h2.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  servlet:
+    multipart:
+      max-file-size: ${IMAGE_MAX_SIZE:10MB}
+      max-request-size: ${IMAGE_MAX_SIZE:10MB}
+server:
+  port: ${PORT:8080}
+tour:
+  api:
+    base-url: ${TOUR_API_BASE_URL:https://apis.data.go.kr/B551011/KorService2}
+    key: ${TOUR_API_KEY:}
+    timeout: ${TOUR_API_TIMEOUT:5s}
+kakao:
+  api:
+    base-url: ${KAKAO_API_BASE_URL:https://apis-navi.kakaomobility.com}
+    key: ${KAKAO_API_KEY:}
+image:
+  temp-dir: ${IMAGE_TEMP_DIR:${java.io.tmpdir}/mirigangneung}
+  ttl: ${IMAGE_TTL_SECONDS:86400}
+ai:
+  base-url: ${AI_BASE_URL:}
+  api-key: ${AI_API_KEY:}
+app:
+  cors-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:5173}

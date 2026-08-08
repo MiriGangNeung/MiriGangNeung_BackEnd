@@ -1,0 +1,1 @@
+package com.mirigangneung.infrastructure.kakao; import org.springframework.boot.context.properties.EnableConfigurationProperties;import org.springframework.context.annotation.Configuration;@Configuration @EnableConfigurationProperties(KakaoRouteProperties.class) public class KakaoConfig{}

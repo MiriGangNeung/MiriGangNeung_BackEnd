@@ -1,0 +1,2 @@
+package com.mirigangneung.infrastructure.ai;
+public interface AiGenerationClient { AiGenerationResponse create(AiGenerationRequest request); AiGenerationResponse getStatus(String providerJobId); void cancel(String providerJobId); record AiGenerationRequest(String inputStorageKey,String onePickPlaceId,String aspectRatio){} record AiGenerationResponse(String providerJobId,String status,String imageReference,String safetyStatus,String reasonCode,String error){} }

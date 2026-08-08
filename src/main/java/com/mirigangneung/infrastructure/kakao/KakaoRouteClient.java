@@ -1,0 +1,1 @@
+package com.mirigangneung.infrastructure.kakao; import java.util.*; public interface KakaoRouteClient {RouteResult walking(double originLat,double originLon,double destinationLat,double destinationLon); record RouteResult(int distanceMeters,int durationSeconds,List<List<Double>> polyline){} }

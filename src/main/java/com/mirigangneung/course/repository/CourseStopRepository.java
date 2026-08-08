@@ -1,0 +1,1 @@
+package com.mirigangneung.course.repository; import com.mirigangneung.course.domain.*; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*; public interface CourseStopRepository extends JpaRepository<CourseStop,UUID>{List<CourseStop> findByCourseOrderBySequenceAsc(Course c);}

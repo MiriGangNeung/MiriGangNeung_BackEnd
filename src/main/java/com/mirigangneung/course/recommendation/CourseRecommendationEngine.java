@@ -1,0 +1,1 @@
+package com.mirigangneung.course.recommendation; import com.mirigangneung.place.domain.Place; import java.util.*; public interface CourseRecommendationEngine {List<Place> recommend(List<Place> candidates,Place onePick,List<String> types,String companion,String duration);}
