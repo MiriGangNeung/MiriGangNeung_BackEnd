@@ -54,7 +54,7 @@
 
 **관련 commit:**
 
-- 커밋 전 기록; 이후 구현 및 문서 변경을 커밋한다.
+- `46fbdd7` — `feat: add Docker deployment and verify P0 API flow`
 
 ### 16:13:29 ~ 16:13:55 — AI agent 작업 기록 시간 규칙 반영
 
