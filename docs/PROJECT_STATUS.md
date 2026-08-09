@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-08 17:43 KST
+Last Updated: 2026-08-09 15:52 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -13,6 +13,7 @@ Last Updated By: Codex
 - 구현·Docker·API 검증 변경은 `46fbdd7` (`feat: add Docker deployment and verify P0 API flow`)에 기록되어 있다.
 - 최신 상태 문서 커밋은 `fb78ec5` (`docs: record final Docker and API verification`)이다. 이후 문서 보완 작업은 별도 commit으로 기록한다.
 - 최신 AI 에이전트 인수인계 문서 커밋은 `0b6090f` (`docs: improve AI agent onboarding`)이다.
+- `MiriGangNeung_Agent`와 `MiriGangNeung_FrontEnd`는 팀원 참고용 폴더이며 백엔드 수정 범위에서 제외한다. 현재 checkout에는 두 폴더가 존재하지 않는다.
 
 ## 현재 코드에 존재하는 영역
 

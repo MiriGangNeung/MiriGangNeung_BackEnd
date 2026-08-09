@@ -1,5 +1,37 @@
 # Work Log
 
+## 2026-08-09
+
+### 시간 미기록 ~ 15:52 — 팀원 참고 폴더의 백엔드 작업 제외 규칙 추가
+
+**Agent:** Codex
+**작업 유형:** Documentation
+
+**작업 내용:**
+
+- `MiriGangNeung_Agent`와 `MiriGangNeung_FrontEnd`를 읽기 전용 참고 폴더로 정의했다.
+- 두 폴더를 수정·삭제·이동하거나 백엔드 commit에 포함하지 않는 기본 규칙을 `AGENTS.md`에 추가했다.
+- 현재 checkout에 두 폴더가 존재하지 않는 사실을 `PROJECT_STATUS.md`에 기록했다.
+
+**주요 변경 파일:**
+
+- `AGENTS.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- repository root 실제 목록 확인
+- 코드 변경 없음
+
+**발생한 문제와 해결 방법:**
+
+- 현재 checkout에는 요청한 두 폴더가 없어, 존재 여부를 추측하지 않고 해당 폴더가 추가될 경우에도 적용되는 규칙만 기록했다.
+
+**관련 commit:**
+
+- 문서 변경 commit 전 기록
+
 ## 2026-08-08
 
 ### 시간 미기록 ~ 17:41 — clone 후 AI 에이전트 인수인계 문서 보완
