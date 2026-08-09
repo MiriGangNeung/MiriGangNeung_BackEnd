@@ -4,6 +4,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties({TourApiProperties.class, TourApiCacheProperties.class, AwardPhotoProperties.class})
+@EnableConfigurationProperties({TourApiProperties.class, TourApiCacheProperties.class, AwardPhotoProperties.class,
+        PhotoGalleryProperties.class})
 public class TourApiConfig {
 }
