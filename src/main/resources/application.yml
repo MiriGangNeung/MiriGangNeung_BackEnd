@@ -27,6 +27,9 @@ tour:
     base-url: ${TOUR_API_BASE_URL:https://apis.data.go.kr/B551011/KorService2}
     key: ${TOUR_API_KEY:}
     timeout: ${TOUR_API_TIMEOUT:5s}
+    cache:
+      list-ttl: ${TOUR_API_LIST_CACHE_TTL:5m}
+      detail-ttl: ${TOUR_API_DETAIL_CACHE_TTL:1h}
 kakao:
   api:
     base-url: ${KAKAO_API_BASE_URL:https://apis-navi.kakaomobility.com}

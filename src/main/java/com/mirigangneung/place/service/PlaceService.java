@@ -1,6 +1,9 @@
 package com.mirigangneung.place.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mirigangneung.common.error.ApiException;
+import com.mirigangneung.common.redis.RedisCache;
+import com.mirigangneung.infrastructure.tourapi.TourApiCacheProperties;
 import com.mirigangneung.infrastructure.tourapi.TourApiClient;
 import com.mirigangneung.infrastructure.tourapi.TourCategoryMapper;
 import com.mirigangneung.place.domain.Place;
@@ -12,6 +15,7 @@ import com.mirigangneung.place.repository.PlaceImageRepository;
 import com.mirigangneung.place.repository.PlaceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +29,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class PlaceService {
@@ -33,16 +39,35 @@ public class PlaceService {
     private final PlaceRepository places;
     private final PlaceImageRepository images;
     private final TourApiClient tour;
+    private final RedisCache cache;
+    private final ObjectMapper objectMapper;
+    private final TourApiCacheProperties cacheProperties;
 
-    public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour) {
+    @Autowired
+    public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour,
+                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties) {
         this.places = places;
         this.images = images;
         this.tour = tour;
+        this.cache = cache;
+        this.objectMapper = objectMapper;
+        this.cacheProperties = cacheProperties;
+    }
+
+    public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour) {
+        this(places, images, tour, null, new ObjectMapper(),
+                new TourApiCacheProperties(java.time.Duration.ofMinutes(5), java.time.Duration.ofHours(1)));
     }
 
     @Transactional
     public PlacePageResponse search(String category, String keyword, int page, int size) {
         String normalizedKeyword = keyword == null ? "" : keyword;
+        String cacheKey = listCacheKey(category, normalizedKeyword, page, size);
+        PlacePageResponse cached = readCached(cacheKey, PlacePageResponse.class);
+        if (cached != null) {
+            return cached;
+        }
+
         try {
             tour.search(keyword, category, page, size).forEach(this::upsert);
         } catch (ApiException e) {
@@ -61,13 +86,23 @@ public class PlaceService {
         } else {
             result = places.findByRegionContainingAndNameContaining("강릉", normalizedKeyword, pageable);
         }
-        return PlacePageResponse.from(result);
+        PlacePageResponse response = PlacePageResponse.from(result);
+        writeCache(cacheKey, response, cacheProperties.listTtl());
+        return response;
     }
 
     @Transactional
     public PlaceDetailResponse detail(String id) {
+        String cacheKey = detailCacheKey(id);
+        PlaceDetailResponse cached = readCached(cacheKey, PlaceDetailResponse.class);
+        if (cached != null) {
+            return cached;
+        }
+
         Place place = existingOrFetch(id);
-        return PlaceDetailResponse.fromImages(place, images.findByPlaceOrderBySortOrderAsc(place));
+        PlaceDetailResponse response = PlaceDetailResponse.fromImages(place, images.findByPlaceOrderBySortOrderAsc(place));
+        writeCache(cacheKey, response, cacheProperties.detailTtl());
+        return response;
     }
 
     @Transactional
@@ -133,5 +168,44 @@ public class PlaceService {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private <T> T readCached(String key, Class<T> type) {
+        if (cache == null) {
+            return null;
+        }
+        try {
+            String value = cache.get(key);
+            if (!hasText(value)) {
+                return null;
+            }
+            return objectMapper.readValue(value, type);
+        } catch (Exception e) {
+            log.warn("Ignoring place cache read failure: key={}", key);
+            return null;
+        }
+    }
+
+    private void writeCache(String key, Object value, java.time.Duration ttl) {
+        if (cache == null) {
+            return;
+        }
+        try {
+            cache.put(key, objectMapper.writeValueAsString(value), ttl);
+        } catch (Exception e) {
+            log.warn("Ignoring place cache write failure: key={}", key);
+        }
+    }
+
+    private static String listCacheKey(String category, String keyword, int page, int size) {
+        return "place:list:v1:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
+    }
+
+    private static String detailCacheKey(String id) {
+        return "place:detail:v1:" + cachePart(id);
+    }
+
+    private static String cachePart(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
 }
