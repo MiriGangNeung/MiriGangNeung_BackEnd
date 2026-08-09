@@ -30,6 +30,10 @@ tour:
     cache:
       list-ttl: ${TOUR_API_LIST_CACHE_TTL:5m}
       detail-ttl: ${TOUR_API_DETAIL_CACHE_TTL:1h}
+  award:
+    base-url: ${TOUR_AWARD_API_BASE_URL:https://apis.data.go.kr/B551011/PhokoAwrdService}
+    key: ${TOUR_AWARD_API_KEY:${TOUR_API_KEY:}}
+    timeout: ${TOUR_AWARD_API_TIMEOUT:5s}
 kakao:
   api:
     base-url: ${KAKAO_API_BASE_URL:https://apis-navi.kakaomobility.com}
