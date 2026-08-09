@@ -35,7 +35,7 @@
 
 **관련 commit:**
 
-- 문서 변경 commit 전 기록
+- `7416e76` — `docs: publish unified API contract`
 
 ## 2026-08-09
 
