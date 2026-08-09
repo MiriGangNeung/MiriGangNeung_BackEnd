@@ -2,6 +2,43 @@
 
 ## 2026-08-09
 
+### 시간 미기록 ~ 22:16 — 프론트·백엔드 연동용 API 계약 문서 정리
+
+**Agent:** Codex
+**작업 유형:** Documentation/API Contract
+
+**작업 내용:**
+
+- 현재 백엔드 Controller와 DTO를 기준으로 OpenAPI 3.0 YAML을 작성했다.
+- 사람이 읽기 쉬운 API 호출 가이드와 실행 순서, JSON 예시, 오류 응답, 프론트 필드 변환표를 작성했다.
+- 프론트의 static/mock API, 자체 walking-route API와 백엔드 실제 계약의 차이를 문서에 명시했다.
+- 루트 시작 문서와 AGENTS.md에서 새 API 문서를 참조하도록 연결했다.
+
+**주요 변경 파일:**
+
+- `docs/openapi.yaml`
+- `docs/API_CONTRACT.md`
+- `docs/CODEX_START_HERE.md`
+- `AGENTS.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- `git diff --check` 통과
+- Controller, DTO, 프론트 API 타입·query·route 구현 대조 완료
+- 코드 로직 변경 없음
+
+**발생한 문제와 해결 방법:**
+
+- 프론트는 static 장소/코스와 `/api/walking-route`를 사용하고, 백엔드는 `/api/v1` 실제 API를 제공하는 차이가 확인됐다. 두 계약을 혼동하지 않도록 사람용 가이드와 OpenAPI에 각각 명시했다.
+
+**관련 commit:**
+
+- 문서 변경 commit 전 기록
+
+## 2026-08-09
+
 ### 시간 미기록 ~ 15:58 — 팀원 Agent/Frontend 폴더 내용 확인 및 용어 규칙 반영
 
 **Agent:** Codex

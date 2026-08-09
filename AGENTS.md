@@ -48,6 +48,8 @@ AI Provider, 모델, object storage 제품 및 기타 외부 서비스는 선택
 - `docs/PROJECT_STATUS.md`: 현재 repository 코드와 검증 결과를 기준으로 한 최신 구현 상태. 과거 상태를 누적하지 않는다.
 - `docs/WORK_LOG.md`: 의미 있는 개발 작업의 누적 기록. 기존 기록은 삭제하거나 임의로 수정하지 않는다.
 - `docs/adr/`: 중요한 아키텍처·기술 의사결정의 이유와 결과. 새 결정이 생길 때만 ADR을 추가한다.
+- `docs/API_CONTRACT.md`: 프론트·백엔드·Postman 사용자를 위한 현재 API 호출 순서, 예시와 필드 매핑.
+- `docs/openapi.yaml`: 현재 백엔드 API의 기계 판독용 OpenAPI 계약. API 계약 변경 시 함께 갱신한다.
 - `MiriGangNeung_BackEnd_Codex_MD_Set/docs/`: API, DB, 알고리즘, AI, 이미지 저장, 외부 API, Redis, 오류 처리, 테스트와 배포의 상세 설계 문서.
 - `MiriGangNeung_BackEnd_Codex_MD_Set/api_manual_guide/`: 한국관광공사 API 공식 활용 가이드 원본과 Markdown 변환본.
 

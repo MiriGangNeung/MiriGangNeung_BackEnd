@@ -12,6 +12,8 @@
 
 ## 상세 문서 위치
 
+- 현재 API 계약(사람용): [`API_CONTRACT.md`](./API_CONTRACT.md)
+- 현재 API 계약(기계용 OpenAPI): [`openapi.yaml`](./openapi.yaml)
 - 전체 시작 문서: [`MiriGangNeung_BackEnd_Codex_MD_Set/docs/CODEX_START_HERE.md`](../MiriGangNeung_BackEnd_Codex_MD_Set/docs/CODEX_START_HERE.md)
 - API 계약: `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`
 - DB 모델: `MiriGangNeung_BackEnd_Codex_MD_Set/docs/07_DATA_MODEL.md`
