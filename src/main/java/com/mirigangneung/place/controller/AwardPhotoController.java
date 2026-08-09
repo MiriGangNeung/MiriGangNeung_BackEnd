@@ -22,7 +22,7 @@ public class AwardPhotoController {
 
     @GetMapping
     public AwardPhotoPageResponse list(
-            @RequestParam(required = false) String region,
+            @RequestParam(defaultValue = "51") String region,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "100") @Min(1) @Max(100) int size) {
         return service.search(region, page, size);

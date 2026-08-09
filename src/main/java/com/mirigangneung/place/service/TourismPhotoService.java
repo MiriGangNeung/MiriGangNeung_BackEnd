@@ -11,6 +11,7 @@ import java.util.Objects;
 @Service
 public class TourismPhotoService {
     private static final String SOURCE = "KTO_PHOTO_GALLERY";
+    private static final String GANGNEUNG = "강릉";
 
     private final PhotoGalleryApiClient client;
 
@@ -22,6 +23,7 @@ public class TourismPhotoService {
         List<TourismPhotoResponse> content = client.search(page, size).stream()
                 .filter(Objects::nonNull)
                 .map(this::toResponse)
+                .filter(photo -> hasText(photo.location()) && photo.location().contains(GANGNEUNG))
                 .filter(photo -> hasText(photo.originalImageUrl()) || hasText(photo.thumbnailUrl()))
                 .toList();
         return new TourismPhotoPageResponse(

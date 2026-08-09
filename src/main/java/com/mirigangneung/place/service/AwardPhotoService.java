@@ -11,6 +11,7 @@ import java.util.Objects;
 @Service
 public class AwardPhotoService {
     private static final String SOURCE = "KTO_AWARD";
+    private static final String GANGNEUNG = "강릉";
 
     private final AwardPhotoApiClient client;
 
@@ -22,6 +23,7 @@ public class AwardPhotoService {
         List<AwardPhotoResponse> content = client.search(region, page, size).stream()
                 .filter(Objects::nonNull)
                 .map(this::toResponse)
+                .filter(photo -> hasText(photo.location()) && photo.location().contains(GANGNEUNG))
                 .filter(photo -> hasText(photo.originalImageUrl()) || hasText(photo.thumbnailUrl()))
                 .toList();
         return new AwardPhotoPageResponse(

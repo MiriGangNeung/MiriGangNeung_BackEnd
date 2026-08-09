@@ -40,7 +40,10 @@ class TourismPhotoServiceTest {
                         List.of("바다"), null, "https://img.test/fallback.jpg", "김작가"),
                 new PhotoGalleryApiClient.PhotoGalleryPhoto(
                         "gallery-3", "이미지 없음", "강릉시", "202407",
-                        List.of(), null, null, "이작가")));
+                        List.of(), null, null, "이작가"),
+                new PhotoGalleryApiClient.PhotoGalleryPhoto(
+                        "gallery-4", "속초의 밤", "강원특별자치도 속초시", "202408",
+                        List.of("속초"), "https://img.test/sokcho.jpg", null, "박작가")));
 
         TourismPhotoPageResponse result = service.search(0, 100);
 
