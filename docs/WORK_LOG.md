@@ -33,7 +33,7 @@
 
 **관련 commit:**
 
-- 문서 변경 commit 전 기록
+- `0d20f74` — `docs: define agent and frontend folder terminology`
 
 ## 2026-08-09
 

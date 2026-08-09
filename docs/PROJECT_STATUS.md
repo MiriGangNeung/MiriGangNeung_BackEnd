@@ -14,6 +14,7 @@ Last Updated By: Codex
 - 최신 상태 문서 커밋은 `fb78ec5` (`docs: record final Docker and API verification`)이다. 이후 문서 보완 작업은 별도 commit으로 기록한다.
 - 최신 AI 에이전트 인수인계 문서 커밋은 `0b6090f` (`docs: improve AI agent onboarding`)이다.
 - 최신 작업 범위 규칙 커밋은 `3c00533` (`docs: exclude team reference folders from backend work`)이다.
+- 최신 Agent/Frontend 용어 및 참고 범위 커밋은 `0d20f74` (`docs: define agent and frontend folder terminology`)이다.
 - `MiriGangNeung_Agent`와 `MiriGangNeung_FrontEnd`는 백엔드 repository의 상위 폴더에 있는 팀원 참고용 sibling repository이며 백엔드 수정 범위에서 제외한다. 각각 `Agent 폴더`/`AI 담당 폴더`, `Frontend 폴더`/`프론트엔드 폴더`로도 부른다.
 
 ## 현재 코드에 존재하는 영역
