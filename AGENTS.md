@@ -85,6 +85,7 @@ AI Provider, 모델, object storage 제품 및 기타 외부 서비스는 선택
 ### 참고용 팀원 폴더의 작업 범위
 
 - `MiriGangNeung_Agent`와 `MiriGangNeung_FrontEnd`는 팀원이 관리하는 Git 내용을 내려받아 참고하는 폴더로 취급한다.
+- 용어상 `Agent 폴더` 또는 `AI 담당 폴더`는 `MiriGangNeung_Agent`를, `Frontend 폴더` 또는 `프론트엔드 폴더`는 `MiriGangNeung_FrontEnd`를 의미한다.
 - 이 백엔드 작업에서는 두 폴더를 읽기 전용 참고 대상으로만 사용한다.
 - 해당 폴더의 파일을 수정, 삭제, 이동, 이름 변경, 포맷팅하거나 백엔드 commit에 포함하지 않는다.
 - 두 폴더의 코드가 필요해 보여도 먼저 백엔드 작업과의 관련성을 확인하고, 실제 변경은 이 repository의 백엔드 파일에만 수행한다.

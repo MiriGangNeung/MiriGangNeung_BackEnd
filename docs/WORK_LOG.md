@@ -2,6 +2,41 @@
 
 ## 2026-08-09
 
+### 시간 미기록 ~ 15:58 — 팀원 Agent/Frontend 폴더 내용 확인 및 용어 규칙 반영
+
+**Agent:** Codex
+**작업 유형:** Documentation/Repository Inspection
+
+**작업 내용:**
+
+- 상위 sibling repository의 `MiriGangNeung_Agent`와 `MiriGangNeung_FrontEnd`를 확인했다.
+- Agent repository의 README와 Frontend repository의 README, API 초안, 데이터 요구사항, 상태 흐름, 지도/경로/코스 장소 추가 설계·계획 문서 및 package/API 구조를 읽었다.
+- `Agent 폴더`/`AI 담당 폴더`와 `Frontend 폴더`/`프론트엔드 폴더`를 각각의 repository를 가리키는 용어로 `AGENTS.md`에 추가했다.
+- 두 sibling repository는 계속 읽기 전용 참고 대상으로 유지한다.
+
+**주요 변경 파일:**
+
+- `AGENTS.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- 두 sibling repository의 실제 경로와 주요 문서/구조 확인
+- 백엔드 코드 변경 없음
+- sibling repository에는 수정·commit을 수행하지 않음
+
+**발생한 문제와 해결 방법:**
+
+- 두 폴더는 백엔드 repository 내부가 아니라 상위 경로의 별도 Git repository로 확인했다. 따라서 내용을 참고만 하고 백엔드 문서에 용어와 범위만 기록했다.
+- sibling repository는 소유권 경고로 Git status를 확인하지 않았으며, 파일 내용 확인에는 영향을 주지 않았다.
+
+**관련 commit:**
+
+- 문서 변경 commit 전 기록
+
+## 2026-08-09
+
 ### 시간 미기록 ~ 15:52 — 팀원 참고 폴더의 백엔드 작업 제외 규칙 추가
 
 **Agent:** Codex
