@@ -59,6 +59,31 @@ class KoreanTourAwardPhotoClientTest {
     }
 
     @Test
+    void searchesNationwideAwardPhotosWithoutARegionFilter() {
+        Fixture fixture = fixture("secret%2Bkey");
+        fixture.server().expect(once(), request -> {
+                    assertRequest(request,
+                            "/B551011/PhokoAwrdService/phokoAwrdSyncList",
+                            Map.of(
+                                    "serviceKey", "secret+key",
+                                    "pageNo", "1",
+                                    "numOfRows", "100",
+                                    "showflag", "1",
+                                    "arrange", "C"));
+                    org.springframework.util.MultiValueMap<String, String> params =
+                            org.springframework.web.util.UriComponentsBuilder.fromUri(request.getURI())
+                                    .build()
+                                    .getQueryParams();
+                    assertThat(params).doesNotContainKey("lDongRegnCd");
+                })
+                .andRespond(withSuccess(SUCCESS_LIST, MediaType.APPLICATION_JSON));
+
+        assertThat(fixture.client().search(null, 0, 100)).hasSize(1);
+
+        fixture.server().verify();
+    }
+
+    @Test
     void doesNotCallRemoteWhenServiceKeyIsBlank() {
         Fixture fixture = fixture("");
 

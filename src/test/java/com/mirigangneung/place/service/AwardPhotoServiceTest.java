@@ -8,6 +8,7 @@ import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ValueConstants;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -30,7 +31,7 @@ class AwardPhotoServiceTest {
 
     @Test
     void mapsAwardPhotosWithoutPersistingThem() {
-        when(client.search("51", 0, 100)).thenReturn(List.of(
+        when(client.search(null, 0, 100)).thenReturn(List.of(
                 new AwardPhotoApiClient.AwardPhoto(
                         "award-1", "강릉의 밤", "강릉시 경포대", "금상",
                         List.of("강릉", "야경"), "https://img.test/original.jpg",
@@ -43,7 +44,7 @@ class AwardPhotoServiceTest {
                         "award-3", "이미지 없음", "강릉시", "입선",
                         List.of(), null, null, "이작가", "Type1")));
 
-        AwardPhotoPageResponse result = service.search("51", 0, 100);
+        AwardPhotoPageResponse result = service.search(null, 0, 100);
 
         assertThat(result.page()).isEqualTo(0);
         assertThat(result.size()).isEqualTo(100);
@@ -63,7 +64,7 @@ class AwardPhotoServiceTest {
         });
         assertThat(result.content().get(1).originalImageUrl()).isNull();
         assertThat(result.content().get(1).thumbnailUrl()).isEqualTo("https://img.test/fallback.jpg");
-        verify(client).search("51", 0, 100);
+        verify(client).search(null, 0, 100);
     }
 
     @Test
@@ -74,13 +75,14 @@ class AwardPhotoServiceTest {
                 .map(parameter -> parameter.getAnnotation(RequestParam.class))
                 .toArray(RequestParam[]::new);
 
-        assertThat(parameters[0].defaultValue()).isEqualTo("51");
+        assertThat(parameters[0].required()).isFalse();
+        assertThat(parameters[0].defaultValue()).isEqualTo(ValueConstants.DEFAULT_NONE);
         assertThat(parameters[1].defaultValue()).isEqualTo("0");
         assertThat(parameters[2].defaultValue()).isEqualTo("100");
 
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         Set<?> violations = validator.forExecutables().validateParameters(
-                controller, method, new Object[]{"51", 0, 101});
+                controller, method, new Object[]{null, 0, 101});
         assertThat(violations).isNotEmpty();
     }
 }
