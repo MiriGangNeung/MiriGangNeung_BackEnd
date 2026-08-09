@@ -151,10 +151,10 @@ public class KoreanTourApiClient implements TourApiClient {
             log.warn("Tour API HTTP request failed: path={}, status={}", path, e.getStatusCode().value());
             throw externalApiError();
         } catch (RestClientException e) {
-            log.warn("Tour API request failed: path={}, reason={}", path, e.getMessage());
+            log.warn("Tour API request failed: path={}, exception={}", path, e.getClass().getSimpleName());
             throw externalApiError();
         } catch (Exception e) {
-            log.warn("Tour API request could not be prepared: path={}, reason={}", path, e.getMessage());
+            log.warn("Tour API request could not be prepared: path={}, exception={}", path, e.getClass().getSimpleName());
             throw externalApiError();
         }
     }
