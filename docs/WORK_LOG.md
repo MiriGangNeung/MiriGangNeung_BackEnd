@@ -30,7 +30,7 @@
 
 **관련 commit:**
 
-- 문서 변경 commit 전 기록
+- `3c00533` — `docs: exclude team reference folders from backend work`
 
 ## 2026-08-08
 
