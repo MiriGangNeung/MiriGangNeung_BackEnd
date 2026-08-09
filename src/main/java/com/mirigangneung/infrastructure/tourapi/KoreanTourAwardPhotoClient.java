@@ -15,6 +15,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
@@ -48,7 +49,7 @@ public class KoreanTourAwardPhotoClient implements AwardPhotoApiClient {
 
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromUriString(props.baseUrl())
                 .pathSegment(ENDPOINT)
-                .queryParam("serviceKey", decodedServiceKey())
+                .queryParam("serviceKey", URLEncoder.encode(decodedServiceKey(), StandardCharsets.UTF_8))
                 .queryParam("MobileOS", "ETC")
                 .queryParam("MobileApp", "MiriGangNeung")
                 .queryParam("_type", "json")
@@ -60,7 +61,7 @@ public class KoreanTourAwardPhotoClient implements AwardPhotoApiClient {
             uriBuilder.queryParam("lDongRegnCd", regionCode.trim());
         }
 
-        return call(uriBuilder.build().encode().toUri()).stream()
+        return call(uriBuilder.build(true).toUri()).stream()
                 .map(this::mapPhoto)
                 .filter(photo -> hasText(photo.originalImageUrl()) || hasText(photo.thumbnailUrl()))
                 .toList();
