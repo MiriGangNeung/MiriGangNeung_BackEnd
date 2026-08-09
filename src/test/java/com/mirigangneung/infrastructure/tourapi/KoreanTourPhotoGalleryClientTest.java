@@ -31,15 +31,16 @@ class KoreanTourPhotoGalleryClientTest {
     void searchesGalleryPhotosAndMapsFieldsWithHttpsImageUrls() {
         Fixture fixture = fixture("secret%2Bkey");
         fixture.server().expect(once(), request -> assertRequest(request,
-                        "/B551011/PhotoGalleryService1/galleryList1",
+                        "/B551011/PhotoGalleryService1/gallerySearchList1",
                         Map.of(
                                 "serviceKey", "secret+key",
+                                "keyword", "강릉",
                                 "pageNo", "1",
                                 "numOfRows", "100",
                                 "arrange", "C")))
                 .andRespond(withSuccess(SUCCESS_LIST, MediaType.APPLICATION_JSON));
 
-        List<PhotoGalleryApiClient.PhotoGalleryPhoto> result = fixture.client().search(0, 100);
+        List<PhotoGalleryApiClient.PhotoGalleryPhoto> result = fixture.client().search("강릉", 0, 100);
 
         assertThat(result).singleElement().satisfies(photo -> {
             assertThat(photo.contentId()).isEqualTo("gallery-1");
@@ -60,7 +61,7 @@ class KoreanTourPhotoGalleryClientTest {
     void doesNotCallRemoteWhenServiceKeyIsBlank() {
         Fixture fixture = fixture("");
 
-        assertThat(fixture.client().search(0, 100)).isEmpty();
+        assertThat(fixture.client().search("강릉", 0, 100)).isEmpty();
 
         fixture.server().verify();
     }
@@ -72,10 +73,10 @@ class KoreanTourPhotoGalleryClientTest {
                 {"response":{"header":{"resultCode":"113","resultMsg":"키 오류"},"body":{}}}
                 """;
         fixture.server().expect(once(), request -> assertThat(request.getURI().getPath())
-                        .isEqualTo("/B551011/PhotoGalleryService1/galleryList1"))
+                        .isEqualTo("/B551011/PhotoGalleryService1/gallerySearchList1"))
                 .andRespond(withSuccess(errorResponse, MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> fixture.client().search(0, 100))
+        assertThatThrownBy(() -> fixture.client().search("강릉", 0, 100))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("TOUR_API_ERROR"));
         fixture.server().verify();
@@ -104,6 +105,7 @@ class KoreanTourPhotoGalleryClientTest {
         expectedParams.forEach((name, value) -> assertThat(UriUtils.decode(params.getFirst(name), StandardCharsets.UTF_8))
                 .as(name).isEqualTo(value));
         assertThat(uri.getRawQuery()).contains("serviceKey=secret%2Bkey");
+        assertThat(uri.getRawQuery()).contains("keyword=%EA%B0%95%EB%A6%89");
         assertThat(params.getFirst("MobileOS")).isEqualTo("ETC");
         assertThat(params.getFirst("MobileApp")).isEqualTo("MiriGangNeung");
         assertThat(params.getFirst("_type")).isEqualTo("json");

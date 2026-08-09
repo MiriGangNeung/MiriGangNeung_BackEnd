@@ -30,7 +30,7 @@ class TourismPhotoServiceTest {
 
     @Test
     void mapsGalleryPhotosWithoutPersistingThem() {
-        when(client.search(0, 100)).thenReturn(List.of(
+        when(client.search("강릉", 0, 100)).thenReturn(List.of(
                 new PhotoGalleryApiClient.PhotoGalleryPhoto(
                         "gallery-1", "강릉의 밤", "강릉시 경포대", "202405",
                         List.of("강릉", "야경"), "https://img.test/original.jpg",
@@ -64,12 +64,12 @@ class TourismPhotoServiceTest {
         });
         assertThat(result.content().get(1).originalImageUrl()).isNull();
         assertThat(result.content().get(1).thumbnailUrl()).isEqualTo("https://img.test/fallback.jpg");
-        verify(client).search(0, 100);
+        verify(client).search("강릉", 0, 100);
     }
 
     @Test
     void returnsAnEmptyPageWhenGalleryBatchIsEmpty() {
-        when(client.search(2, 100)).thenReturn(List.of());
+        when(client.search("강릉", 2, 100)).thenReturn(List.of());
 
         TourismPhotoPageResponse result = service.search(2, 100);
 

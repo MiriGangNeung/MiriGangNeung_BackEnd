@@ -20,7 +20,7 @@ public class TourismPhotoService {
     }
 
     public TourismPhotoPageResponse search(int page, int size) {
-        List<TourismPhotoResponse> content = client.search(page, size).stream()
+        List<TourismPhotoResponse> content = client.search(GANGNEUNG, page, size).stream()
                 .filter(Objects::nonNull)
                 .map(this::toResponse)
                 .filter(photo -> hasText(photo.location()) && photo.location().contains(GANGNEUNG))

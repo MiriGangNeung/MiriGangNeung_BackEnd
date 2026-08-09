@@ -3,7 +3,7 @@ package com.mirigangneung.infrastructure.tourapi;
 import java.util.List;
 
 public interface PhotoGalleryApiClient {
-    List<PhotoGalleryPhoto> search(int page, int size);
+    List<PhotoGalleryPhoto> search(String keyword, int page, int size);
 
     record PhotoGalleryPhoto(
             String contentId,

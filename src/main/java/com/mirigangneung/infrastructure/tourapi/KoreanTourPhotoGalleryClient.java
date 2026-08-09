@@ -24,7 +24,7 @@ import java.util.List;
 @Component
 public class KoreanTourPhotoGalleryClient implements PhotoGalleryApiClient {
     private static final Logger log = LoggerFactory.getLogger(KoreanTourPhotoGalleryClient.class);
-    private static final String ENDPOINT = "galleryList1";
+    private static final String ENDPOINT = "gallerySearchList1";
     private static final String KTO_HTTP_HOST = "http://tong.visitkorea.or.kr";
 
     private final PhotoGalleryProperties props;
@@ -43,8 +43,8 @@ public class KoreanTourPhotoGalleryClient implements PhotoGalleryApiClient {
     }
 
     @Override
-    public List<PhotoGalleryPhoto> search(int page, int size) {
-        if (!hasServiceKey()) {
+    public List<PhotoGalleryPhoto> search(String keyword, int page, int size) {
+        if (!hasServiceKey() || !hasText(keyword)) {
             return List.of();
         }
 
@@ -55,6 +55,7 @@ public class KoreanTourPhotoGalleryClient implements PhotoGalleryApiClient {
                 .queryParam("MobileApp", "MiriGangNeung")
                 .queryParam("_type", "json")
                 .queryParam("arrange", "C")
+                .queryParam("keyword", URLEncoder.encode(keyword.trim(), StandardCharsets.UTF_8))
                 .queryParam("pageNo", Math.max(0, page) + 1)
                 .queryParam("numOfRows", size)
                 .build(true)
