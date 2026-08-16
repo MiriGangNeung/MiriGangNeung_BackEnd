@@ -487,4 +487,4 @@
 - 기존 작업 트리에서 PR 브랜치 전환 중 Windows 파일 교체 오류가 발생했다. 원격 `origin/develop` 기준 별도 worktree `.pr-develop`를 사용해 작업 파일 혼합을 피했다.
 - 원격 네트워크/의존성 접근 제한으로 테스트가 완료되지 않았다.
 
-**관련 commit:** `64da55b` — `fix: address tourism photo API review comments`
+**관련 commit:** `c445d0b` — `fix: address tourism photo API review comments`
