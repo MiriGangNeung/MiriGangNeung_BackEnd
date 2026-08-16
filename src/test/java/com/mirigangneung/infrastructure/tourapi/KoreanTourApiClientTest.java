@@ -179,6 +179,9 @@ class KoreanTourApiClientTest {
                 org.springframework.web.util.UriComponentsBuilder.fromUri(uri).build().getQueryParams();
         expectedParams.forEach((name, value) -> assertThat(UriUtils.decode(params.getFirst(name), StandardCharsets.UTF_8))
                 .as(name).isEqualTo(value));
+        if ("secret+key".equals(expectedParams.get("serviceKey"))) {
+            assertThat(uri.getRawQuery()).contains("serviceKey=secret%2Bkey");
+        }
         assertThat(params.getFirst("MobileOS")).isEqualTo("ETC");
         assertThat(params.getFirst("MobileApp")).isEqualTo("MiriGangNeung");
         assertThat(params.getFirst("_type")).isEqualTo("json");

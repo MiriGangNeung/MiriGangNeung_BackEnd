@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-08 17:43 KST
+Last Updated: 2026-08-16 23:04 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -34,6 +34,8 @@ Last Updated By: Codex
 - `/api/v1/courses`
 - `/api/v1/share/courses`
 - `/api/v1/routes/walking`
+- `/api/v1/award-photos`
+- `/api/v1/tourism-photos`
 
 세부 request/response 계약은 `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`를 기준으로 한다.
 
@@ -52,6 +54,8 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 | 환경변수 | 용도 | 현재 등록 상태 |
 |---|---|---|
 | `TOUR_API_KEY` | 한국관광공사 OpenAPI 인증키 | 루트 `.env`에 등록됨. `.gitignore`로 Git 제외 |
+| `TOUR_AWARD_API_KEY` | 한국관광공사 공모전 사진 API 인증키 | 미등록 시 `TOUR_API_KEY` fallback |
+| `TOUR_PHOTO_GALLERY_API_KEY` | 한국관광공사 관광사진갤러리 API 인증키 | 미등록 시 `TOUR_API_KEY` fallback |
 | `KAKAO_API_KEY` | Kakao REST API 인증키 | 미등록 |
 | `AI_API_KEY` | 선택된 AI Provider 인증키 | Provider 미정 및 미등록 |
 

@@ -1,5 +1,109 @@
 # Work Log
 
+## 2026-08-09
+
+### 시간 미기록 ~ 22:16 — 프론트·백엔드 연동용 API 계약 문서 정리
+
+**Agent:** Codex
+**작업 유형:** Documentation/API Contract
+
+**작업 내용:**
+
+- 현재 백엔드 Controller와 DTO를 기준으로 OpenAPI 3.0 YAML을 작성했다.
+- 사람이 읽기 쉬운 API 호출 가이드와 실행 순서, JSON 예시, 오류 응답, 프론트 필드 변환표를 작성했다.
+- 프론트의 static/mock API, 자체 walking-route API와 백엔드 실제 계약의 차이를 문서에 명시했다.
+- 루트 시작 문서와 AGENTS.md에서 새 API 문서를 참조하도록 연결했다.
+
+**주요 변경 파일:**
+
+- `docs/openapi.yaml`
+- `docs/API_CONTRACT.md`
+- `docs/CODEX_START_HERE.md`
+- `AGENTS.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- `git diff --check` 통과
+- Controller, DTO, 프론트 API 타입·query·route 구현 대조 완료
+- 코드 로직 변경 없음
+
+**발생한 문제와 해결 방법:**
+
+- 프론트는 static 장소/코스와 `/api/walking-route`를 사용하고, 백엔드는 `/api/v1` 실제 API를 제공하는 차이가 확인됐다. 두 계약을 혼동하지 않도록 사람용 가이드와 OpenAPI에 각각 명시했다.
+
+**관련 commit:**
+
+- `7416e76` — `docs: publish unified API contract`
+
+## 2026-08-09
+
+### 시간 미기록 ~ 15:58 — 팀원 Agent/Frontend 폴더 내용 확인 및 용어 규칙 반영
+
+**Agent:** Codex
+**작업 유형:** Documentation/Repository Inspection
+
+**작업 내용:**
+
+- 상위 sibling repository의 `MiriGangNeung_Agent`와 `MiriGangNeung_FrontEnd`를 확인했다.
+- Agent repository의 README와 Frontend repository의 README, API 초안, 데이터 요구사항, 상태 흐름, 지도/경로/코스 장소 추가 설계·계획 문서 및 package/API 구조를 읽었다.
+- `Agent 폴더`/`AI 담당 폴더`와 `Frontend 폴더`/`프론트엔드 폴더`를 각각의 repository를 가리키는 용어로 `AGENTS.md`에 추가했다.
+- 두 sibling repository는 계속 읽기 전용 참고 대상으로 유지한다.
+
+**주요 변경 파일:**
+
+- `AGENTS.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- 두 sibling repository의 실제 경로와 주요 문서/구조 확인
+- 백엔드 코드 변경 없음
+- sibling repository에는 수정·commit을 수행하지 않음
+
+**발생한 문제와 해결 방법:**
+
+- 두 폴더는 백엔드 repository 내부가 아니라 상위 경로의 별도 Git repository로 확인했다. 따라서 내용을 참고만 하고 백엔드 문서에 용어와 범위만 기록했다.
+- sibling repository는 소유권 경고로 Git status를 확인하지 않았으며, 파일 내용 확인에는 영향을 주지 않았다.
+
+**관련 commit:**
+
+- `0d20f74` — `docs: define agent and frontend folder terminology`
+
+## 2026-08-09
+
+### 시간 미기록 ~ 15:52 — 팀원 참고 폴더의 백엔드 작업 제외 규칙 추가
+
+**Agent:** Codex
+**작업 유형:** Documentation
+
+**작업 내용:**
+
+- `MiriGangNeung_Agent`와 `MiriGangNeung_FrontEnd`를 읽기 전용 참고 폴더로 정의했다.
+- 두 폴더를 수정·삭제·이동하거나 백엔드 commit에 포함하지 않는 기본 규칙을 `AGENTS.md`에 추가했다.
+- 현재 checkout에 두 폴더가 존재하지 않는 사실을 `PROJECT_STATUS.md`에 기록했다.
+
+**주요 변경 파일:**
+
+- `AGENTS.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- repository root 실제 목록 확인
+- 코드 변경 없음
+
+**발생한 문제와 해결 방법:**
+
+- 현재 checkout에는 요청한 두 폴더가 없어, 존재 여부를 추측하지 않고 해당 폴더가 추가될 경우에도 적용되는 규칙만 기록했다.
+
+**관련 commit:**
+
+- `3c00533` — `docs: exclude team reference folders from backend work`
+
 ## 2026-08-08
 
 ### 시간 미기록 ~ 17:41 — clone 후 AI 에이전트 인수인계 문서 보완
@@ -348,3 +452,39 @@
 **관련 commit:**
 
 - 없음 (현재 작업 트리 변경)
+## 2026-08-16
+
+### 시간 미기록 ~ 23:04 — 관광 사진 PR 리뷰 반영
+
+**Agent:** Codex
+**작업 유형:** Implementation / Documentation
+
+**작업 내용:**
+
+- PR 브랜치 `develop`의 리뷰 항목을 확인하고 기존 API 계약 문서를 복구했다.
+- 기존 `KoreanTourApiClient`의 서비스 키와 query parameter 인코딩을 신규 관광 사진 Client와 같은 URI-safe 방식으로 통일했다.
+- `+`가 포함된 서비스 키 회귀 테스트를 추가했다.
+- Award/PhotoGallery API의 현재 페이지 기준 근사 페이지네이션 정책과 단일 이미지 URL 동작을 API 문서에 명시했다.
+- `PROJECT_STATUS.md`에 신규 API와 관련 환경변수를 반영했다.
+
+**주요 변경 파일:**
+
+- `docs/API_CONTRACT.md`
+- `docs/openapi.yaml`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+- `src/main/java/com/mirigangneung/infrastructure/tourapi/KoreanTourApiClient.java`
+- `src/test/java/com/mirigangneung/infrastructure/tourapi/KoreanTourApiClientTest.java`
+
+**테스트 결과:**
+
+- Gradle Wrapper 실행은 Gradle 배포판 다운로드 권한 오류로 미실행.
+- 로컬 Gradle로 재시도했으나 현재 환경에서 Spring Boot Gradle Plugin 의존성 다운로드가 차단되어 미실행.
+- 코드 및 문서 변경 후 전체 테스트는 커밋 전에 재실행해야 한다.
+
+**발생한 문제와 해결 방법:**
+
+- 기존 작업 트리에서 PR 브랜치 전환 중 Windows 파일 교체 오류가 발생했다. 원격 `origin/develop` 기준 별도 worktree `.pr-develop`를 사용해 작업 파일 혼합을 피했다.
+- 원격 네트워크/의존성 접근 제한으로 테스트가 완료되지 않았다.
+
+**관련 commit:** `64da55b` — `fix: address tourism photo API review comments`

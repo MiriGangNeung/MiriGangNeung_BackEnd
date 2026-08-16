@@ -148,8 +148,12 @@ public class PlaceService {
         Place incoming = new Place(tourPlace.contentId(), tourPlace.name(), tourPlace.region(),
                 tourPlace.category(), tourPlace.description(), tourPlace.latitude(), tourPlace.longitude(),
                 tourPlace.thumbnailUrl(), "KTO");
-        Place place = places.findByTourContentId(tourPlace.contentId()).orElse(incoming);
-        place.updateFrom(incoming, tourPlace.sourceUpdatedAt());
+        Place place = places.findByTourContentId(tourPlace.contentId()).orElse(null);
+        if (place == null) {
+            place = incoming;
+        } else {
+            place.updateFrom(incoming, tourPlace.sourceUpdatedAt());
+        }
         Place saved = places.save(place);
 
         if (tourPlace.images() != null && !tourPlace.images().isEmpty()) {

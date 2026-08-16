@@ -15,6 +15,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -136,12 +137,12 @@ public class KoreanTourApiClient implements TourApiClient {
         try {
             UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromUriString(props.baseUrl())
                     .pathSegment(path)
-                    .queryParam("serviceKey", decodedServiceKey())
+                    .queryParam("serviceKey", encodeQueryParam(decodedServiceKey()))
                     .queryParam("MobileOS", "ETC")
                     .queryParam("MobileApp", "MiriGangNeung")
                     .queryParam("_type", "json");
-            params.forEach(uriBuilder::queryParam);
-            URI uri = uriBuilder.build().encode().toUri();
+            params.forEach((name, value) -> uriBuilder.queryParam(name, encodeQueryParam(String.valueOf(value))));
+            URI uri = uriBuilder.build(true).toUri();
             String body = client.get().uri(uri).retrieve().body(String.class);
             return parser.parseItems(body);
         } catch (ApiException e) {
@@ -216,6 +217,10 @@ public class KoreanTourApiClient implements TourApiClient {
 
     private String decodedServiceKey() {
         return URLDecoder.decode(props.key(), StandardCharsets.UTF_8);
+    }
+
+    private static String encodeQueryParam(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private static RestClient buildClient(TourApiProperties props) {
