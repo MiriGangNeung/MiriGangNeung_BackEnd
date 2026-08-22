@@ -77,7 +77,48 @@ GET /api/v1/places/{placeId}/nearby
 GET /api/v1/places/{placeId}/related
 ```
 
-## 4. 코스 API
+## 4. KTO 사진 소스 API
+
+사진 소스 API는 한국관광공사 원문을 내부 DTO로 정규화해 반환하며 데이터를 백엔드 DB에 영속화하지 않는다.
+
+```http
+GET /api/v1/award-photos?region=51&page=0&size=100
+GET /api/v1/tourism-photos?page=0&size=100
+```
+
+`award-photos`는 기본적으로 강원 권역 코드 `51`을 요청하고, 서비스 계층에서 위치에 `강릉`이 포함된 사진만 반환한다. `tourism-photos`는 `강릉` 키워드로 검색한 뒤 동일한 위치 필터를 적용한다. 두 API의 `size`는 1~100이다.
+
+응답의 공통 형태는 다음과 같다.
+
+```json
+{
+  "content": [],
+  "page": 0,
+  "size": 100,
+  "totalElements": 0,
+  "totalPages": 0
+}
+```
+
+현재 KTO 사진 원문 응답과 강릉·이미지 필터가 적용된 뒤의 전체 건수를 별도로 제공하지 않으므로 `totalElements`는 현재 응답 content 개수, `totalPages`는 content가 있을 때 1, 없을 때 0이다. 따라서 정식 페이지네이션 UI의 전체 페이지 수로 사용하지 않는다. 정확한 페이지네이션으로 변경하려면 KTO totalCount와 필터링 전략을 함께 확정해야 한다.
+
+Award photo 주요 필드:
+
+```text
+id, title, location, award, keywords, originalImageUrl, thumbnailUrl,
+photographer, copyrightCode, source=KTO_AWARD
+```
+
+Tourism photo 주요 필드:
+
+```text
+id, title, location, photographyMonth, keywords, originalImageUrl,
+thumbnailUrl, photographer, source=KTO_PHOTO_GALLERY
+```
+
+PhotoGalleryService1은 단일 이미지 URL만 제공하므로 `originalImageUrl`과 `thumbnailUrl`이 동일할 수 있다.
+
+## 5. 코스 API
 
 ### 생성 요청
 
@@ -136,7 +177,7 @@ DELETE /api/v1/courses/{courseId}/share
 GET /api/v1/share/courses/{shareToken}
 ```
 
-## 5. 사진 합성 Job API
+## 6. 사진 합성 Job API
 
 ```http
 POST /api/v1/compositions
@@ -161,7 +202,7 @@ GET /api/v1/compositions/{jobId}/download
 
 주의: 현재 AI Provider는 실제로 선택·연결되지 않았고 `AiGenerationClient` 인터페이스만 존재한다. 따라서 Job 생성 API가 있어도 실제 DONE 이미지가 항상 생성되는 상태는 아니다.
 
-## 6. 도보 경로 API
+## 7. 도보 경로 API
 
 현재 백엔드 계약은 두 지점 사이의 POST 요청이다.
 
@@ -193,7 +234,7 @@ Content-Type: application/json
 
 프론트 repository의 자체 `/api/walking-route?stops=...` API는 현재 백엔드 API와 다른 별도 구현이다. 프론트가 백엔드를 사용하려면 URL, HTTP method, request/response shape을 이 문서 기준으로 맞춰야 한다.
 
-## 7. 공통 오류 응답
+## 8. 공통 오류 응답
 
 ```json
 {
@@ -214,7 +255,7 @@ Content-Type: application/json
 | 404 | 장소·코스·Job을 찾을 수 없음 |
 | 502 | 관광공사·Kakao 등 외부 API 오류 |
 
-## 8. 프론트 연동 시 필드 변환
+## 9. 프론트 연동 시 필드 변환
 
 현재 프론트 mock 타입과 백엔드 응답 필드가 다르다.
 
@@ -232,7 +273,7 @@ Content-Type: application/json
 
 프론트의 `usePlacesQuery`, `useCourseStopsQuery`, `useComposeRun`은 현재 static/mock 구현이다. 실제 연동 시 해당 지점부터 백엔드 API 호출로 교체해야 한다.
 
-## 9. 관련 문서
+## 10. 관련 문서
 
 - [OpenAPI 정의](./openapi.yaml)
 - [프로젝트 상태](./PROJECT_STATUS.md)

@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-09 22:16 KST
+Last Updated: 2026-08-16 23:04 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -13,10 +13,6 @@ Last Updated By: Codex
 - 구현·Docker·API 검증 변경은 `46fbdd7` (`feat: add Docker deployment and verify P0 API flow`)에 기록되어 있다.
 - 최신 상태 문서 커밋은 `fb78ec5` (`docs: record final Docker and API verification`)이다. 이후 문서 보완 작업은 별도 commit으로 기록한다.
 - 최신 AI 에이전트 인수인계 문서 커밋은 `0b6090f` (`docs: improve AI agent onboarding`)이다.
-- 최신 작업 범위 규칙 커밋은 `3c00533` (`docs: exclude team reference folders from backend work`)이다.
-- 최신 Agent/Frontend 용어 및 참고 범위 커밋은 `0d20f74` (`docs: define agent and frontend folder terminology`)이다.
-- 최신 통합 API 계약 문서 커밋은 `7416e76` (`docs: publish unified API contract`)이다.
-- `MiriGangNeung_Agent`와 `MiriGangNeung_FrontEnd`는 백엔드 repository의 상위 폴더에 있는 팀원 참고용 sibling repository이며 백엔드 수정 범위에서 제외한다. 각각 `Agent 폴더`/`AI 담당 폴더`, `Frontend 폴더`/`프론트엔드 폴더`로도 부른다.
 
 ## 현재 코드에 존재하는 영역
 
@@ -38,6 +34,8 @@ Last Updated By: Codex
 - `/api/v1/courses`
 - `/api/v1/share/courses`
 - `/api/v1/routes/walking`
+- `/api/v1/award-photos`
+- `/api/v1/tourism-photos`
 
 세부 request/response 계약은 `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`를 기준으로 한다.
 
@@ -56,6 +54,8 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 | 환경변수 | 용도 | 현재 등록 상태 |
 |---|---|---|
 | `TOUR_API_KEY` | 한국관광공사 OpenAPI 인증키 | 루트 `.env`에 등록됨. `.gitignore`로 Git 제외 |
+| `TOUR_AWARD_API_KEY` | 한국관광공사 공모전 사진 API 인증키 | 미등록 시 `TOUR_API_KEY` fallback |
+| `TOUR_PHOTO_GALLERY_API_KEY` | 한국관광공사 관광사진갤러리 API 인증키 | 미등록 시 `TOUR_API_KEY` fallback |
 | `KAKAO_API_KEY` | Kakao REST API 인증키 | 미등록 |
 | `AI_API_KEY` | 선택된 AI Provider 인증키 | Provider 미정 및 미등록 |
 

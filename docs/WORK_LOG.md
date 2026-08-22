@@ -452,3 +452,39 @@
 **관련 commit:**
 
 - 없음 (현재 작업 트리 변경)
+## 2026-08-16
+
+### 시간 미기록 ~ 23:04 — 관광 사진 PR 리뷰 반영
+
+**Agent:** Codex
+**작업 유형:** Implementation / Documentation
+
+**작업 내용:**
+
+- PR 브랜치 `develop`의 리뷰 항목을 확인하고 기존 API 계약 문서를 복구했다.
+- 기존 `KoreanTourApiClient`의 서비스 키와 query parameter 인코딩을 신규 관광 사진 Client와 같은 URI-safe 방식으로 통일했다.
+- `+`가 포함된 서비스 키 회귀 테스트를 추가했다.
+- Award/PhotoGallery API의 현재 페이지 기준 근사 페이지네이션 정책과 단일 이미지 URL 동작을 API 문서에 명시했다.
+- `PROJECT_STATUS.md`에 신규 API와 관련 환경변수를 반영했다.
+
+**주요 변경 파일:**
+
+- `docs/API_CONTRACT.md`
+- `docs/openapi.yaml`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+- `src/main/java/com/mirigangneung/infrastructure/tourapi/KoreanTourApiClient.java`
+- `src/test/java/com/mirigangneung/infrastructure/tourapi/KoreanTourApiClientTest.java`
+
+**테스트 결과:**
+
+- Gradle Wrapper 실행은 Gradle 배포판 다운로드 권한 오류로 미실행.
+- 로컬 Gradle로 재시도했으나 현재 환경에서 Spring Boot Gradle Plugin 의존성 다운로드가 차단되어 미실행.
+- 코드 및 문서 변경 후 전체 테스트는 커밋 전에 재실행해야 한다.
+
+**발생한 문제와 해결 방법:**
+
+- 기존 작업 트리에서 PR 브랜치 전환 중 Windows 파일 교체 오류가 발생했다. 원격 `origin/develop` 기준 별도 worktree `.pr-develop`를 사용해 작업 파일 혼합을 피했다.
+- 원격 네트워크/의존성 접근 제한으로 테스트가 완료되지 않았다.
+
+**관련 commit:** `c445d0b` — `fix: address tourism photo API review comments`
