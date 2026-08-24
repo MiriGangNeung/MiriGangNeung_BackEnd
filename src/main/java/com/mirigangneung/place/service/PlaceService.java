@@ -237,7 +237,7 @@ public class PlaceService {
     }
 
     private static String listCacheKey(String category, String keyword, int page, int size) {
-        return "place:list:v6:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
+        return "place:list:v7:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
     }
 
     private static String detailCacheKey(String id) {

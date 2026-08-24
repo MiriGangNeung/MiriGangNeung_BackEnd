@@ -3,6 +3,7 @@ package com.mirigangneung.place.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -33,6 +34,8 @@ class PlaceCatalogSyncServiceTest {
     @Mock private PlaceRepository placeRepository;
     @Mock private PlaceImageRepository placeImageRepository;
     @Mock private TourismPhotoMatcher tourismPhotoMatcher;
+    @Mock private PlaceCatalogCleanupService cleanupService;
+    @Mock private ImageUrlValidator imageUrlValidator;
 
     private PlaceCatalogSyncService service;
 
@@ -43,6 +46,8 @@ class PlaceCatalogSyncServiceTest {
                 placeRepository,
                 placeImageRepository,
                 tourismPhotoMatcher,
+                cleanupService,
+                imageUrlValidator,
                 2);
     }
 
@@ -66,6 +71,8 @@ class PlaceCatalogSyncServiceTest {
             return place;
         });
         when(placeImageRepository.findByPlaceOrderBySortOrderAsc(any())).thenReturn(List.of());
+        when(imageUrlValidator.isUsable(anyString())).thenReturn(true);
+        when(imageUrlValidator.isUsable("https://gallery/6.jpg")).thenReturn(false);
         when(tourismPhotoMatcher.findImageUrls(anyList())).thenAnswer(invocation -> {
             List<Place> places = invocation.getArgument(0);
             Place anmok = places.stream()
@@ -86,8 +93,11 @@ class PlaceCatalogSyncServiceTest {
         PlaceCatalogSyncService.SyncResult result = service.synchronizeAll();
 
         assertThat(result.fetchedPlaces()).isEqualTo(3);
+        assertThat(result.excludedByCategory()).isZero();
+        assertThat(result.deletedFoodPlaces()).isZero();
         assertThat(result.savedPlaces()).isEqualTo(3);
         assertThat(result.placesWithImages()).isEqualTo(2);
+        assertThat(result.rejectedImageUrls()).isEqualTo(1);
         verify(tourApiClient).searchSummaries(null, null, 0, 2);
         verify(tourApiClient).searchSummaries(null, null, 1, 2);
         verify(tourApiClient, never()).searchSummaries(null, null, 2, 2);
@@ -103,7 +113,7 @@ class PlaceCatalogSyncServiceTest {
                 contentId,
                 name,
                 "강원특별자치도 강릉시",
-                "관광지",
+                "nature",
                 null,
                 37.75,
                 128.90,

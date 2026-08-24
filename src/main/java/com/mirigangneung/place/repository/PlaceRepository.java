@@ -2,6 +2,7 @@ package com.mirigangneung.place.repository;
 
 import com.mirigangneung.place.domain.Place;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -11,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface PlaceRepository extends JpaRepository<Place, UUID> {
     Optional<Place> findByTourContentId(String id);
+
+    List<Place> findByCategory(String category);
 
     Page<Place> findByRegionContainingAndNameContaining(String region, String name, Pageable pageable);
 
@@ -22,6 +25,7 @@ public interface PlaceRepository extends JpaRepository<Place, UUID> {
                     from Place place, PlaceImage image
                     where image.place = place
                       and lower(image.copyrightCode) = 'type1'
+                      and place.category in ('nature', 'culture', 'active')
                       and place.region like concat('%', :region, '%')
                       and place.name like concat('%', :name, '%')
                     """,
@@ -30,6 +34,7 @@ public interface PlaceRepository extends JpaRepository<Place, UUID> {
                     from Place place, PlaceImage image
                     where image.place = place
                       and lower(image.copyrightCode) = 'type1'
+                      and place.category in ('nature', 'culture', 'active')
                       and place.region like concat('%', :region, '%')
                       and place.name like concat('%', :name, '%')
                     """)
@@ -44,6 +49,7 @@ public interface PlaceRepository extends JpaRepository<Place, UUID> {
                     from Place place, PlaceImage image
                     where image.place = place
                       and lower(image.copyrightCode) = 'type1'
+                      and place.category in ('nature', 'culture', 'active')
                       and place.category like concat('%', :category, '%')
                       and place.name like concat('%', :name, '%')
                     """,
@@ -52,6 +58,7 @@ public interface PlaceRepository extends JpaRepository<Place, UUID> {
                     from Place place, PlaceImage image
                     where image.place = place
                       and lower(image.copyrightCode) = 'type1'
+                      and place.category in ('nature', 'culture', 'active')
                       and place.category like concat('%', :category, '%')
                       and place.name like concat('%', :name, '%')
                     """)

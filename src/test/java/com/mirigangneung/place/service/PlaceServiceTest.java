@@ -180,7 +180,7 @@ class PlaceServiceTest {
         when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of());
         cachedService.detail(place.getId().toString());
 
-        verify(cache).put(startsWith("place:list:v6:"), anyString(), eq(listTtl));
+        verify(cache).put(startsWith("place:list:v7:"), anyString(), eq(listTtl));
         verify(cache).put(startsWith("place:detail:v3:"), anyString(), eq(detailTtl));
         verifyNoInteractions(tour);
     }

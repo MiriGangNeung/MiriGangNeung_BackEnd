@@ -27,11 +27,14 @@ class PlaceRepositoryTest {
     void listsOnlyPlacesThatHaveAtLeastOneType1Image() {
         Place visible = savePlace("visible", "경포해변", "nature");
         Place forbidden = savePlace("forbidden", "Type3 장소", "nature");
+        Place food = savePlace("food", "배경과 무관한 음식점", "food");
         savePlace("no-image", "사진 없는 장소", "nature");
         placeImageRepository.save(new PlaceImage(
                 visible, "https://img.test/visible.jpg", "대표", "KTO", 0, "Type1"));
         placeImageRepository.save(new PlaceImage(
                 forbidden, "https://img.test/forbidden.jpg", "대표", "KTO", 0, "Type3"));
+        placeImageRepository.save(new PlaceImage(
+                food, "https://img.test/food.jpg", "대표", "KTO", 0, "Type1"));
 
         var result = placeRepository.findVisibleByRegionAndName(
                 "강릉", "", PageRequest.of(0, 20));
@@ -43,16 +46,16 @@ class PlaceRepositoryTest {
     @Test
     void appliesCategoryAndKeywordToPlacesWithType1Images() {
         Place beach = savePlace("beach", "안목해변", "nature");
-        Place cafe = savePlace("cafe", "안목카페", "food");
+        Place museum = savePlace("museum", "안목미술관", "culture");
         placeImageRepository.saveAll(List.of(
                 new PlaceImage(beach, "https://img.test/beach.jpg", "대표", "KTO", 0, "Type1"),
-                new PlaceImage(cafe, "https://img.test/cafe.jpg", "대표", "KTO", 0, "Type1")));
+                new PlaceImage(museum, "https://img.test/museum.jpg", "대표", "KTO", 0, "Type1")));
 
         var result = placeRepository.findVisibleByCategoryAndName(
-                "food", "안목", PageRequest.of(0, 20));
+                "culture", "안목", PageRequest.of(0, 20));
 
         assertThat(result.getTotalElements()).isEqualTo(1);
-        assertThat(result.getContent()).extracting(Place::getTourContentId).containsExactly("cafe");
+        assertThat(result.getContent()).extracting(Place::getTourContentId).containsExactly("museum");
     }
 
     private Place savePlace(String contentId, String name, String category) {

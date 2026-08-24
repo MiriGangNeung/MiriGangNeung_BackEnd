@@ -22,9 +22,13 @@ public class PlaceCatalogSyncRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         PlaceCatalogSyncService.SyncResult result = syncService.synchronizeAll();
         log.info(
-                "Gangneung place catalog synchronized: fetched={}, saved={}, withImages={}",
+                "Gangneung place catalog synchronized: fetched={}, categoryExcluded={}, foodDeleted={}, "
+                        + "saved={}, withImages={}, brokenImagesExcluded={}",
                 result.fetchedPlaces(),
+                result.excludedByCategory(),
+                result.deletedFoodPlaces(),
                 result.savedPlaces(),
-                result.placesWithImages());
+                result.placesWithImages(),
+                result.rejectedImageUrls());
     }
 }

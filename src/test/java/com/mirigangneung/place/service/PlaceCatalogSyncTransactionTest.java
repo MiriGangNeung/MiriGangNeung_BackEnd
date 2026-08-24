@@ -18,7 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-@SpringBootTest
+@SpringBootTest(properties = "tour.api.sync-on-startup=false")
 class PlaceCatalogSyncTransactionTest {
 
     @Autowired private PlaceCatalogSyncService service;
@@ -27,6 +27,7 @@ class PlaceCatalogSyncTransactionTest {
 
     @MockitoBean private TourApiClient tourApiClient;
     @MockitoBean private TourismPhotoMatcher tourismPhotoMatcher;
+    @MockitoBean private ImageUrlValidator imageUrlValidator;
 
     @Test
     void replacesExistingImagesWithoutRequiringCallerManagedTransaction() {
@@ -61,10 +62,39 @@ class PlaceCatalogSyncTransactionTest {
                 OffsetDateTime.parse("2026-08-24T00:00:00Z"));
         when(tourApiClient.searchSummaries(null, null, 0, 1000)).thenReturn(List.of(place));
         when(tourismPhotoMatcher.findImageUrls(anyList())).thenReturn(Map.of());
+        when(imageUrlValidator.isUsable("https://img.test/place.jpg")).thenReturn(true);
 
         assertThatCode(service::synchronizeAll).doesNotThrowAnyException();
 
         assertThat(placeRepository.findByTourContentId("transaction-test-place")).isPresent();
         assertThat(placeImageRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void deletesStoredFoodPlacesAndTheirImagesDuringSynchronization() {
+        Place food = placeRepository.save(new Place(
+                "food-to-delete",
+                "삭제할 음식점",
+                "강원특별자치도 강릉시",
+                "food",
+                "설명",
+                37.75,
+                128.90,
+                null,
+                "KTO"));
+        placeImageRepository.save(new PlaceImage(
+                food,
+                "https://img.test/food.jpg",
+                "음식점",
+                "KTO",
+                0,
+                "Type1"));
+        when(tourApiClient.searchSummaries(null, null, 0, 1000)).thenReturn(List.of());
+
+        PlaceCatalogSyncService.SyncResult result = service.synchronizeAll();
+
+        assertThat(result.deletedFoodPlaces()).isEqualTo(1);
+        assertThat(placeRepository.findByTourContentId("food-to-delete")).isEmpty();
+        assertThat(placeImageRepository.findByPlaceOrderBySortOrderAsc(food)).isEmpty();
     }
 }

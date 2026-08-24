@@ -15,4 +15,6 @@ public interface PlaceImageRepository extends JpaRepository<PlaceImage, UUID> {
 
     @Transactional
     void deleteByPlace(Place place);
+
+    void deleteByPlaceIn(List<Place> places);
 }

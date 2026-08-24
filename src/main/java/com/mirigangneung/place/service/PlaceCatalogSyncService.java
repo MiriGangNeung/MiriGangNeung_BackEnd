@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,11 +22,14 @@ public class PlaceCatalogSyncService {
     private static final int MAX_PAGES = 100;
     private static final int MAX_IMAGES_PER_PLACE = 5;
     private static final String ALLOWED_COPYRIGHT_CODE = "Type1";
+    private static final Set<String> BACKGROUND_CATEGORIES = Set.of("nature", "culture", "active");
 
     private final TourApiClient tourApiClient;
     private final PlaceRepository placeRepository;
     private final PlaceImageRepository placeImageRepository;
     private final TourismPhotoMatcher tourismPhotoMatcher;
+    private final PlaceCatalogCleanupService cleanupService;
+    private final ImageUrlValidator imageUrlValidator;
     private final int pageSize;
 
     @Autowired
@@ -33,8 +37,11 @@ public class PlaceCatalogSyncService {
             TourApiClient tourApiClient,
             PlaceRepository placeRepository,
             PlaceImageRepository placeImageRepository,
-            TourismPhotoMatcher tourismPhotoMatcher) {
-        this(tourApiClient, placeRepository, placeImageRepository, tourismPhotoMatcher, DEFAULT_PAGE_SIZE);
+            TourismPhotoMatcher tourismPhotoMatcher,
+            PlaceCatalogCleanupService cleanupService,
+            ImageUrlValidator imageUrlValidator) {
+        this(tourApiClient, placeRepository, placeImageRepository, tourismPhotoMatcher,
+                cleanupService, imageUrlValidator, DEFAULT_PAGE_SIZE);
     }
 
     PlaceCatalogSyncService(
@@ -42,17 +49,26 @@ public class PlaceCatalogSyncService {
             PlaceRepository placeRepository,
             PlaceImageRepository placeImageRepository,
             TourismPhotoMatcher tourismPhotoMatcher,
+            PlaceCatalogCleanupService cleanupService,
+            ImageUrlValidator imageUrlValidator,
             int pageSize) {
         this.tourApiClient = tourApiClient;
         this.placeRepository = placeRepository;
         this.placeImageRepository = placeImageRepository;
         this.tourismPhotoMatcher = tourismPhotoMatcher;
+        this.cleanupService = cleanupService;
+        this.imageUrlValidator = imageUrlValidator;
         this.pageSize = pageSize;
     }
 
     public SyncResult synchronizeAll() {
         List<TourApiClient.TourPlace> catalog = loadAllSummaries();
-        List<SyncedPlace> synced = catalog.stream()
+        int deletedFoodPlaces = cleanupService.deleteFoodPlaces();
+        List<TourApiClient.TourPlace> backgroundCatalog = catalog.stream()
+                .filter(PlaceCatalogSyncService::isBackgroundPlace)
+                .toList();
+        int excludedByCategory = catalog.size() - backgroundCatalog.size();
+        List<SyncedPlace> synced = backgroundCatalog.stream()
                 .map(this::upsertPlace)
                 .filter(Objects::nonNull)
                 .toList();
@@ -60,12 +76,23 @@ public class PlaceCatalogSyncService {
         Map<UUID, List<String>> galleryImages = tourismPhotoMatcher.findImageUrls(savedPlaces);
 
         int placesWithImages = 0;
+        int rejectedImageUrls = 0;
         for (SyncedPlace syncedPlace : synced) {
-            if (replaceImages(syncedPlace, galleryImages.getOrDefault(syncedPlace.place().getId(), List.of()))) {
+            ImageReplacementResult replacement = replaceImages(
+                    syncedPlace,
+                    galleryImages.getOrDefault(syncedPlace.place().getId(), List.of()));
+            rejectedImageUrls += replacement.rejectedImageUrls();
+            if (replacement.hasImages()) {
                 placesWithImages++;
             }
         }
-        return new SyncResult(catalog.size(), synced.size(), placesWithImages);
+        return new SyncResult(
+                catalog.size(),
+                excludedByCategory,
+                deletedFoodPlaces,
+                synced.size(),
+                placesWithImages,
+                rejectedImageUrls);
     }
 
     private List<TourApiClient.TourPlace> loadAllSummaries() {
@@ -112,7 +139,7 @@ public class PlaceCatalogSyncService {
         return new SyncedPlace(placeRepository.save(place), summaryImages);
     }
 
-    private boolean replaceImages(SyncedPlace syncedPlace, List<String> galleryUrls) {
+    private ImageReplacementResult replaceImages(SyncedPlace syncedPlace, List<String> galleryUrls) {
         Place place = syncedPlace.place();
         Map<String, ImageData> byUrl = new LinkedHashMap<>();
         placeImageRepository.findByPlaceOrderBySortOrderAsc(place).stream()
@@ -124,9 +151,14 @@ public class PlaceCatalogSyncService {
         galleryUrls.forEach(url -> addImage(byUrl, new ImageData(
                 url, place.getName(), "KTO_PHOTO_GALLERY", ALLOWED_COPYRIGHT_CODE)));
 
+        List<ImageData> usableImages = byUrl.values().parallelStream()
+                .filter(image -> imageUrlValidator.isUsable(image.url()))
+                .toList();
+        int rejectedImageUrls = byUrl.size() - usableImages.size();
+
         placeImageRepository.deleteByPlace(place);
         int sortOrder = 0;
-        for (ImageData image : byUrl.values().stream().limit(MAX_IMAGES_PER_PLACE).toList()) {
+        for (ImageData image : usableImages.stream().limit(MAX_IMAGES_PER_PLACE).toList()) {
             placeImageRepository.save(new PlaceImage(
                     place,
                     image.url(),
@@ -135,7 +167,7 @@ public class PlaceCatalogSyncService {
                     sortOrder++,
                     image.copyrightCode()));
         }
-        return sortOrder > 0;
+        return new ImageReplacementResult(sortOrder > 0, rejectedImageUrls);
     }
 
     private static List<TourApiClient.TourImage> allowedImages(List<TourApiClient.TourImage> images) {
@@ -162,21 +194,34 @@ public class PlaceCatalogSyncService {
     }
 
     private static void addImage(Map<String, ImageData> byUrl, ImageData image) {
-        if (image != null && hasText(image.url()) && byUrl.size() < MAX_IMAGES_PER_PLACE) {
+        if (image != null && hasText(image.url())) {
             byUrl.putIfAbsent(image.url().trim(), image);
         }
+    }
+
+    private static boolean isBackgroundPlace(TourApiClient.TourPlace place) {
+        return place != null && BACKGROUND_CATEGORIES.contains(place.category());
     }
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
-    public record SyncResult(int fetchedPlaces, int savedPlaces, int placesWithImages) {
+    public record SyncResult(
+            int fetchedPlaces,
+            int excludedByCategory,
+            int deletedFoodPlaces,
+            int savedPlaces,
+            int placesWithImages,
+            int rejectedImageUrls) {
     }
 
     private record SyncedPlace(Place place, List<TourApiClient.TourImage> summaryImages) {
     }
 
     private record ImageData(String url, String title, String source, String copyrightCode) {
+    }
+
+    private record ImageReplacementResult(boolean hasImages, int rejectedImageUrls) {
     }
 }
