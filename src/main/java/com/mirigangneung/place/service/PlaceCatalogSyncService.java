@@ -1,6 +1,7 @@
 package com.mirigangneung.place.service;
 
 import com.mirigangneung.infrastructure.tourapi.TourApiClient;
+import com.mirigangneung.common.redis.RedisCache;
 import com.mirigangneung.place.domain.Place;
 import com.mirigangneung.place.domain.PlaceImage;
 import com.mirigangneung.place.repository.PlaceImageRepository;
@@ -30,6 +31,7 @@ public class PlaceCatalogSyncService {
     private final TourismPhotoMatcher tourismPhotoMatcher;
     private final PlaceCatalogCleanupService cleanupService;
     private final ImageUrlValidator imageUrlValidator;
+    private final RedisCache cache;
     private final int pageSize;
 
     @Autowired
@@ -39,9 +41,10 @@ public class PlaceCatalogSyncService {
             PlaceImageRepository placeImageRepository,
             TourismPhotoMatcher tourismPhotoMatcher,
             PlaceCatalogCleanupService cleanupService,
-            ImageUrlValidator imageUrlValidator) {
+            ImageUrlValidator imageUrlValidator,
+            RedisCache cache) {
         this(tourApiClient, placeRepository, placeImageRepository, tourismPhotoMatcher,
-                cleanupService, imageUrlValidator, DEFAULT_PAGE_SIZE);
+                cleanupService, imageUrlValidator, cache, DEFAULT_PAGE_SIZE);
     }
 
     PlaceCatalogSyncService(
@@ -52,18 +55,33 @@ public class PlaceCatalogSyncService {
             PlaceCatalogCleanupService cleanupService,
             ImageUrlValidator imageUrlValidator,
             int pageSize) {
+        this(tourApiClient, placeRepository, placeImageRepository, tourismPhotoMatcher,
+                cleanupService, imageUrlValidator, null, pageSize);
+    }
+
+    PlaceCatalogSyncService(
+            TourApiClient tourApiClient,
+            PlaceRepository placeRepository,
+            PlaceImageRepository placeImageRepository,
+            TourismPhotoMatcher tourismPhotoMatcher,
+            PlaceCatalogCleanupService cleanupService,
+            ImageUrlValidator imageUrlValidator,
+            RedisCache cache,
+            int pageSize) {
         this.tourApiClient = tourApiClient;
         this.placeRepository = placeRepository;
         this.placeImageRepository = placeImageRepository;
         this.tourismPhotoMatcher = tourismPhotoMatcher;
         this.cleanupService = cleanupService;
         this.imageUrlValidator = imageUrlValidator;
+        this.cache = cache;
         this.pageSize = pageSize;
     }
 
     public SyncResult synchronizeAll() {
         List<TourApiClient.TourPlace> catalog = loadAllSummaries();
         int deletedFoodPlaces = cleanupService.deleteFoodPlaces();
+        int deletedGalleryOnlyCards = cleanupService.deleteGalleryOnlyPlaces();
         List<TourApiClient.TourPlace> backgroundCatalog = catalog.stream()
                 .filter(PlaceCatalogSyncService::isBackgroundPlace)
                 .toList();
@@ -86,13 +104,23 @@ public class PlaceCatalogSyncService {
                 placesWithImages++;
             }
         }
+        invalidatePlaceCaches();
         return new SyncResult(
                 catalog.size(),
                 excludedByCategory,
                 deletedFoodPlaces,
+                deletedGalleryOnlyCards,
                 synced.size(),
                 placesWithImages,
                 rejectedImageUrls);
+    }
+
+    private void invalidatePlaceCaches() {
+        if (cache == null) {
+            return;
+        }
+        cache.deleteByPrefix("place:list:");
+        cache.deleteByPrefix("place:detail:");
     }
 
     private List<TourApiClient.TourPlace> loadAllSummaries() {
@@ -211,6 +239,7 @@ public class PlaceCatalogSyncService {
             int fetchedPlaces,
             int excludedByCategory,
             int deletedFoodPlaces,
+            int deletedGalleryOnlyCards,
             int savedPlaces,
             int placesWithImages,
             int rejectedImageUrls) {

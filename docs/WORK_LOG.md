@@ -1,5 +1,48 @@
 # Work Log
 
+## 2026-08-24
+
+### 20:00 ~ 진행 중 — PhotoGalleryService1을 이미지 보충 전용으로 변경
+
+**Agent:** Codex
+**작업 유형:** Behavior Change/Verification
+
+**작업 내용:**
+
+- PhotoGalleryService1에서 기존 KorService2 장소명과 일치하는 사진만 기존 장소의 `place_images`에 보충하도록 유지했다.
+- 장소명·좌표·상세 정보가 부족한 미매칭 사진으로 별도 `gallery` 장소 카드를 생성하지 않도록 제거했다.
+- 기존에 남아 있던 `KTO_PHOTO_GALLERY` 카드와 이미지는 전체 동기화 시 정리하도록 변경했다.
+- 장소 목록 API의 `source=PHOTO_GALLERY` 필터, 응답 `sourceType`, 프론트의 `사진 검수` 탭과 별도 API 호출을 제거했다.
+- 화면 요청은 KorService2 장소 카드와 DB에 저장된 최대 5장의 이미지만 사용한다.
+
+**검증 결과:**
+
+- 백엔드 핵심 테스트 통과: `PlaceCatalogSyncTransactionTest`, `TourismPhotoMatcherTest`, `PlaceRepositoryTest`, `PlaceServiceTest`
+- 프론트 관련 테스트 4개 통과 및 production build 통과
+- 실제 Docker 동기화에서 KorService2 1,004개를 조회했고, 배경 카테고리 237개를 저장·갱신했다. 카테고리 제외 767개, 기존 `KTO_PHOTO_GALLERY` 카드 삭제 47개, 이미지 URL 검증 제외 9개였다. 기본 목록은 69개이며 `gallery` 카드는 0개다.
+
+### 19:00 ~ 19:27 — PhotoGalleryService1 미매칭 검수용 카드 분리 (이후 제거됨)
+
+**Agent:** Codex
+**작업 유형:** Feature Implementation/Verification
+
+**작업 내용:**
+
+- KorService2 장소 카드는 기존 기본 목록으로 유지하고, PhotoGalleryService1에서만 발견된 장소명 그룹을 `category=gallery`, `source=KTO_PHOTO_GALLERY` 카드로 별도 저장했다.
+- 장소 목록 API에 `source=PHOTO_GALLERY` 필터와 응답 `sourceType`을 추가했다. 기본 목록에는 `nature`, `culture`, `active` KorService2 카드만 노출한다.
+- PhotoGalleryService1 원문 공개 API와 사용하지 않는 공모전 사진 API, 전용 DTO·서비스·컨트롤러·테스트·설정을 제거했다. PhotoGalleryService1 내부 클라이언트와 동기화 매칭은 유지했다.
+- 음식·카페명으로 명확히 판단되는 미매칭 사진은 검수용 카드로 생성하지 않는다. 관광사진 API가 정상 수집되면 기존 검수용 카드를 교체해 stale 카드가 남지 않도록 했다.
+- 동기화 완료 시 장소 목록·상세 Redis 캐시를 prefix 기준으로 무효화해 DB와 화면 응답이 어긋나지 않게 했다. 관광사진 API 호출 실패 시에는 기존 검수용 카드를 보존한다.
+
+**검증 결과:**
+
+- `bash gradlew --no-daemon test`: `BUILD SUCCESSFUL`
+- Docker 실제 동기화: KorService2 1,004개 조회, 배경 카테고리 237개 저장, 카테고리 제외 767개, 깨진 이미지 10개 제외, 기본 화면 카드 69개
+- PhotoGalleryService1 미매칭 검수용 카드: 이전 47개 삭제 후 현재 47개 생성
+- `GET /api/v1/places?page=0&size=100`: 69개, 모두 `sourceType=KOR_SERVICE2`, 이미지 보유
+- `GET /api/v1/places?source=PHOTO_GALLERY&page=0&size=100`: 47개, 모두 `sourceType=PHOTO_GALLERY`, `category=gallery`, 이미지 보유
+- `TOUR_API_SYNC_ON_STARTUP=false`로 앱을 재기동했고 `/actuator/health`가 `UP`임을 확인했다.
+
 ## 2026-08-09
 
 ### 시간 미기록 ~ 22:16 — 프론트·백엔드 연동용 API 계약 문서 정리

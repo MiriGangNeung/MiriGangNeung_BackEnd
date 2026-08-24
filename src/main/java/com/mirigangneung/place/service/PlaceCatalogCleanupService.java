@@ -34,4 +34,16 @@ public class PlaceCatalogCleanupService {
         placeRepository.deleteAll(foodPlaces);
         return foodPlaces.size();
     }
+
+    @Transactional
+    public int deleteGalleryOnlyPlaces() {
+        List<Place> galleryPlaces = placeRepository.findBySource("KTO_PHOTO_GALLERY");
+        if (galleryPlaces.isEmpty()) {
+            return 0;
+        }
+        courseStopRepository.deleteByPlaceIn(galleryPlaces);
+        placeImageRepository.deleteByPlaceIn(galleryPlaces);
+        placeRepository.deleteAll(galleryPlaces);
+        return galleryPlaces.size();
+    }
 }

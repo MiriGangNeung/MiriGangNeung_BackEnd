@@ -48,7 +48,6 @@ services:
       TOUR_API_KEY: ${TOUR_API_KEY:-}
       TOUR_API_BASE_URL: ${TOUR_API_BASE_URL:-https://apis.data.go.kr/B551011/KorService2}
       TOUR_API_SYNC_ON_STARTUP: ${TOUR_API_SYNC_ON_STARTUP:-false}
-      TOUR_AWARD_API_KEY: ${TOUR_AWARD_API_KEY:-${TOUR_API_KEY:-}}
       TOUR_PHOTO_GALLERY_API_KEY: ${TOUR_PHOTO_GALLERY_API_KEY:-${TOUR_API_KEY:-}}
       KAKAO_API_KEY: ${KAKAO_API_KEY:-}
       KAKAO_API_BASE_URL: ${KAKAO_API_BASE_URL:-https://apis-navi.kakaomobility.com}

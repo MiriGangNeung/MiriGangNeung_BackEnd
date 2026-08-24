@@ -3,11 +3,6 @@ package com.mirigangneung.place.service;
 import com.mirigangneung.common.error.ApiException;
 import com.mirigangneung.infrastructure.tourapi.PhotoGalleryApiClient;
 import com.mirigangneung.place.domain.Place;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -16,6 +11,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 @Service
 public class TourismPhotoMatcher {
@@ -46,9 +45,9 @@ public class TourismPhotoMatcher {
             return Map.of();
         }
 
-        Map<String, List<String>> imagesByNormalizedTitle;
+        Map<String, GalleryPhotoGroup> groups;
         try {
-            imagesByNormalizedTitle = catalog();
+            groups = catalog();
         } catch (ApiException exception) {
             log.warn("Using stored place images because tourism photo gallery loading failed");
             return Map.of();
@@ -59,35 +58,35 @@ public class TourismPhotoMatcher {
             if (place == null || place.getId() == null) {
                 continue;
             }
-            List<String> matched = imagesByNormalizedTitle.get(PlaceNameNormalizer.normalize(place.getName()));
-            if (matched != null && !matched.isEmpty()) {
-                result.put(place.getId(), matched);
+            GalleryPhotoGroup group = groups.get(PlaceNameNormalizer.normalize(place.getName()));
+            if (group != null && !group.imageUrls().isEmpty()) {
+                result.put(place.getId(), group.imageUrls());
             }
         }
         return result;
     }
 
-    private Map<String, List<String>> catalog() {
+    private Map<String, GalleryPhotoGroup> catalog() {
         CachedCatalog current = cachedCatalog;
         Instant now = clock.instant();
         if (current != null && current.expiresAt().isAfter(now)) {
-            return current.imagesByNormalizedTitle();
+            return current.groups();
         }
 
         synchronized (this) {
             current = cachedCatalog;
             now = clock.instant();
             if (current != null && current.expiresAt().isAfter(now)) {
-                return current.imagesByNormalizedTitle();
+                return current.groups();
             }
-            Map<String, List<String>> loaded = loadCatalog();
+            Map<String, GalleryPhotoGroup> loaded = loadCatalog();
             cachedCatalog = new CachedCatalog(loaded, now.plus(cacheTtl));
             return loaded;
         }
     }
 
-    private Map<String, List<String>> loadCatalog() {
-        Map<String, LinkedHashSet<String>> collected = new LinkedHashMap<>();
+    private Map<String, GalleryPhotoGroup> loadCatalog() {
+        Map<String, GalleryPhotoGroupBuilder> collected = new LinkedHashMap<>();
         for (int page = 0; page < MAX_PAGES; page++) {
             List<PhotoGalleryApiClient.PhotoGalleryPhoto> batch = client.search(GANGNEUNG, page, PAGE_SIZE);
             if (batch == null) {
@@ -102,36 +101,54 @@ public class TourismPhotoMatcher {
             }
         }
 
-        Map<String, List<String>> result = new LinkedHashMap<>();
-        collected.forEach((title, urls) -> result.put(title, List.copyOf(urls)));
+        Map<String, GalleryPhotoGroup> result = new LinkedHashMap<>();
+        collected.forEach((title, group) -> result.put(title, group.build()));
         return Map.copyOf(result);
     }
 
-    private static void collect(Map<String, LinkedHashSet<String>> collected,
-                                PhotoGalleryApiClient.PhotoGalleryPhoto photo) {
+    private static void collect(
+            Map<String, GalleryPhotoGroupBuilder> collected,
+            PhotoGalleryApiClient.PhotoGalleryPhoto photo) {
         String normalizedTitle = PlaceNameNormalizer.normalize(photo.title());
         String imageUrl = firstText(photo.originalImageUrl(), photo.thumbnailUrl());
-        if (!hasText(normalizedTitle) || !hasText(imageUrl)) {
+        if (normalizedTitle.isBlank() || imageUrl == null || imageUrl.isBlank()) {
             return;
         }
 
-        LinkedHashSet<String> urls = collected.computeIfAbsent(normalizedTitle, ignored -> new LinkedHashSet<>());
-        if (urls.size() < MAX_IMAGES_PER_PLACE) {
-            urls.add(imageUrl.trim());
-        }
+        GalleryPhotoGroupBuilder group = collected.computeIfAbsent(
+                normalizedTitle,
+                ignored -> new GalleryPhotoGroupBuilder());
+        group.addImage(imageUrl.trim());
     }
 
     private static String firstText(String first, String second) {
-        if (hasText(first)) {
+        if (first != null && !first.isBlank()) {
             return first;
         }
-        return hasText(second) ? second : null;
+        return second != null && !second.isBlank() ? second : null;
     }
 
-    private static boolean hasText(String value) {
+    private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
-    private record CachedCatalog(Map<String, List<String>> imagesByNormalizedTitle, Instant expiresAt) {
+    private record CachedCatalog(Map<String, GalleryPhotoGroup> groups, Instant expiresAt) {
+    }
+
+    private record GalleryPhotoGroup(List<String> imageUrls) {
+    }
+
+    private static final class GalleryPhotoGroupBuilder {
+        private final LinkedHashSet<String> imageUrls = new LinkedHashSet<>();
+
+        private void addImage(String imageUrl) {
+            if (imageUrls.size() < MAX_IMAGES_PER_PLACE) {
+                imageUrls.add(imageUrl);
+            }
+        }
+
+        private GalleryPhotoGroup build() {
+            return new GalleryPhotoGroup(List.copyOf(imageUrls));
+        }
     }
 }

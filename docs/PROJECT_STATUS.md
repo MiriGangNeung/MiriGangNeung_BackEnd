@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-24 14:30 KST
+Last Updated: 2026-08-24 20:05 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -30,13 +30,11 @@ Last Updated By: Codex
 
 구현된 Controller 경로는 다음과 같다.
 
-- `/api/v1/places`
+- `/api/v1/places` (KorService2 장소 카드와 저장된 보충 이미지 조회)
 - `/api/v1/compositions`
 - `/api/v1/courses`
 - `/api/v1/share/courses`
 - `/api/v1/routes/walking`
-- `/api/v1/award-photos`
-- `/api/v1/tourism-photos`
 
 세부 request/response 계약은 `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`를 기준으로 한다.
 
@@ -46,11 +44,15 @@ Last Updated By: Codex
 
 Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너가 실행 중이다. app은 `localhost:8080`, MySQL은 호스트 `3307`, Redis는 호스트 `6379`에 연결된다. `/actuator/health`는 `UP`이며 `/api/v1/places?page=0&size=2`에서 강릉 관광지 응답을 확인했다.
 
-관광사진 정보 GW의 `강릉` 검색 결과 1,623건 중 촬영지가 강릉인 1,610건을 장소명 기준으로 정규화했다. 전체 동기화 전 DB 장소 100개 기준으로 사진이 있는 화면 카드는 18개에서 34개로 증가했다.
+관광사진 정보 GW의 `강릉` 검색 결과는 동기화 때만 내부 호출한다. KorService2 장소명과 매칭되는 사진만 기존 장소 카드에 보충하고, 매칭되지 않는 사진은 별도 카드로 만들지 않는다.
 
 `TOUR_API_SYNC_ON_STARTUP=true`로 서버를 한 번 시작하면 KorService2 강릉 목록을 마지막 페이지까지 읽어 전체 장소를 DB에 적재한다. 이 대량 동기화는 장소별 상세사진 API를 연쇄 호출하지 않으며, Type1 대표사진과 관광사진 정보 GW 매칭 사진을 장소당 최대 5장까지 저장한다. 기본값은 `false`다.
 
-2026-08-24 실제 Docker 동기화에서 원본 1,004개 중 배경 합성용 카테고리인 관광지·문화시설·레포츠 237개만 저장·갱신했다. 음식점 482개는 DB에서 삭제했고, 깨진 이미지 URL 9개를 제외한 뒤 실제 화면 카드로 노출되는 장소는 69개다. 카테고리별로 관광지 51개, 문화시설 11개, 레포츠 7개이며 모든 카드에 실제 응답 가능한 이미지가 포함된다.
+2026-08-24 실제 Docker 동기화에서 KorService2 원본 1,004개 중 배경 합성용 카테고리인 관광지·문화시설·레포츠 237개만 저장·갱신했다. 카테고리 제외는 767개였고, 기존 DB에 남아 있던 음식점 482개는 앞선 정리에서 삭제되어 이번 동기화의 `foodDeleted=0`이 됐다. 깨진 이미지 URL 10개를 제외한 뒤 기본 화면 카드 69개가 남았으며, 카테고리별로 관광지 51개·문화시설 11개·레포츠 7개다.
+
+같은 동기화에서 PhotoGalleryService1 사진을 장소명으로 정규화했다. 이전에 검수용으로 생성된 별도 `gallery` 카드 47개를 삭제했고, 새 `gallery` 카드는 생성하지 않았다. 이후에는 매칭된 이미지만 기존 KorService2 카드에 저장한다. 실제 동기화 로그는 `galleryOnlyDeleted=47`이었다.
+
+공개 원문 사진 엔드포인트인 `award-photos`와 `tourism-photos`는 제거했다. 공모전 API는 더 이상 사용하지 않으며, PhotoGalleryService1은 동기화 내부에서만 호출한다. 화면 요청·Redis 만료는 관광공사 API 호출을 발생시키지 않고 DB 결과를 사용한다. 동기화가 성공하면 장소 목록·상세 Redis 캐시도 무효화한다.
 
 올바른 JSON으로 `POST /api/v1/courses`를 실행해 Course 생성과 원픽 포함 응답을 확인했다.
 
@@ -61,7 +63,6 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 | 환경변수 | 용도 | 현재 등록 상태 |
 |---|---|---|
 | `TOUR_API_KEY` | 한국관광공사 OpenAPI 인증키 | 루트 `.env`에 등록됨. `.gitignore`로 Git 제외 |
-| `TOUR_AWARD_API_KEY` | 한국관광공사 공모전 사진 API 인증키 | 미등록 시 `TOUR_API_KEY` fallback |
 | `TOUR_PHOTO_GALLERY_API_KEY` | 한국관광공사 관광사진갤러리 API 인증키 | 미등록 시 `TOUR_API_KEY` fallback |
 | `KAKAO_API_KEY` | Kakao REST API 인증키 | 미등록 |
 | `AI_API_KEY` | 선택된 AI Provider 인증키 | Provider 미정 및 미등록 |

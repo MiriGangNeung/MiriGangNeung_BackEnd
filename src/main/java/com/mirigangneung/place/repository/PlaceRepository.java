@@ -15,6 +15,8 @@ public interface PlaceRepository extends JpaRepository<Place, UUID> {
 
     List<Place> findByCategory(String category);
 
+    List<Place> findBySource(String source);
+
     Page<Place> findByRegionContainingAndNameContaining(String region, String name, Pageable pageable);
 
     Page<Place> findByCategoryContainingAndNameContaining(String category, String name, Pageable pageable);
@@ -66,4 +68,5 @@ public interface PlaceRepository extends JpaRepository<Place, UUID> {
             @Param("category") String category,
             @Param("name") String name,
             Pageable pageable);
+
 }

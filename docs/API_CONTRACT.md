@@ -59,7 +59,8 @@ GET /api/v1/places?keyword=경포&page=0&size=20
       "tags": [],
       "thumbnailUrl": "https://example.com/image.jpg",
       "latitude": 37.8046,
-      "longitude": 128.9072
+      "longitude": 128.9072,
+      "imageUrls": ["https://example.com/image.jpg"]
     }
   ],
   "page": 0,
@@ -77,46 +78,18 @@ GET /api/v1/places/{placeId}/nearby
 GET /api/v1/places/{placeId}/related
 ```
 
-## 4. KTO 사진 소스 API
+## 4. 장소 이미지 보충 정책
 
-사진 소스 API는 한국관광공사 원문을 내부 DTO로 정규화해 반환하며 데이터를 백엔드 DB에 영속화하지 않는다.
+장소 목록은 KorService2에서 수집한 배경 합성용 장소 카드만 반환한다. 장소 하나에 대해 KorService2 이미지와 PhotoGalleryService1에서 장소명으로 매칭된 이미지를 합쳐 Type1 이미지 최대 5장까지 제공한다.
 
 ```http
-GET /api/v1/award-photos?region=51&page=0&size=100
-GET /api/v1/tourism-photos?page=0&size=100
+# 장소 카드와 저장된 이미지 조회
+GET /api/v1/places?page=0&size=20
 ```
 
-`award-photos`는 기본적으로 강원 권역 코드 `51`을 요청하고, 서비스 계층에서 위치에 `강릉`이 포함된 사진만 반환한다. `tourism-photos`는 `강릉` 키워드로 검색한 뒤 동일한 위치 필터를 적용한다. 두 API의 `size`는 1~100이다.
+PhotoGalleryService1에서 장소명이 기존 KorService2 장소와 매칭되지 않는 사진은 카드로 만들지 않고 버린다. 위치·상세 정보가 부족한 사진을 별도 장소로 노출하지 않기 위한 정책이다.
 
-응답의 공통 형태는 다음과 같다.
-
-```json
-{
-  "content": [],
-  "page": 0,
-  "size": 100,
-  "totalElements": 0,
-  "totalPages": 0
-}
-```
-
-현재 KTO 사진 원문 응답과 강릉·이미지 필터가 적용된 뒤의 전체 건수를 별도로 제공하지 않으므로 `totalElements`는 현재 응답 content 개수, `totalPages`는 content가 있을 때 1, 없을 때 0이다. 따라서 정식 페이지네이션 UI의 전체 페이지 수로 사용하지 않는다. 정확한 페이지네이션으로 변경하려면 KTO totalCount와 필터링 전략을 함께 확정해야 한다.
-
-Award photo 주요 필드:
-
-```text
-id, title, location, award, keywords, originalImageUrl, thumbnailUrl,
-photographer, copyrightCode, source=KTO_AWARD
-```
-
-Tourism photo 주요 필드:
-
-```text
-id, title, location, photographyMonth, keywords, originalImageUrl,
-thumbnailUrl, photographer, source=KTO_PHOTO_GALLERY
-```
-
-PhotoGalleryService1은 단일 이미지 URL만 제공하므로 `originalImageUrl`과 `thumbnailUrl`이 동일할 수 있다.
+PhotoGalleryService1 원문 API는 공개 컨트롤러로 노출하지 않는다. 동기화 시에만 내부적으로 호출하고, 결과 이미지 URL을 `place_images`에 저장한다. 따라서 화면 요청이나 Redis 만료 때문에 관광공사 API를 다시 호출하지 않는다.
 
 ## 5. 코스 API
 

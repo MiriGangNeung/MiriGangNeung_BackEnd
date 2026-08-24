@@ -9,6 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.mirigangneung.common.redis.RedisCache;
 import com.mirigangneung.infrastructure.tourapi.TourApiClient;
 import com.mirigangneung.place.domain.Place;
 import com.mirigangneung.place.domain.PlaceImage;
@@ -36,6 +37,7 @@ class PlaceCatalogSyncServiceTest {
     @Mock private TourismPhotoMatcher tourismPhotoMatcher;
     @Mock private PlaceCatalogCleanupService cleanupService;
     @Mock private ImageUrlValidator imageUrlValidator;
+    @Mock private RedisCache cache;
 
     private PlaceCatalogSyncService service;
 
@@ -48,6 +50,7 @@ class PlaceCatalogSyncServiceTest {
                 tourismPhotoMatcher,
                 cleanupService,
                 imageUrlValidator,
+                cache,
                 2);
     }
 
@@ -103,6 +106,8 @@ class PlaceCatalogSyncServiceTest {
         verify(tourApiClient, never()).searchSummaries(null, null, 2, 2);
         verify(placeRepository, times(3)).save(any(Place.class));
         verify(placeImageRepository, times(6)).save(any(PlaceImage.class));
+        verify(cache).deleteByPrefix("place:list:");
+        verify(cache).deleteByPrefix("place:detail:");
     }
 
     private static TourApiClient.TourPlace tourPlace(

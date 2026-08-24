@@ -97,4 +97,44 @@ class PlaceCatalogSyncTransactionTest {
         assertThat(placeRepository.findByTourContentId("food-to-delete")).isEmpty();
         assertThat(placeImageRepository.findByPlaceOrderBySortOrderAsc(food)).isEmpty();
     }
+
+    @Test
+    void deletesLegacyPhotoGalleryOnlyCardsWithoutCreatingNewCards() {
+        Place staleGallery = placeRepository.save(new Place(
+                "gallery:old-food",
+                "감자옹심이",
+                "강원특별자치도 강릉시",
+                "gallery",
+                "PhotoGalleryService1 검수용 카드",
+                null,
+                null,
+                null,
+                "KTO_PHOTO_GALLERY"));
+        placeImageRepository.save(new PlaceImage(
+                staleGallery,
+                "https://img.test/old-food.jpg",
+                "감자옹심이",
+                "KTO_PHOTO_GALLERY",
+                0,
+                "Type1"));
+        TourApiClient.TourPlace knownPlace = new TourApiClient.TourPlace(
+                "known-place",
+                "경포대",
+                "강원특별자치도 강릉시",
+                "nature",
+                "설명",
+                37.75,
+                128.90,
+                null,
+                List.of(),
+                OffsetDateTime.parse("2026-08-24T00:00:00Z"));
+        when(tourApiClient.searchSummaries(null, null, 0, 1000)).thenReturn(List.of(knownPlace));
+        when(tourismPhotoMatcher.findImageUrls(anyList())).thenReturn(Map.of());
+
+        PlaceCatalogSyncService.SyncResult result = service.synchronizeAll();
+
+        assertThat(placeRepository.findByTourContentId("gallery:old-food")).isEmpty();
+        assertThat(result.deletedGalleryOnlyCards()).isEqualTo(1);
+        assertThat(placeRepository.findBySource("KTO_PHOTO_GALLERY")).isEmpty();
+    }
 }
