@@ -10,6 +10,7 @@ servers:
     description: Local/Docker
 tags:
   - name: Places
+  - name: Images
   - name: Compositions
   - name: Courses
   - name: Routes
@@ -67,6 +68,26 @@ paths:
           content:
             application/json:
               schema: {type: array, items: {$ref: '#/components/schemas/PlaceResponse'}}
+  /media/images/{storageKey}:
+    get:
+      tags: [Images]
+      summary: 저장된 장소 이미지 스트리밍
+      description: CDN으로 교체 가능한 이미지 origin endpoint다. 성공 응답은 장기 immutable Cache-Control을 제공한다.
+      parameters:
+        - name: storageKey
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: 이미지 파일
+          headers:
+            Cache-Control:
+              schema: {type: string, example: 'public, max-age=31536000, immutable'}
+          content:
+            image/*:
+              schema: {type: string, format: binary}
+        '404': {$ref: '#/components/responses/NotFound'}
   /api/v1/compositions:
     post:
       tags: [Compositions]
@@ -219,17 +240,26 @@ components:
   schemas:
     PlaceResponse:
       type: object
-      required: [id, name, region, category, tags, latitude, longitude, imageUrls]
+      required: [id, name, region, category, tags, latitude, longitude, imageUrls, originalImageUrls]
       properties:
         id: {type: string}
         name: {type: string}
         region: {type: string}
         category: {type: string}
         tags: {type: array, items: {type: string}}
-        thumbnailUrl: {type: string, nullable: true}
+        thumbnailUrl: {type: string, nullable: true, description: 카드 대표 썸네일 URL}
         latitude: {type: number, format: double, nullable: true}
         longitude: {type: number, format: double, nullable: true}
-        imageUrls: {type: array, items: {type: string}}
+        imageUrls:
+          type: array
+          maxItems: 5
+          items: {type: string}
+          description: 카드 표시용 썸네일 URL 목록. originalImageUrls와 같은 순서다.
+        originalImageUrls:
+          type: array
+          maxItems: 5
+          items: {type: string}
+          description: 합성·대형 표시용 원본 URL 목록. imageUrls와 같은 인덱스를 사용한다.
     PlacePageResponse:
       type: object
       properties:
@@ -245,6 +275,18 @@ components:
           properties:
             description: {type: string, nullable: true}
             imageUrls: {type: array, items: {type: string}}
+            originalImageUrls: {type: array, items: {type: string}}
+            images: {type: array, items: {$ref: '#/components/schemas/PlaceImageResponse'}}
+    PlaceImageResponse:
+      type: object
+      properties:
+        imageUrl: {type: string, description: 카드 표시용 썸네일 URL}
+        originalImageUrl: {type: string, description: 합성·대형 표시용 원본 URL}
+        sourceImageUrl: {type: string, description: 한국관광공사 원본 URL, attribution/debug 용도}
+        title: {type: string, nullable: true}
+        source: {type: string, nullable: true}
+        sortOrder: {type: integer, nullable: true}
+        copyrightCode: {type: string, nullable: true, example: Type1}
     CreateCourseRequest:
       type: object
       required: [placeIds, onePickId, types, companion, duration]

@@ -6,6 +6,8 @@ import com.mirigangneung.common.redis.RedisCache;
 import com.mirigangneung.infrastructure.tourapi.TourApiCacheProperties;
 import com.mirigangneung.infrastructure.tourapi.TourApiClient;
 import com.mirigangneung.infrastructure.tourapi.TourCategoryMapper;
+import com.mirigangneung.infrastructure.image.ImageCacheProperties;
+import com.mirigangneung.infrastructure.image.PlaceImageUrlResolver;
 import com.mirigangneung.place.domain.Place;
 import com.mirigangneung.place.domain.PlaceImage;
 import com.mirigangneung.place.dto.PlaceDetailResponse;
@@ -46,16 +48,24 @@ public class PlaceService {
     private final RedisCache cache;
     private final ObjectMapper objectMapper;
     private final TourApiCacheProperties cacheProperties;
+    private final PlaceImageUrlResolver imageUrlResolver;
 
     @Autowired
     public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour,
-                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties) {
+                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties,
+                        PlaceImageUrlResolver imageUrlResolver) {
         this.places = places;
         this.images = images;
         this.tour = tour;
         this.cache = cache;
         this.objectMapper = objectMapper;
         this.cacheProperties = cacheProperties;
+        this.imageUrlResolver = imageUrlResolver;
+    }
+
+    public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour,
+                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties) {
+        this(places, images, tour, cache, objectMapper, cacheProperties, legacyImageUrlResolver());
     }
 
     public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour) {
@@ -82,10 +92,16 @@ public class PlaceService {
             result = places.findVisibleByRegionAndName("강릉", normalizedKeyword, pageable);
         }
         List<Place> pagePlaces = result.getContent();
-        Map<UUID, List<String>> imageUrlsByPlace = imageUrlsByPlace(pagePlaces);
+        Map<UUID, List<PlaceImage>> imagesByPlace = imageEntitiesByPlace(pagePlaces);
         PlacePageResponse response = new PlacePageResponse(
                 pagePlaces.stream()
-                        .map(place -> PlaceResponse.from(place, imageUrlsByPlace.get(place.getId())))
+                        .map(place -> {
+                            List<PlaceImage> placeImages = imagesByPlace.getOrDefault(place.getId(), List.of());
+                            return PlaceResponse.from(
+                                    place,
+                                    placeImages.stream().map(imageUrlResolver::thumbnailUrl).toList(),
+                                    placeImages.stream().map(imageUrlResolver::originalUrl).toList());
+                        })
                         .toList(),
                 result.getNumber(),
                 result.getSize(),
@@ -107,7 +123,7 @@ public class PlaceService {
         List<PlaceImage> allowedImages = images.findByPlaceOrderBySortOrderAsc(place).stream()
                 .filter(PlaceService::isAllowedImage)
                 .toList();
-        PlaceDetailResponse response = PlaceDetailResponse.fromImages(place, allowedImages);
+        PlaceDetailResponse response = PlaceDetailResponse.fromImages(place, allowedImages, imageUrlResolver);
         writeCache(cacheKey, response, cacheProperties.detailTtl());
         return response;
     }
@@ -136,21 +152,21 @@ public class PlaceService {
         return new ApiException("PLACE_NOT_FOUND", HttpStatus.NOT_FOUND, "관광지를 찾을 수 없습니다.");
     }
 
-    private Map<UUID, List<String>> imageUrlsByPlace(List<Place> pagePlaces) {
+    private Map<UUID, List<PlaceImage>> imageEntitiesByPlace(List<Place> pagePlaces) {
         if (pagePlaces.isEmpty()) {
             return Map.of();
         }
 
-        Map<UUID, List<String>> result = new HashMap<>();
+        Map<UUID, List<PlaceImage>> result = new HashMap<>();
         for (PlaceImage image : images.findByPlaceInOrderBySortOrderAsc(pagePlaces)) {
             if (image == null || image.getPlace() == null || image.getPlace().getId() == null
                     || !hasText(image.getImageUrl()) || !isAllowedImage(image)) {
                 continue;
             }
-            List<String> urls = result.computeIfAbsent(image.getPlace().getId(), ignored -> new java.util.ArrayList<>());
-            String imageUrl = image.getImageUrl().trim();
-            if (urls.size() < MAX_PLACE_IMAGES && !urls.contains(imageUrl)) {
-                urls.add(imageUrl);
+            List<PlaceImage> placeImages = result.computeIfAbsent(image.getPlace().getId(), ignored -> new java.util.ArrayList<>());
+            if (placeImages.size() < MAX_PLACE_IMAGES
+                    && placeImages.stream().noneMatch(existing -> existing.getImageUrl().equals(image.getImageUrl()))) {
+                placeImages.add(image);
             }
         }
         return result;
@@ -237,14 +253,25 @@ public class PlaceService {
     }
 
     private static String listCacheKey(String category, String keyword, int page, int size) {
-        return "place:list:v7:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
+        return "place:list:v8:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
     }
 
     private static String detailCacheKey(String id) {
-        return "place:detail:v3:" + cachePart(id);
+        return "place:detail:v4:" + cachePart(id);
     }
 
     private static String cachePart(String value) {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
+    }
+
+    private static PlaceImageUrlResolver legacyImageUrlResolver() {
+        return new PlaceImageUrlResolver(new ImageCacheProperties(
+                false,
+                System.getProperty("java.io.tmpdir") + "/mirigangneung-images",
+                "http://localhost:8080/media/images",
+                java.time.Duration.ofSeconds(10),
+                10 * 1024 * 1024,
+                640,
+                java.time.Duration.ofDays(365)));
     }
 }

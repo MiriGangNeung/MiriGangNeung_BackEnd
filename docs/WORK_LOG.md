@@ -685,3 +685,48 @@
 **관련 commit:**
 
 - 없음 (현재 작업 트리 변경)
+
+## 2026-08-24
+
+### 21:09 ~ 21:34 — 관광 이미지 CDN 호환 origin 저장 및 lazy delivery
+
+**Agent:** Codex
+**작업 유형:** Performance / Implementation / Verification
+
+**작업 내용:**
+
+- 이미지 원본 URL의 SHA-256 기반 storage key를 만들고, 동기화 시 원본과 카드용 JPEG 썸네일을 로컬 저장소에 한 번 저장하도록 구현했다.
+- `GET /media/images/{storageKey}` 스트리밍 endpoint에 `Content-Type`, `Content-Length`, `public, max-age=31536000, immutable`을 적용했다.
+- `PlaceImage`에 원본·썸네일 storage key와 byte metadata를 저장하고, 목록·상세 응답에 썸네일 `imageUrls`, 병렬 원본 `originalImageUrls`, source URL metadata를 추가했다.
+- 레거시 이미지 행은 기존 관광공사 URL로 fallback하며, 이미지 binary는 Redis에 넣지 않는다.
+- 프론트 카드 이미지는 lazy/async로 바꾸고, 첫 화면 hero는 eager로 유지했다. 원픽 후보의 썸네일·원본·선택 순번은 동일 인덱스로 유지한다.
+- Docker에 `image_data` volume과 이미지 캐시 설정 환경변수를 추가했다.
+
+**검증 결과:**
+
+- 백엔드 `bash gradlew --no-daemon test` — `BUILD SUCCESSFUL`
+- 프론트 `npm test -- --run` — 12 files / 28 tests passed
+- 프론트 `npm run lint` — errors 0, 기존 warning 4개
+- 프론트 `npm run build` — Vite build success
+- 8081 임시 서버에서 기존 MySQL/Redis 연결 및 전체 동기화 성공: fetched 1,004 / category excluded 767 / saved 237 / withImages 69 / broken excluded 9
+- 반환 이미지 221/221개가 로컬 storage URL이고 media endpoint 헤더·바이트 응답을 확인했다.
+
+**성능 측정:**
+
+- 동일 harness 조건(`samplePlaces=10`, 장소당 최대 5장, 2 passes)에서 이미지 평균 크기 515,816 bytes → 46,912 bytes로 90.91% 감소했다.
+- 이미지 TTFB p50/p95는 67.497/125.438ms → 0.683/0.927ms, 전체 응답 p50/p95는 143.182/338.940ms → 0.736/1.253ms로 감소했다.
+- 목록 JSON은 원본 URL 배열 추가로 36,866 → 65,003 bytes가 됐고, warmed list TTFB는 26.901 → 33.805ms가 됐다.
+- 위 결과는 글로벌 CDN edge가 아닌 로컬 디스크 origin과 외부 관광공사 원본을 비교한 수치다.
+
+**주요 파일:**
+
+- `src/main/java/com/mirigangneung/infrastructure/image/*`
+- `src/main/java/com/mirigangneung/place/service/PlaceCatalogSyncService.java`
+- `src/main/java/com/mirigangneung/place/dto/PlaceResponse.java`
+- `src/main/resources/application.yml`
+- `docker-compose.yml`
+- 프론트 `src/lib/placesApi.ts`, `src/lib/placeImages.ts`, `src/components/atoms/ImageSlot.tsx`
+
+**관련 commit:**
+
+- 구현 완료 후 backend/frontend 각각 별도 commit으로 기록 예정

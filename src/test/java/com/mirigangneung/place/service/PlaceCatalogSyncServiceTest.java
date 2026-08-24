@@ -5,11 +5,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mirigangneung.common.redis.RedisCache;
+import com.mirigangneung.infrastructure.image.ImageAssetCacheService;
+import com.mirigangneung.infrastructure.image.ImageCacheProperties;
+import com.mirigangneung.infrastructure.image.PlaceImageStorage;
+import com.mirigangneung.infrastructure.image.PlaceImageUrlResolver;
 import com.mirigangneung.infrastructure.tourapi.TourApiClient;
 import com.mirigangneung.place.domain.Place;
 import com.mirigangneung.place.domain.PlaceImage;
@@ -21,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +44,7 @@ class PlaceCatalogSyncServiceTest {
     @Mock private PlaceCatalogCleanupService cleanupService;
     @Mock private ImageUrlValidator imageUrlValidator;
     @Mock private RedisCache cache;
+    @Mock private ImageAssetCacheService imageAssetCacheService;
 
     private PlaceCatalogSyncService service;
 
@@ -108,6 +115,66 @@ class PlaceCatalogSyncServiceTest {
         verify(placeImageRepository, times(6)).save(any(PlaceImage.class));
         verify(cache).deleteByPrefix("place:list:");
         verify(cache).deleteByPrefix("place:detail:");
+    }
+
+    @Test
+    void storesCachedOriginalAndThumbnailKeysWithoutCallingLegacyValidator() {
+        PlaceCatalogSyncService cachedService = new PlaceCatalogSyncService(
+                tourApiClient,
+                placeRepository,
+                placeImageRepository,
+                tourismPhotoMatcher,
+                cleanupService,
+                imageUrlValidator,
+                cache,
+                imageAssetCacheService,
+                new PlaceImageUrlResolver(new ImageCacheProperties(
+                        true,
+                        "/tmp/miri-images",
+                        "http://localhost:8080/media/images",
+                        java.time.Duration.ofSeconds(3),
+                        2_000_000,
+                        640,
+                        java.time.Duration.ofDays(365))),
+                2);
+        TourApiClient.TourPlace place = tourPlace(
+                "cached-place",
+                "경포해변",
+                List.of(new TourApiClient.TourImage(
+                        "https://kto/cached.jpg", "대표", "Type1", 0)));
+        when(tourApiClient.searchSummaries(null, null, 0, 2)).thenReturn(List.of(place));
+        when(placeRepository.findByTourContentId("cached-place")).thenReturn(Optional.empty());
+        when(placeRepository.save(any(Place.class))).thenAnswer(invocation -> {
+            Place saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                ReflectionTestUtils.setField(saved, "id", UUID.randomUUID());
+            }
+            return saved;
+        });
+        when(placeImageRepository.findByPlaceOrderBySortOrderAsc(any())).thenReturn(List.of());
+        when(tourismPhotoMatcher.findImageUrls(anyList())).thenReturn(Map.of());
+        when(imageAssetCacheService.enabled()).thenReturn(true);
+        when(imageAssetCacheService.ensureCached("https://kto/cached.jpg"))
+                .thenReturn(java.util.Optional.of(new PlaceImageStorage.StoredImage(
+                        "place-cached-original.jpg",
+                        "place-cached-thumbnail.jpg",
+                        "image/jpeg",
+                        2_000L,
+                        200L)));
+
+        PlaceCatalogSyncService.SyncResult result = cachedService.synchronizeAll();
+
+        assertThat(result.placesWithImages()).isEqualTo(1);
+        ArgumentCaptor<PlaceImage> imageCaptor = ArgumentCaptor.forClass(PlaceImage.class);
+        verify(placeImageRepository).save(imageCaptor.capture());
+        PlaceImage savedImage = imageCaptor.getValue();
+        assertThat(savedImage.getOriginalStorageKey()).isEqualTo("place-cached-original.jpg");
+        assertThat(savedImage.getThumbnailStorageKey()).isEqualTo("place-cached-thumbnail.jpg");
+        assertThat(savedImage.getOriginalByteSize()).isEqualTo(2_000L);
+        assertThat(savedImage.getThumbnailByteSize()).isEqualTo(200L);
+        verify(imageAssetCacheService).ensureCached("https://kto/cached.jpg");
+        verify(imageUrlValidator, never()).isUsable(anyString());
+        verifyNoInteractions(imageUrlValidator);
     }
 
     private static TourApiClient.TourPlace tourPlace(
