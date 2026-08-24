@@ -1,5 +1,48 @@
 # Work Log
 
+## 2026-08-24
+
+### 20:00 ~ 진행 중 — PhotoGalleryService1을 이미지 보충 전용으로 변경
+
+**Agent:** Codex
+**작업 유형:** Behavior Change/Verification
+
+**작업 내용:**
+
+- PhotoGalleryService1에서 기존 KorService2 장소명과 일치하는 사진만 기존 장소의 `place_images`에 보충하도록 유지했다.
+- 장소명·좌표·상세 정보가 부족한 미매칭 사진으로 별도 `gallery` 장소 카드를 생성하지 않도록 제거했다.
+- 기존에 남아 있던 `KTO_PHOTO_GALLERY` 카드와 이미지는 전체 동기화 시 정리하도록 변경했다.
+- 장소 목록 API의 `source=PHOTO_GALLERY` 필터, 응답 `sourceType`, 프론트의 `사진 검수` 탭과 별도 API 호출을 제거했다.
+- 화면 요청은 KorService2 장소 카드와 DB에 저장된 최대 5장의 이미지만 사용한다.
+
+**검증 결과:**
+
+- 백엔드 핵심 테스트 통과: `PlaceCatalogSyncTransactionTest`, `TourismPhotoMatcherTest`, `PlaceRepositoryTest`, `PlaceServiceTest`
+- 프론트 관련 테스트 4개 통과 및 production build 통과
+- 실제 Docker 동기화에서 KorService2 1,004개를 조회했고, 배경 카테고리 237개를 저장·갱신했다. 카테고리 제외 767개, 기존 `KTO_PHOTO_GALLERY` 카드 삭제 47개, 이미지 URL 검증 제외 9개였다. 기본 목록은 69개이며 `gallery` 카드는 0개다.
+
+### 19:00 ~ 19:27 — PhotoGalleryService1 미매칭 검수용 카드 분리 (이후 제거됨)
+
+**Agent:** Codex
+**작업 유형:** Feature Implementation/Verification
+
+**작업 내용:**
+
+- KorService2 장소 카드는 기존 기본 목록으로 유지하고, PhotoGalleryService1에서만 발견된 장소명 그룹을 `category=gallery`, `source=KTO_PHOTO_GALLERY` 카드로 별도 저장했다.
+- 장소 목록 API에 `source=PHOTO_GALLERY` 필터와 응답 `sourceType`을 추가했다. 기본 목록에는 `nature`, `culture`, `active` KorService2 카드만 노출한다.
+- PhotoGalleryService1 원문 공개 API와 사용하지 않는 공모전 사진 API, 전용 DTO·서비스·컨트롤러·테스트·설정을 제거했다. PhotoGalleryService1 내부 클라이언트와 동기화 매칭은 유지했다.
+- 음식·카페명으로 명확히 판단되는 미매칭 사진은 검수용 카드로 생성하지 않는다. 관광사진 API가 정상 수집되면 기존 검수용 카드를 교체해 stale 카드가 남지 않도록 했다.
+- 동기화 완료 시 장소 목록·상세 Redis 캐시를 prefix 기준으로 무효화해 DB와 화면 응답이 어긋나지 않게 했다. 관광사진 API 호출 실패 시에는 기존 검수용 카드를 보존한다.
+
+**검증 결과:**
+
+- `bash gradlew --no-daemon test`: `BUILD SUCCESSFUL`
+- Docker 실제 동기화: KorService2 1,004개 조회, 배경 카테고리 237개 저장, 카테고리 제외 767개, 깨진 이미지 10개 제외, 기본 화면 카드 69개
+- PhotoGalleryService1 미매칭 검수용 카드: 이전 47개 삭제 후 현재 47개 생성
+- `GET /api/v1/places?page=0&size=100`: 69개, 모두 `sourceType=KOR_SERVICE2`, 이미지 보유
+- `GET /api/v1/places?source=PHOTO_GALLERY&page=0&size=100`: 47개, 모두 `sourceType=PHOTO_GALLERY`, `category=gallery`, 이미지 보유
+- `TOUR_API_SYNC_ON_STARTUP=false`로 앱을 재기동했고 `/actuator/health`가 `UP`임을 확인했다.
+
 ## 2026-08-09
 
 ### 시간 미기록 ~ 22:16 — 프론트·백엔드 연동용 API 계약 문서 정리
@@ -227,6 +270,78 @@
 **관련 commit:**
 
 - 없음 (현재 작업 트리 변경)
+
+### 18:10 ~ 18:20 — 강릉 전체 장소 카탈로그 동기화
+
+**Agent:** Codex
+**작업 유형:** Implementation / Verification
+
+**작업 내용:**
+
+- KorService2 `areaBasedList2`를 페이지 끝까지 조회해 첫 100건 제한 없이 강릉 장소 전체를 DB에 저장하는 동기화 서비스를 추가했다.
+- 대량 동기화 중 장소마다 `detailImage2`를 호출하지 않도록 요약 조회 경로를 분리했다.
+- 기존 Type1 이미지, KorService2 대표 이미지, 관광사진 정보 GW 매칭 이미지를 합쳐 장소당 최대 5장까지 DB에 저장한다.
+- 평소 서버 시작에는 동기화를 수행하지 않고 `TOUR_API_SYNC_ON_STARTUP=true`일 때만 1회 실행하도록 구성했다.
+
+**테스트 결과:**
+
+- 전체 테스트: `bash gradlew test` — `BUILD SUCCESSFUL`
+- 실제 Docker 전체 동기화: `fetched=1004`, `saved=1004`, `withImages=97`
+- 장소 목록 API: `totalElements=97`, 첫 페이지 20개 모두 이미지 포함
+
+**발생한 문제와 해결 방법:**
+
+- 기존 이미지 삭제가 트랜잭션 없이 실행되어 서버가 종료됐다. `deleteByPlace`에 트랜잭션 경계를 추가하고 실제 JPA 회귀 테스트를 추가했다.
+- 전체 동기화 요약 조회에 `contentTypeId=12`가 남아 149개만 저장됐다. 전체 동기화에서는 콘텐츠 유형을 보내지 않도록 분리해 1,004개 저장을 확인했다.
+- 사진 없는 장소가 목록 첫 페이지를 차지하던 문제를 Type1 이미지가 존재하는 장소만 조회하는 DB 쿼리로 해결했다.
+
+**관련 commit:**
+
+- 현재 작업 커밋에 기록
+
+### 18:20 ~ 18:30 — 장소 화면 조회를 Redis/DB 캐시 어사이드로 분리
+
+**Agent:** Codex
+**작업 유형:** Refactor / Verification
+
+**작업 내용:**
+
+- 장소 목록과 상세 조회에서 KorService2 실시간 호출을 제거했다.
+- Redis hit이면 캐시 응답을 바로 반환하고, miss 또는 만료이면 DB를 조회한 뒤 목록/상세 TTL에 맞춰 Redis에 저장한다.
+- 관광사진 정보 GW의 런타임 매칭도 화면 요청에서 제거해 외부 데이터 갱신은 전체 동기화 실행 시점에만 수행되도록 분리했다.
+- 이전 캐시와 응답 의미가 섞이지 않도록 목록 key를 `v5`, 상세 key를 `v3`으로 변경했다.
+
+**테스트 결과:**
+
+- PlaceService 관련 테스트: `BUILD SUCCESSFUL`
+
+**관련 commit:**
+
+- 현재 작업 커밋에 기록
+
+### 18:44 ~ 18:51 — 배경 합성 장소 필터와 깨진 이미지 정리
+
+**Agent:** Codex
+**작업 유형:** Bugfix / Data cleanup / Verification
+
+**작업 내용:**
+
+- 동기화 시 이미지 URL의 HTTP 상태와 Content-Type을 검사해 실제 이미지 응답만 저장하도록 변경했다.
+- 배경 합성에 적합한 관광지, 문화시설, 레포츠만 목록에 노출하고 맛집·숙박·쇼핑·행사 등은 제외했다.
+- 음식점 장소는 관련 코스 참조와 이미지를 먼저 삭제한 뒤 장소 데이터도 DB에서 삭제하도록 트랜잭션 정리 서비스를 추가했다.
+- 목록 조건 변경에 맞춰 Redis cache key를 `v7`로 변경했다.
+
+**실제 Docker 검증 결과:**
+
+- 관광공사 원본: 1,004개
+- 카테고리 제외: 767개
+- 음식점 DB 삭제: 482개
+- 배경 후보 저장·갱신: 237개
+- 깨진 이미지 URL 제외: 9개
+- 최종 화면 카드: 69개 (`nature` 51, `culture` 11, `active` 7)
+- 음식점 DB 잔여: 0개
+- 강릉 올림픽파크: 유효 이미지가 없어 목록에서 제외
+- 전체 테스트: `BUILD SUCCESSFUL`
 
 ## 2026-08-08
 
@@ -488,3 +603,85 @@
 - 원격 네트워크/의존성 접근 제한으로 테스트가 완료되지 않았다.
 
 **관련 commit:** `c445d0b` — `fix: address tourism photo API review comments`
+
+## 2026-08-24
+
+### 시간 미기록 ~ 13:44 — 장소별 다중 이미지와 Type1 저작권 필터 적용
+
+**Agent:** Codex
+**작업 유형:** Implementation / Bugfix / Verification
+
+**작업 내용:**
+
+- KorService2 `detailImage2` 응답을 대표 이미지와 합쳐 장소별 최대 5장까지 저장·응답하도록 확장했다.
+- `cpyrhtDivCd=Type1` 이미지만 API 매핑, DB 저장, 목록, 상세 응답에서 허용하도록 방어 필터를 적용했다.
+- 기존 Type3 이미지가 캐시에서 다시 노출되지 않도록 Place 목록/상세 cache key version을 변경했다.
+- 신규 Place 생성 시 관광공사 수정일을 생성자에서 보존해 최신 `develop`의 신규 엔티티 처리 방식과 기존 계약을 함께 유지했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/infrastructure/tourapi/KoreanTourApiClient.java`
+- `src/main/java/com/mirigangneung/place/domain/Place.java`
+- `src/main/java/com/mirigangneung/place/domain/PlaceImage.java`
+- `src/main/java/com/mirigangneung/place/dto/PlaceResponse.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceService.java`
+- `src/test/java/com/mirigangneung/infrastructure/tourapi/KoreanTourApiClientTest.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceServiceTest.java`
+
+**테스트 결과:**
+
+- 관련 테스트: `BUILD SUCCESSFUL`
+- 전체 테스트: `bash gradlew test` — `BUILD SUCCESSFUL`
+
+**발생한 문제와 해결 방법:**
+
+- 로컬 `develop`이 원격보다 5개 commit 뒤여서 최신 `origin/develop`에서 기능 브랜치를 생성했다.
+- `PlaceService` 충돌은 원격의 신규 엔티티 처리 구조를 유지하면서 Type1 필터와 원본 수정일 초기화를 함께 적용해 해결했다.
+
+**관련 commit:**
+
+- 현재 PR commit에 기록
+
+## 2026-08-24
+
+### 14:12 ~ 14:30 — 관광사진 장소명 정규화 및 장소 카드 이미지 보강
+
+**Agent:** Codex
+**작업 유형:** Implementation / Verification
+
+**작업 내용:**
+
+- 관광사진 정보 GW의 강릉 검색 결과를 장소명별로 묶고 기존 Place 이름과 안전하게 연결하는 정규화기를 추가했다.
+- 공백, 괄호 부가명, 행정구역 접두어, 해변/해수욕장 표기를 통일하고 확인된 별칭만 적용했다.
+- 관광사진 전체 목록을 프로세스 내에서 1시간 캐시하고, 일치한 장소의 기존 이미지 뒤에 최대 5장까지 보충했다.
+- 관광사진 API 실패 시 기존 저장 이미지로 계속 응답하도록 fallback을 유지했다.
+- Place 목록 응답 변경에 맞춰 Redis cache key를 `v4`로 올렸다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/place/service/PlaceNameNormalizer.java`
+- `src/main/java/com/mirigangneung/place/service/TourismPhotoMatcher.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceService.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceNameNormalizerTest.java`
+- `src/test/java/com/mirigangneung/place/service/TourismPhotoMatcherTest.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceServiceTest.java`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- 정규화/매칭/PlaceService 관련 테스트: `BUILD SUCCESSFUL`
+- Spring Application Context 테스트: `BUILD SUCCESSFUL`
+- 실제 API와 MySQL/Redis 연결 smoke test: HTTP 200
+- 현재 Place 100개 기준 화면 노출 카드: 18개 → 34개, 16개 증가
+- 신규 카드 이미지 수: 장소별 1~5장
+
+**발생한 문제와 해결 방법:**
+
+- `TourismPhotoMatcher`의 운영/테스트 생성자 중 Spring 주입 대상을 명시하지 않아 Application Context가 실패했다. 운영 생성자에 `@Autowired`를 지정해 해결했다.
+- Docker 이미지 재빌드가 외부 base image metadata 조회 중 제한 시간에 걸렸다. 동일 코드로 8081 임시 서버를 실행해 실제 MySQL/Redis/API 통합 동작을 검증했다.
+- 관광사진을 100건씩 17회 조회하면 최초 요청이 느려졌다. 실제 API가 2,000건 요청을 정상 처리하는 것을 확인하고 한 번의 요청으로 현재 1,623건을 가져오도록 조정했다.
+
+**관련 commit:**
+
+- 없음 (현재 작업 트리 변경)

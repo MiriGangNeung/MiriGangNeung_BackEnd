@@ -1,3 +1,72 @@
 package com.mirigangneung.place.repository;
-import com.mirigangneung.place.domain.Place; import org.springframework.data.domain.*; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*;
-public interface PlaceRepository extends JpaRepository<Place,UUID> { Optional<Place> findByTourContentId(String id); Page<Place> findByRegionContainingAndNameContaining(String region,String name,Pageable p); Page<Place> findByCategoryContainingAndNameContaining(String category,String name,Pageable p); }
+
+import com.mirigangneung.place.domain.Place;
+import java.util.Optional;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface PlaceRepository extends JpaRepository<Place, UUID> {
+    Optional<Place> findByTourContentId(String id);
+
+    List<Place> findByCategory(String category);
+
+    List<Place> findBySource(String source);
+
+    Page<Place> findByRegionContainingAndNameContaining(String region, String name, Pageable pageable);
+
+    Page<Place> findByCategoryContainingAndNameContaining(String category, String name, Pageable pageable);
+
+    @Query(
+            value = """
+                    select distinct place
+                    from Place place, PlaceImage image
+                    where image.place = place
+                      and lower(image.copyrightCode) = 'type1'
+                      and place.category in ('nature', 'culture', 'active')
+                      and place.region like concat('%', :region, '%')
+                      and place.name like concat('%', :name, '%')
+                    """,
+            countQuery = """
+                    select count(distinct place.id)
+                    from Place place, PlaceImage image
+                    where image.place = place
+                      and lower(image.copyrightCode) = 'type1'
+                      and place.category in ('nature', 'culture', 'active')
+                      and place.region like concat('%', :region, '%')
+                      and place.name like concat('%', :name, '%')
+                    """)
+    Page<Place> findVisibleByRegionAndName(
+            @Param("region") String region,
+            @Param("name") String name,
+            Pageable pageable);
+
+    @Query(
+            value = """
+                    select distinct place
+                    from Place place, PlaceImage image
+                    where image.place = place
+                      and lower(image.copyrightCode) = 'type1'
+                      and place.category in ('nature', 'culture', 'active')
+                      and place.category like concat('%', :category, '%')
+                      and place.name like concat('%', :name, '%')
+                    """,
+            countQuery = """
+                    select count(distinct place.id)
+                    from Place place, PlaceImage image
+                    where image.place = place
+                      and lower(image.copyrightCode) = 'type1'
+                      and place.category in ('nature', 'culture', 'active')
+                      and place.category like concat('%', :category, '%')
+                      and place.name like concat('%', :name, '%')
+                    """)
+    Page<Place> findVisibleByCategoryAndName(
+            @Param("category") String category,
+            @Param("name") String name,
+            Pageable pageable);
+
+}
