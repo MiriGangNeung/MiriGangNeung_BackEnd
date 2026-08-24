@@ -44,6 +44,11 @@ public class Place {
 
     public Place(String contentId, String name, String region, String category, String description,
                  Double lat, Double lon, String thumb, String source) {
+        this(contentId, name, region, category, description, lat, lon, thumb, source, null);
+    }
+
+    public Place(String contentId, String name, String region, String category, String description,
+                 Double lat, Double lon, String thumb, String source, OffsetDateTime sourceUpdatedAt) {
         this.tourContentId = contentId;
         this.name = name;
         this.region = region;
@@ -53,6 +58,7 @@ public class Place {
         this.longitude = lon;
         this.thumbnailUrl = thumb;
         this.source = source;
+        this.sourceUpdatedAt = sourceUpdatedAt;
         this.createdAt = OffsetDateTime.now();
         this.updatedAt = this.createdAt;
     }

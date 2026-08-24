@@ -51,7 +51,9 @@ class PlaceServiceTest {
         TourApiClient.TourPlace remote = new TourApiClient.TourPlace(
                 "100", "경포대", "강릉시", "nature", "호수 전망", 37.8, 128.9,
                 "https://img.test/one.jpg",
-                List.of(new TourApiClient.TourImage("https://img.test/one.jpg", "대표", "Y", 0)),
+                List.of(
+                        new TourApiClient.TourImage("https://img.test/one.jpg", "대표", "Type1", 0),
+                        new TourApiClient.TourImage("https://img.test/type3.jpg", "변경 금지", "Type3", 1)),
                 sourceDate);
         when(tour.search(null, null, 0, 20)).thenReturn(List.of(remote));
         when(places.findByTourContentId("100")).thenReturn(Optional.empty());
@@ -72,6 +74,31 @@ class PlaceServiceTest {
     }
 
     @Test
+    void exposesAtMostFiveType1ImageUrlsForPlaceList() {
+        Place place = withId(new Place("100", "경포대", "강릉시", "nature", "설명",
+                37.8, 128.9, "https://img.test/0.jpg", "KTO"));
+        List<PlaceImage> imageEntities = List.of(
+                new PlaceImage(place, "https://img.test/0.jpg", "0", "KTO", 0, "Type3"),
+                new PlaceImage(place, "https://img.test/1.jpg", "1", "KTO", 1, "Type1"),
+                new PlaceImage(place, "https://img.test/2.jpg", "2", "KTO", 2, "Type1"),
+                new PlaceImage(place, "https://img.test/3.jpg", "3", "KTO", 3, "Type1"),
+                new PlaceImage(place, "https://img.test/4.jpg", "4", "KTO", 4, "Type1"),
+                new PlaceImage(place, "https://img.test/5.jpg", "5", "KTO", 5, "Type1"));
+        when(tour.search(null, null, 0, 20)).thenReturn(List.of());
+        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+                .thenReturn(new PageImpl<>(List.of(place), PageRequest.of(0, 20), 1));
+        when(images.findByPlaceInOrderBySortOrderAsc(List.of(place))).thenReturn(imageEntities);
+
+        var result = service.search(null, null, 0, 20);
+        var json = new ObjectMapper().valueToTree(result.content().get(0));
+
+        assertThat(json.path("imageUrls")).hasSize(5);
+        assertThat(json.path("thumbnailUrl").asText()).isEqualTo("https://img.test/1.jpg");
+        assertThat(json.path("imageUrls").get(0).asText()).isEqualTo("https://img.test/1.jpg");
+        assertThat(json.path("imageUrls").get(4).asText()).isEqualTo("https://img.test/5.jpg");
+    }
+
+    @Test
     void filtersByTheSameNormalizedCategoryUsedForPersistence() {
         when(tour.search("", "food", 0, 20)).thenReturn(List.of());
         when(places.findByCategoryContainingAndNameContaining(eq("food"), eq(""), any()))
@@ -87,9 +114,10 @@ class PlaceServiceTest {
     void returnsStructuredImageMetadataAndLegacyUrls() {
         Place place = withId(new Place("100", "경포대", "강릉시", "nature", "설명",
                 37.8, 128.9, "https://img.test/one.jpg", "KTO"));
-        PlaceImage image = new PlaceImage(place, "https://img.test/one.jpg", "대표", "KTO", 0, "Y");
+        PlaceImage image = new PlaceImage(place, "https://img.test/one.jpg", "대표", "KTO", 0, "Type1");
+        PlaceImage forbidden = new PlaceImage(place, "https://img.test/type3.jpg", "변경 금지", "KTO", 1, "Type3");
         when(places.findById(place.getId())).thenReturn(Optional.of(place));
-        when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of(image));
+        when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of(image, forbidden));
 
         PlaceDetailResponse result = service.detail(place.getId().toString());
 
@@ -97,7 +125,7 @@ class PlaceServiceTest {
         assertThat(result.images()).singleElement().satisfies(detail -> {
             assertThat(detail.imageUrl()).isEqualTo("https://img.test/one.jpg");
             assertThat(detail.title()).isEqualTo("대표");
-            assertThat(detail.copyrightCode()).isEqualTo("Y");
+            assertThat(detail.copyrightCode()).isEqualTo("Type1");
         });
     }
 
@@ -162,8 +190,8 @@ class PlaceServiceTest {
         when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of());
         cachedService.detail(place.getId().toString());
 
-        verify(cache).put(startsWith("place:list:v1:"), anyString(), eq(listTtl));
-        verify(cache).put(startsWith("place:detail:v1:"), anyString(), eq(detailTtl));
+        verify(cache).put(startsWith("place:list:v3:"), anyString(), eq(listTtl));
+        verify(cache).put(startsWith("place:detail:v2:"), anyString(), eq(detailTtl));
     }
 
     @Test
@@ -194,7 +222,7 @@ class PlaceServiceTest {
 
         var keyCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(cache).get(keyCaptor.capture());
-        assertThat(keyCaptor.getValue()).isEqualTo("place:detail:v1:place-id");
+        assertThat(keyCaptor.getValue()).isEqualTo("place:detail:v2:place-id");
         verifyNoInteractions(places, images, tour);
     }
 

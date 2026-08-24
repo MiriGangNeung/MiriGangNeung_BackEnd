@@ -24,8 +24,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -35,6 +37,8 @@ import java.nio.charset.StandardCharsets;
 @Service
 public class PlaceService {
     private static final Logger log = LoggerFactory.getLogger(PlaceService.class);
+    private static final int MAX_PLACE_IMAGES = 5;
+    private static final String ALLOWED_COPYRIGHT_CODE = "Type1";
 
     private final PlaceRepository places;
     private final PlaceImageRepository images;
@@ -86,7 +90,16 @@ public class PlaceService {
         } else {
             result = places.findByRegionContainingAndNameContaining("강릉", normalizedKeyword, pageable);
         }
-        PlacePageResponse response = PlacePageResponse.from(result);
+        List<Place> pagePlaces = result.getContent();
+        Map<UUID, List<String>> imageUrlsByPlace = imageUrlsByPlace(pagePlaces);
+        PlacePageResponse response = new PlacePageResponse(
+                pagePlaces.stream()
+                        .map(place -> PlaceResponse.from(place, imageUrlsByPlace.get(place.getId())))
+                        .toList(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages());
         writeCache(cacheKey, response, cacheProperties.listTtl());
         return response;
     }
@@ -100,7 +113,10 @@ public class PlaceService {
         }
 
         Place place = existingOrFetch(id);
-        PlaceDetailResponse response = PlaceDetailResponse.fromImages(place, images.findByPlaceOrderBySortOrderAsc(place));
+        List<PlaceImage> allowedImages = images.findByPlaceOrderBySortOrderAsc(place).stream()
+                .filter(PlaceService::isAllowedImage)
+                .toList();
+        PlaceDetailResponse response = PlaceDetailResponse.fromImages(place, allowedImages);
         writeCache(cacheKey, response, cacheProperties.detailTtl());
         return response;
     }
@@ -140,14 +156,46 @@ public class PlaceService {
         return new ApiException("PLACE_NOT_FOUND", HttpStatus.NOT_FOUND, "관광지를 찾을 수 없습니다.");
     }
 
+    private Map<UUID, List<String>> imageUrlsByPlace(List<Place> pagePlaces) {
+        if (pagePlaces.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, List<String>> result = new HashMap<>();
+        for (PlaceImage image : images.findByPlaceInOrderBySortOrderAsc(pagePlaces)) {
+            if (image == null || image.getPlace() == null || image.getPlace().getId() == null
+                    || !hasText(image.getImageUrl()) || !isAllowedImage(image)) {
+                continue;
+            }
+            List<String> urls = result.computeIfAbsent(image.getPlace().getId(), ignored -> new java.util.ArrayList<>());
+            String imageUrl = image.getImageUrl().trim();
+            if (urls.size() < MAX_PLACE_IMAGES && !urls.contains(imageUrl)) {
+                urls.add(imageUrl);
+            }
+        }
+        return result;
+    }
+
     private Place upsert(TourApiClient.TourPlace tourPlace) {
         if (!hasText(tourPlace.contentId()) || !hasText(tourPlace.name())) {
             return null;
         }
 
+        List<TourApiClient.TourImage> allowedImages = tourPlace.images().stream()
+                .filter(Objects::nonNull)
+                .filter(image -> hasText(image.imageUrl()))
+                .filter(PlaceService::isAllowedImage)
+                .sorted(Comparator.comparingInt(TourApiClient.TourImage::sortOrder))
+                .limit(MAX_PLACE_IMAGES)
+                .toList();
+        String thumbnailUrl = allowedImages.stream()
+                .map(TourApiClient.TourImage::imageUrl)
+                .findFirst()
+                .orElse(null);
+
         Place incoming = new Place(tourPlace.contentId(), tourPlace.name(), tourPlace.region(),
                 tourPlace.category(), tourPlace.description(), tourPlace.latitude(), tourPlace.longitude(),
-                tourPlace.thumbnailUrl(), "KTO");
+                thumbnailUrl, "KTO", tourPlace.sourceUpdatedAt());
         Place place = places.findByTourContentId(tourPlace.contentId()).orElse(null);
         if (place == null) {
             place = incoming;
@@ -156,18 +204,25 @@ public class PlaceService {
         }
         Place saved = places.save(place);
 
-        if (tourPlace.images() != null && !tourPlace.images().isEmpty()) {
-            images.deleteByPlace(saved);
-            Set<String> seenUrls = new LinkedHashSet<>();
-            tourPlace.images().stream()
-                    .filter(Objects::nonNull)
-                    .filter(image -> hasText(image.imageUrl()))
-                    .sorted(Comparator.comparingInt(TourApiClient.TourImage::sortOrder))
-                    .filter(image -> seenUrls.add(image.imageUrl()))
-                    .forEach(image -> images.save(new PlaceImage(saved, image.imageUrl(), image.title(),
-                            "KTO", image.sortOrder(), image.copyrightCode())));
-        }
+        images.deleteByPlace(saved);
+        Set<String> seenUrls = new LinkedHashSet<>();
+        allowedImages.stream()
+                .filter(image -> seenUrls.add(image.imageUrl()))
+                .forEach(image -> images.save(new PlaceImage(saved, image.imageUrl(), image.title(),
+                        "KTO", image.sortOrder(), image.copyrightCode())));
         return saved;
+    }
+
+    private static boolean isAllowedImage(TourApiClient.TourImage image) {
+        return isAllowedCopyright(image.copyrightCode());
+    }
+
+    private static boolean isAllowedImage(PlaceImage image) {
+        return isAllowedCopyright(image.getCopyrightCode());
+    }
+
+    private static boolean isAllowedCopyright(String copyrightCode) {
+        return ALLOWED_COPYRIGHT_CODE.equalsIgnoreCase(copyrightCode == null ? "" : copyrightCode.trim());
     }
 
     private static boolean hasText(String value) {
@@ -202,11 +257,11 @@ public class PlaceService {
     }
 
     private static String listCacheKey(String category, String keyword, int page, int size) {
-        return "place:list:v1:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
+        return "place:list:v3:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
     }
 
     private static String detailCacheKey(String id) {
-        return "place:detail:v1:" + cachePart(id);
+        return "place:detail:v2:" + cachePart(id);
     }
 
     private static String cachePart(String value) {

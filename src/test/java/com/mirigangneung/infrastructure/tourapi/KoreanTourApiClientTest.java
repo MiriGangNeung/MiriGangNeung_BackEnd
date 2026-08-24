@@ -23,7 +23,13 @@ class KoreanTourApiClientTest {
     private static final String BASE_URL = "https://example.test/B551011/KorService2";
     private static final String SUCCESS_LIST = """
             {"response":{"header":{"resultCode":"0000","resultMsg":"OK"},"body":{"items":{"item":[
-              {"contentid":"100","title":"경포대","addr1":"강릉시","contenttypeid":"12","overview":"호수 전망","mapy":"37.8","mapx":"128.9","firstimage":"https://img.test/one.jpg","cpyrhtDivCd":"Y","modifiedtime":"20260809120000"}
+              {"contentid":"100","title":"경포대","addr1":"강릉시","contenttypeid":"12","overview":"호수 전망","mapy":"37.8","mapx":"128.9","firstimage":"https://img.test/one.jpg","cpyrhtDivCd":"Type1","modifiedtime":"20260809120000"}
+            ]}}}}
+            """;
+    private static final String DETAIL_IMAGES = """
+            {"response":{"header":{"resultCode":"0000"},"body":{"items":{"item":[
+              {"originimgurl":"https://img.test/one.jpg","smallimageurl":"https://img.test/one-small.jpg","imgname":"대표","cpyrhtDivCd":"Type1","serialnum":"0"},
+              {"originimgurl":"https://img.test/two.jpg","smallimageurl":"https://img.test/two-small.jpg","imgname":"호수","cpyrhtDivCd":"Type3","serialnum":"1"}
             ]}}}}
             """;
 
@@ -48,6 +54,12 @@ class KoreanTourApiClientTest {
                         "numOfRows", "20",
                         "arrange", "A")))
                 .andRespond(withSuccess(SUCCESS_LIST, MediaType.APPLICATION_JSON));
+        fixture.server().expect(once(), request -> assertRequest(request, "/B551011/KorService2/detailImage2", Map.of(
+                        "contentId", "100",
+                        "imageYN", "Y",
+                        "pageNo", "1",
+                        "numOfRows", "5")))
+                .andRespond(withSuccess(DETAIL_IMAGES, MediaType.APPLICATION_JSON));
 
         List<TourApiClient.TourPlace> result = fixture.client().search(null, null, 2, 20);
 
@@ -57,8 +69,8 @@ class KoreanTourApiClientTest {
             assertThat(place.latitude()).isEqualTo(37.8);
             assertThat(place.longitude()).isEqualTo(128.9);
             assertThat(place.sourceUpdatedAt()).isNotNull();
-            assertThat(place.images()).singleElement().extracting(TourApiClient.TourImage::imageUrl)
-                    .isEqualTo("https://img.test/one.jpg");
+            assertThat(place.images()).extracting(TourApiClient.TourImage::imageUrl)
+                    .containsExactly("https://img.test/one.jpg");
         });
         fixture.server().verify();
     }
@@ -75,6 +87,12 @@ class KoreanTourApiClientTest {
                         "numOfRows", "10",
                         "arrange", "A")))
                 .andRespond(withSuccess(SUCCESS_LIST, MediaType.APPLICATION_JSON));
+        fixture.server().expect(once(), request -> assertRequest(request, "/B551011/KorService2/detailImage2", Map.of(
+                        "contentId", "100",
+                        "imageYN", "Y",
+                        "pageNo", "1",
+                        "numOfRows", "5")))
+                .andRespond(withSuccess(DETAIL_IMAGES, MediaType.APPLICATION_JSON));
 
         assertThat(fixture.client().search("커피", "food", 0, 10)).hasSize(1);
 
@@ -92,8 +110,8 @@ class KoreanTourApiClientTest {
                 .andRespond(withSuccess(SUCCESS_LIST, MediaType.APPLICATION_JSON));
         String imageResponse = """
                 {"response":{"header":{"resultCode":"0000"},"body":{"items":{"item":[
-                  {"originimgurl":"https://img.test/one.jpg","smallimageurl":"https://img.test/one-small.jpg","imgname":"대표","cpyrhtDivCd":"Y","serialnum":"0"},
-                  {"originimgurl":"https://img.test/two.jpg","smallimageurl":"https://img.test/two-small.jpg","imgname":"호수","cpyrhtDivCd":"N","serialnum":"1"}
+                  {"originimgurl":"https://img.test/one.jpg","smallimageurl":"https://img.test/one-small.jpg","imgname":"대표","cpyrhtDivCd":"Type1","serialnum":"0"},
+                  {"originimgurl":"https://img.test/two.jpg","smallimageurl":"https://img.test/two-small.jpg","imgname":"호수","cpyrhtDivCd":"Type3","serialnum":"1"}
                 ]}}}}
                 """;
         fixture.server().expect(once(), request -> assertRequest(request, "/B551011/KorService2/detailImage2", Map.of(
@@ -104,9 +122,9 @@ class KoreanTourApiClientTest {
         TourApiClient.TourPlace result = fixture.client().find("100").orElseThrow();
 
         assertThat(result.images()).extracting(TourApiClient.TourImage::imageUrl)
-                .containsExactly("https://img.test/one.jpg", "https://img.test/two.jpg");
-        assertThat(result.images().get(1).copyrightCode()).isEqualTo("N");
-        assertThat(result.imageUrls()).containsExactly("https://img.test/one.jpg", "https://img.test/two.jpg");
+                .containsExactly("https://img.test/one.jpg");
+        assertThat(result.images().get(0).copyrightCode()).isEqualTo("Type1");
+        assertThat(result.imageUrls()).containsExactly("https://img.test/one.jpg");
         fixture.server().verify();
     }
 

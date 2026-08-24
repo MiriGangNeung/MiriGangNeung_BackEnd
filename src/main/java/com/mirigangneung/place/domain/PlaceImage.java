@@ -42,6 +42,10 @@ public class PlaceImage {
         this.copyrightCode = copyrightCode;
     }
 
+    public Place getPlace() {
+        return place;
+    }
+
     public String getImageUrl() {
         return imageUrl;
     }

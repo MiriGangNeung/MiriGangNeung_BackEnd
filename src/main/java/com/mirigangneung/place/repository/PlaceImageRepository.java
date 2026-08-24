@@ -10,5 +10,7 @@ import java.util.UUID;
 public interface PlaceImageRepository extends JpaRepository<PlaceImage, UUID> {
     List<PlaceImage> findByPlaceOrderBySortOrderAsc(Place place);
 
+    List<PlaceImage> findByPlaceInOrderBySortOrderAsc(List<Place> places);
+
     void deleteByPlace(Place place);
 }
