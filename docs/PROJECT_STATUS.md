@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-16 23:04 KST
+Last Updated: 2026-08-24 13:44 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -19,6 +19,7 @@ Last Updated By: Codex
 - 공통: CORS, RedisTemplate, 전역 예외 응답
 - Place: `Place`, `PlaceImage`, Repository, Service, DTO, Controller
 - 관광공사: `TourApiClient`, Korean API adapter와 JSON/XML 응답 정규화
+- 관광지 이미지: KorService2 대표/상세 이미지를 장소별 최대 5장 저장하며 `cpyrhtDivCd=Type1`만 목록·상세에 노출
 - Composition: `CompositionJob`, 업로드, 상태 조회, retry/download API, `AiGenerationClient` 인터페이스, 로컬 임시 이미지 저장소, 만료 정리 Job
 - Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
 - Recommendation: `RuleBasedCourseRecommendationEngine`
@@ -41,7 +42,7 @@ Last Updated By: Codex
 
 ## 현재 검증 결과
 
-2026-08-08 기준 `./gradlew.bat test` 실행 결과는 `BUILD SUCCESSFUL`이며 단위 테스트 2개가 통과했다.
+2026-08-24 기준 `bash gradlew test` 실행 결과는 `BUILD SUCCESSFUL`이다.
 
 Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너가 실행 중이다. app은 `localhost:8080`, MySQL은 호스트 `3307`, Redis는 호스트 `6379`에 연결된다. `/actuator/health`는 `UP`이며 `/api/v1/places?page=0&size=2`에서 강릉 관광지 응답을 확인했다.
 
@@ -65,7 +66,7 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 
 - 실제 AI Provider 구현체와 비동기 Provider polling은 없다. `AiGenerationClient` 인터페이스만 존재한다.
 - Composition Job은 Provider가 연결되지 않은 현재 코드에서 실제 DONE 결과를 생성하지 않는다.
-- `RedisCache` helper는 존재하지만 Place 조회 캐시 흐름에 연결되어 있지 않다.
+- Place 목록/상세 응답은 Redis에 서로 다른 TTL로 캐시되며, 응답 계약 변경 시 cache key version을 올려 기존 응답을 무효화한다.
 - CourseResponse의 route 거리/시간은 아직 추천 결과에 통합되지 않는다.
 - Controller 통합 테스트와 MySQL/Redis 통합 테스트는 없다.
 - rate limit, 상세 metrics, Swagger/OpenAPI 문서는 아직 없다.
@@ -73,5 +74,6 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 - HTTP 400 원인은 기존 요청의 `areaCode=32` 파라미터였다. 공식 가이드 기준 강릉 필터인 `lDongRegnCd=51`, `lDongSignguCd=150`으로 수정했고, 동일 키로 `resultCode=0000`, `resultMsg=OK` 및 강릉 관광지 2건을 확인했다.
 - Docker 초기 기동에서 RedisTemplate Bean 중복과 관광공사 base URL 결합 문제가 발견되었고 수정했다.
 - Postman에서 JSON 속성명 따옴표가 빠진 malformed JSON은 `HttpMessageNotReadableException`으로 400 처리하도록 보완했다.
+- KorService2 데이터셋의 개별 이미지 저작권 코드는 Type1/Type3가 섞여 내려온다. 현재 코드는 API 매핑, 저장, 목록, 상세 단계에서 Type1만 허용하고 기존 Type3 데이터는 재동기화 시 제거한다.
 
 이 문서는 계획이 아니라 현재 코드 확인 결과를 기록한다. 변경 시 실제 코드와 테스트를 다시 확인해 갱신한다.

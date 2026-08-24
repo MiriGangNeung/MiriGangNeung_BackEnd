@@ -488,3 +488,41 @@
 - 원격 네트워크/의존성 접근 제한으로 테스트가 완료되지 않았다.
 
 **관련 commit:** `c445d0b` — `fix: address tourism photo API review comments`
+
+## 2026-08-24
+
+### 시간 미기록 ~ 13:44 — 장소별 다중 이미지와 Type1 저작권 필터 적용
+
+**Agent:** Codex
+**작업 유형:** Implementation / Bugfix / Verification
+
+**작업 내용:**
+
+- KorService2 `detailImage2` 응답을 대표 이미지와 합쳐 장소별 최대 5장까지 저장·응답하도록 확장했다.
+- `cpyrhtDivCd=Type1` 이미지만 API 매핑, DB 저장, 목록, 상세 응답에서 허용하도록 방어 필터를 적용했다.
+- 기존 Type3 이미지가 캐시에서 다시 노출되지 않도록 Place 목록/상세 cache key version을 변경했다.
+- 신규 Place 생성 시 관광공사 수정일을 생성자에서 보존해 최신 `develop`의 신규 엔티티 처리 방식과 기존 계약을 함께 유지했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/infrastructure/tourapi/KoreanTourApiClient.java`
+- `src/main/java/com/mirigangneung/place/domain/Place.java`
+- `src/main/java/com/mirigangneung/place/domain/PlaceImage.java`
+- `src/main/java/com/mirigangneung/place/dto/PlaceResponse.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceService.java`
+- `src/test/java/com/mirigangneung/infrastructure/tourapi/KoreanTourApiClientTest.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceServiceTest.java`
+
+**테스트 결과:**
+
+- 관련 테스트: `BUILD SUCCESSFUL`
+- 전체 테스트: `bash gradlew test` — `BUILD SUCCESSFUL`
+
+**발생한 문제와 해결 방법:**
+
+- 로컬 `develop`이 원격보다 5개 commit 뒤여서 최신 `origin/develop`에서 기능 브랜치를 생성했다.
+- `PlaceService` 충돌은 원격의 신규 엔티티 처리 구조를 유지하면서 Type1 필터와 원본 수정일 초기화를 함께 적용해 해결했다.
+
+**관련 commit:**
+
+- 현재 PR commit에 기록
