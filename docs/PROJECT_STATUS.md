@@ -70,7 +70,7 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 
 - 실제 AI Provider 구현체와 비동기 Provider polling은 없다. `AiGenerationClient` 인터페이스만 존재한다.
 - Composition Job은 Provider가 연결되지 않은 현재 코드에서 실제 DONE 결과를 생성하지 않는다.
-- Place 목록/상세 응답은 Redis에 서로 다른 TTL로 캐시되며, 응답 계약 변경 시 cache key version을 올려 기존 응답을 무효화한다.
+- Place 목록/상세 응답은 Redis에 서로 다른 TTL로 캐시된다. 캐시가 없거나 만료되면 DB에서만 다시 읽어 Redis에 저장하며, 화면 요청으로 관광공사 API를 호출하지 않는다.
 - CourseResponse의 route 거리/시간은 아직 추천 결과에 통합되지 않는다.
 - Controller 통합 테스트와 MySQL/Redis 통합 테스트는 없다.
 - rate limit, 상세 metrics, Swagger/OpenAPI 문서는 아직 없다.
@@ -80,6 +80,6 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 - Postman에서 JSON 속성명 따옴표가 빠진 malformed JSON은 `HttpMessageNotReadableException`으로 400 처리하도록 보완했다.
 - KorService2 데이터셋의 개별 이미지 저작권 코드는 Type1/Type3가 섞여 내려온다. 현재 코드는 API 매핑, 저장, 목록, 상세 단계에서 Type1만 허용하고 기존 Type3 데이터는 재동기화 시 제거한다.
 - 관광사진 정보 GW 매칭은 공백·괄호·지역 접두어·해변/해수욕장 표기를 정규화하고 검증된 별칭만 허용한다. 단순 문자열 유사도는 사용하지 않아 경포대/경포해변 같은 인접 장소의 오매칭을 방지한다.
-- 관광사진 카탈로그는 프로세스 내에서 1시간 캐시하며, Place 목록 응답은 기존 Redis TTL을 사용한다. 관광사진 API 실패 시 기존 KorService2/DB 이미지만 반환한다.
+- 관광사진 API는 명시적인 전체 장소 동기화 중에만 호출된다. 목록/상세 화면 요청은 Redis와 DB만 사용하므로 Redis 만료와 관광공사 데이터 갱신은 서로 연결되지 않는다.
 
 이 문서는 계획이 아니라 현재 코드 확인 결과를 기록한다. 변경 시 실제 코드와 테스트를 다시 확인해 갱신한다.

@@ -46,29 +46,21 @@ public class PlaceService {
     private final RedisCache cache;
     private final ObjectMapper objectMapper;
     private final TourApiCacheProperties cacheProperties;
-    private final TourismPhotoMatcher tourismPhotoMatcher;
 
     @Autowired
     public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour,
-                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties,
-                        TourismPhotoMatcher tourismPhotoMatcher) {
+                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties) {
         this.places = places;
         this.images = images;
         this.tour = tour;
         this.cache = cache;
         this.objectMapper = objectMapper;
         this.cacheProperties = cacheProperties;
-        this.tourismPhotoMatcher = tourismPhotoMatcher;
-    }
-
-    public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour,
-                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties) {
-        this(places, images, tour, cache, objectMapper, cacheProperties, null);
     }
 
     public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour) {
         this(places, images, tour, null, new ObjectMapper(),
-                new TourApiCacheProperties(java.time.Duration.ofMinutes(5), java.time.Duration.ofHours(1)), null);
+                new TourApiCacheProperties(java.time.Duration.ofMinutes(5), java.time.Duration.ofHours(1)));
     }
 
     @Transactional
@@ -78,15 +70,6 @@ public class PlaceService {
         PlacePageResponse cached = readCached(cacheKey, PlacePageResponse.class);
         if (cached != null) {
             return cached;
-        }
-
-        try {
-            tour.search(keyword, category, page, size).forEach(this::upsert);
-        } catch (ApiException e) {
-            if (!"TOUR_API_ERROR".equals(e.getCode())) {
-                throw e;
-            }
-            log.warn("Using local place data because tourism search failed");
         }
 
         Pageable pageable = PageRequest.of(page, size);
@@ -99,7 +82,7 @@ public class PlaceService {
             result = places.findByRegionContainingAndNameContaining("강릉", normalizedKeyword, pageable);
         }
         List<Place> pagePlaces = result.getContent();
-        Map<UUID, List<String>> imageUrlsByPlace = mergedImageUrlsByPlace(pagePlaces);
+        Map<UUID, List<String>> imageUrlsByPlace = imageUrlsByPlace(pagePlaces);
         PlacePageResponse response = new PlacePageResponse(
                 pagePlaces.stream()
                         .map(place -> PlaceResponse.from(place, imageUrlsByPlace.get(place.getId())))
@@ -120,7 +103,7 @@ public class PlaceService {
             return cached;
         }
 
-        Place place = existingOrFetch(id);
+        Place place = find(id);
         List<PlaceImage> allowedImages = images.findByPlaceOrderBySortOrderAsc(place).stream()
                 .filter(PlaceService::isAllowedImage)
                 .toList();
@@ -149,17 +132,6 @@ public class PlaceService {
         }
     }
 
-    private Place existingOrFetch(String id) {
-        try {
-            return find(id);
-        } catch (ApiException e) {
-            if (!"PLACE_NOT_FOUND".equals(e.getCode())) {
-                throw e;
-            }
-            return tour.find(id).map(this::upsert).orElseThrow(this::notFound);
-        }
-    }
-
     private ApiException notFound() {
         return new ApiException("PLACE_NOT_FOUND", HttpStatus.NOT_FOUND, "관광지를 찾을 수 없습니다.");
     }
@@ -182,40 +154,6 @@ public class PlaceService {
             }
         }
         return result;
-    }
-
-    private Map<UUID, List<String>> mergedImageUrlsByPlace(List<Place> pagePlaces) {
-        Map<UUID, List<String>> storedImages = imageUrlsByPlace(pagePlaces);
-        if (tourismPhotoMatcher == null || pagePlaces.isEmpty()) {
-            return storedImages;
-        }
-
-        Map<UUID, List<String>> galleryImages = tourismPhotoMatcher.findImageUrls(pagePlaces);
-        Map<UUID, List<String>> result = new HashMap<>();
-        for (Place place : pagePlaces) {
-            if (place == null || place.getId() == null) {
-                continue;
-            }
-            LinkedHashSet<String> merged = new LinkedHashSet<>();
-            addImages(merged, storedImages.get(place.getId()));
-            addImages(merged, galleryImages.get(place.getId()));
-            if (!merged.isEmpty()) {
-                result.put(place.getId(), new java.util.ArrayList<>(merged));
-            }
-        }
-        return result;
-    }
-
-    private static void addImages(LinkedHashSet<String> target, List<String> candidates) {
-        if (candidates == null) {
-            return;
-        }
-        candidates.stream()
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(PlaceService::hasText)
-                .takeWhile(ignored -> target.size() < MAX_PLACE_IMAGES)
-                .forEach(target::add);
     }
 
     private Place upsert(TourApiClient.TourPlace tourPlace) {
@@ -299,11 +237,11 @@ public class PlaceService {
     }
 
     private static String listCacheKey(String category, String keyword, int page, int size) {
-        return "place:list:v4:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
+        return "place:list:v5:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
     }
 
     private static String detailCacheKey(String id) {
-        return "place:detail:v2:" + cachePart(id);
+        return "place:detail:v3:" + cachePart(id);
     }
 
     private static String cachePart(String value) {
