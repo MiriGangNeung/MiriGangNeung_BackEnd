@@ -77,9 +77,9 @@ public class PlaceService {
         if (category != null && !category.isBlank()) {
             String normalizedCategory = TourCategoryMapper.toInternalCategory(
                     TourCategoryMapper.toContentTypeId(category));
-            result = places.findByCategoryContainingAndNameContaining(normalizedCategory, normalizedKeyword, pageable);
+            result = places.findVisibleByCategoryAndName(normalizedCategory, normalizedKeyword, pageable);
         } else {
-            result = places.findByRegionContainingAndNameContaining("강릉", normalizedKeyword, pageable);
+            result = places.findVisibleByRegionAndName("강릉", normalizedKeyword, pageable);
         }
         List<Place> pagePlaces = result.getContent();
         Map<UUID, List<String>> imageUrlsByPlace = imageUrlsByPlace(pagePlaces);
@@ -237,7 +237,7 @@ public class PlaceService {
     }
 
     private static String listCacheKey(String category, String keyword, int page, int size) {
-        return "place:list:v5:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
+        return "place:list:v6:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
     }
 
     private static String detailCacheKey(String id) {

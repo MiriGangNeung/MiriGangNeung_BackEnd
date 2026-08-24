@@ -54,7 +54,7 @@ class PlaceServiceTest {
                 new PlaceImage(place, "https://img.test/3.jpg", "3", "KTO", 3, "Type1"),
                 new PlaceImage(place, "https://img.test/4.jpg", "4", "KTO", 4, "Type1"),
                 new PlaceImage(place, "https://img.test/5.jpg", "5", "KTO", 5, "Type1"));
-        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
                 .thenReturn(new PageImpl<>(List.of(place), PageRequest.of(0, 20), 1));
         when(images.findByPlaceInOrderBySortOrderAsc(List.of(place))).thenReturn(imageEntities);
 
@@ -77,7 +77,7 @@ class PlaceServiceTest {
         PlaceService matchingService = new PlaceService(
                 places, images, tour, null, new ObjectMapper(),
                 new TourApiCacheProperties(Duration.ofMinutes(5), Duration.ofHours(1)));
-        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
                 .thenReturn(new PageImpl<>(List.of(place), PageRequest.of(0, 20), 1));
         when(images.findByPlaceInOrderBySortOrderAsc(List.of(place))).thenReturn(List.of(stored));
 
@@ -92,13 +92,13 @@ class PlaceServiceTest {
 
     @Test
     void filtersByTheSameNormalizedCategoryUsedForPersistence() {
-        when(places.findByCategoryContainingAndNameContaining(eq("food"), eq(""), any()))
+        when(places.findVisibleByCategoryAndName(eq("food"), eq(""), any()))
                 .thenReturn(Page.empty());
 
         service.search("food", "", 0, 20);
 
-        verify(places).findByCategoryContainingAndNameContaining(eq("food"), eq(""), any());
-        verify(places, never()).findByRegionContainingAndNameContaining(any(), any(), any());
+        verify(places).findVisibleByCategoryAndName(eq("food"), eq(""), any());
+        verify(places, never()).findVisibleByRegionAndName(any(), any(), any());
         verifyNoInteractions(tour);
     }
 
@@ -126,7 +126,7 @@ class PlaceServiceTest {
         Place local = withId(new Place("100", "경포대", "강릉시", "nature", "설명",
                 37.8, 128.9, null, "KTO"));
         Page<Place> localPage = new PageImpl<>(List.of(local), PageRequest.of(0, 20), 1);
-        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
                 .thenReturn(localPage);
 
         var result = service.search(null, null, 0, 20);
@@ -169,7 +169,7 @@ class PlaceServiceTest {
         TourApiCacheProperties cacheProperties = new TourApiCacheProperties(listTtl, detailTtl);
         PlaceService cachedService = new PlaceService(places, images, tour, cache, objectMapper, cacheProperties);
         when(cache.get(anyString())).thenReturn(null);
-        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
                 .thenReturn(Page.empty());
 
         cachedService.search(null, null, 0, 20);
@@ -180,7 +180,7 @@ class PlaceServiceTest {
         when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of());
         cachedService.detail(place.getId().toString());
 
-        verify(cache).put(startsWith("place:list:v5:"), anyString(), eq(listTtl));
+        verify(cache).put(startsWith("place:list:v6:"), anyString(), eq(listTtl));
         verify(cache).put(startsWith("place:detail:v3:"), anyString(), eq(detailTtl));
         verifyNoInteractions(tour);
     }
@@ -191,7 +191,7 @@ class PlaceServiceTest {
         ObjectMapper objectMapper = new ObjectMapper();
         PlaceService cachedService = cachedService(cache, objectMapper);
         when(cache.get(anyString())).thenReturn("{not-json");
-        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
                 .thenReturn(Page.empty());
 
         assertThat(cachedService.search(null, null, 0, 20).content()).isEmpty();

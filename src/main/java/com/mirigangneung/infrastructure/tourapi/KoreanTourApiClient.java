@@ -51,19 +51,31 @@ public class KoreanTourApiClient implements TourApiClient {
 
     @Override
     public List<TourPlace> search(String keyword, String category, int page, int size) {
-        return searchSummaries(keyword, category, page, size).stream()
+        return searchMapped(keyword, category, page, size, false).stream()
                 .map(this::enrichSearchImages)
                 .toList();
     }
 
     @Override
     public List<TourPlace> searchSummaries(String keyword, String category, int page, int size) {
+        return searchMapped(keyword, category, page, size, true);
+    }
+
+    private List<TourPlace> searchMapped(
+            String keyword,
+            String category,
+            int page,
+            int size,
+            boolean allContentTypes) {
         if (!hasServiceKey()) {
             return List.of();
         }
 
         String endpoint = hasText(keyword) ? "searchKeyword2" : "areaBasedList2";
         Map<String, Object> params = regionalParams(category, page, size);
+        if (allContentTypes && !hasText(category)) {
+            params.remove("contentTypeId");
+        }
         if (hasText(keyword)) {
             params.put("keyword", keyword.trim());
         }
