@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-24 13:44 KST
+Last Updated: 2026-08-24 14:30 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -19,7 +19,7 @@ Last Updated By: Codex
 - 공통: CORS, RedisTemplate, 전역 예외 응답
 - Place: `Place`, `PlaceImage`, Repository, Service, DTO, Controller
 - 관광공사: `TourApiClient`, Korean API adapter와 JSON/XML 응답 정규화
-- 관광지 이미지: KorService2 대표/상세 이미지를 장소별 최대 5장 저장하며 `cpyrhtDivCd=Type1`만 목록·상세에 노출
+- 관광지 이미지: KorService2 대표/상세 이미지와 관광사진 정보 GW의 장소명 일치 이미지를 합쳐 장소별 최대 5장 노출. KorService2는 `cpyrhtDivCd=Type1`만 허용하고, 제1유형 전용인 관광사진 정보 GW는 별도 저작권 코드 필터 없이 사용
 - Composition: `CompositionJob`, 업로드, 상태 조회, retry/download API, `AiGenerationClient` 인터페이스, 로컬 임시 이미지 저장소, 만료 정리 Job
 - Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
 - Recommendation: `RuleBasedCourseRecommendationEngine`
@@ -45,6 +45,10 @@ Last Updated By: Codex
 2026-08-24 기준 `bash gradlew test` 실행 결과는 `BUILD SUCCESSFUL`이다.
 
 Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너가 실행 중이다. app은 `localhost:8080`, MySQL은 호스트 `3307`, Redis는 호스트 `6379`에 연결된다. `/actuator/health`는 `UP`이며 `/api/v1/places?page=0&size=2`에서 강릉 관광지 응답을 확인했다.
+
+관광사진 정보 GW의 `강릉` 검색 결과 1,623건 중 촬영지가 강릉인 1,610건을 장소명 기준으로 정규화했다. 현재 DB 장소 100개 기준 사진이 있는 화면 카드가 18개에서 34개로 16개 증가했으며, 신규 매칭 카드에는 최대 5장의 이미지가 노출된다.
+
+`TOUR_API_SYNC_ON_STARTUP=true`로 서버를 한 번 시작하면 KorService2 강릉 목록을 마지막 페이지까지 읽어 전체 장소를 DB에 적재한다. 이 대량 동기화는 장소별 상세사진 API를 연쇄 호출하지 않으며, Type1 대표사진과 관광사진 정보 GW 매칭 사진을 장소당 최대 5장까지 저장한다. 기본값은 `false`다.
 
 올바른 JSON으로 `POST /api/v1/courses`를 실행해 Course 생성과 원픽 포함 응답을 확인했다.
 
@@ -75,5 +79,7 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 - Docker 초기 기동에서 RedisTemplate Bean 중복과 관광공사 base URL 결합 문제가 발견되었고 수정했다.
 - Postman에서 JSON 속성명 따옴표가 빠진 malformed JSON은 `HttpMessageNotReadableException`으로 400 처리하도록 보완했다.
 - KorService2 데이터셋의 개별 이미지 저작권 코드는 Type1/Type3가 섞여 내려온다. 현재 코드는 API 매핑, 저장, 목록, 상세 단계에서 Type1만 허용하고 기존 Type3 데이터는 재동기화 시 제거한다.
+- 관광사진 정보 GW 매칭은 공백·괄호·지역 접두어·해변/해수욕장 표기를 정규화하고 검증된 별칭만 허용한다. 단순 문자열 유사도는 사용하지 않아 경포대/경포해변 같은 인접 장소의 오매칭을 방지한다.
+- 관광사진 카탈로그는 프로세스 내에서 1시간 캐시하며, Place 목록 응답은 기존 Redis TTL을 사용한다. 관광사진 API 실패 시 기존 KorService2/DB 이미지만 반환한다.
 
 이 문서는 계획이 아니라 현재 코드 확인 결과를 기록한다. 변경 시 실제 코드와 테스트를 다시 확인해 갱신한다.

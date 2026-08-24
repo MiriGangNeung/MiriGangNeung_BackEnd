@@ -76,6 +76,28 @@ class KoreanTourApiClientTest {
     }
 
     @Test
+    void searchesPlaceSummariesWithoutRequestingDetailImages() {
+        Fixture fixture = fixture("secret");
+        fixture.server().expect(once(), request -> assertRequest(request, "/B551011/KorService2/areaBasedList2", Map.of(
+                        "serviceKey", "secret",
+                        "contentTypeId", "12",
+                        "lDongRegnCd", "51",
+                        "lDongSignguCd", "150",
+                        "pageNo", "1",
+                        "numOfRows", "1000",
+                        "arrange", "A")))
+                .andRespond(withSuccess(SUCCESS_LIST, MediaType.APPLICATION_JSON));
+
+        List<TourApiClient.TourPlace> result = fixture.client().searchSummaries(null, null, 0, 1000);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).images())
+                .extracting(TourApiClient.TourImage::copyrightCode)
+                .containsExactly("Type1");
+        fixture.server().verify();
+    }
+
+    @Test
     void searchesByKeywordAndMapsCategory() {
         Fixture fixture = fixture("secret");
         fixture.server().expect(once(), request -> assertRequest(request, "/B551011/KorService2/searchKeyword2", Map.of(

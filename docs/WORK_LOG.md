@@ -228,6 +228,26 @@
 
 - 없음 (현재 작업 트리 변경)
 
+### 18:10 ~ 18:20 — 강릉 전체 장소 카탈로그 동기화
+
+**Agent:** Codex
+**작업 유형:** Implementation / Verification
+
+**작업 내용:**
+
+- KorService2 `areaBasedList2`를 페이지 끝까지 조회해 첫 100건 제한 없이 강릉 장소 전체를 DB에 저장하는 동기화 서비스를 추가했다.
+- 대량 동기화 중 장소마다 `detailImage2`를 호출하지 않도록 요약 조회 경로를 분리했다.
+- 기존 Type1 이미지, KorService2 대표 이미지, 관광사진 정보 GW 매칭 이미지를 합쳐 장소당 최대 5장까지 DB에 저장한다.
+- 평소 서버 시작에는 동기화를 수행하지 않고 `TOUR_API_SYNC_ON_STARTUP=true`일 때만 1회 실행하도록 구성했다.
+
+**테스트 결과:**
+
+- 전체 테스트: `bash gradlew test` — `BUILD SUCCESSFUL`
+
+**관련 commit:**
+
+- 현재 작업 커밋에 기록
+
 ## 2026-08-08
 
 ### 16:24:11 ~ 16:27:56 — Docker 실행 구성 및 관광공사 조회 경로 보완
@@ -526,3 +546,47 @@
 **관련 commit:**
 
 - 현재 PR commit에 기록
+
+## 2026-08-24
+
+### 14:12 ~ 14:30 — 관광사진 장소명 정규화 및 장소 카드 이미지 보강
+
+**Agent:** Codex
+**작업 유형:** Implementation / Verification
+
+**작업 내용:**
+
+- 관광사진 정보 GW의 강릉 검색 결과를 장소명별로 묶고 기존 Place 이름과 안전하게 연결하는 정규화기를 추가했다.
+- 공백, 괄호 부가명, 행정구역 접두어, 해변/해수욕장 표기를 통일하고 확인된 별칭만 적용했다.
+- 관광사진 전체 목록을 프로세스 내에서 1시간 캐시하고, 일치한 장소의 기존 이미지 뒤에 최대 5장까지 보충했다.
+- 관광사진 API 실패 시 기존 저장 이미지로 계속 응답하도록 fallback을 유지했다.
+- Place 목록 응답 변경에 맞춰 Redis cache key를 `v4`로 올렸다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/place/service/PlaceNameNormalizer.java`
+- `src/main/java/com/mirigangneung/place/service/TourismPhotoMatcher.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceService.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceNameNormalizerTest.java`
+- `src/test/java/com/mirigangneung/place/service/TourismPhotoMatcherTest.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceServiceTest.java`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- 정규화/매칭/PlaceService 관련 테스트: `BUILD SUCCESSFUL`
+- Spring Application Context 테스트: `BUILD SUCCESSFUL`
+- 실제 API와 MySQL/Redis 연결 smoke test: HTTP 200
+- 현재 Place 100개 기준 화면 노출 카드: 18개 → 34개, 16개 증가
+- 신규 카드 이미지 수: 장소별 1~5장
+
+**발생한 문제와 해결 방법:**
+
+- `TourismPhotoMatcher`의 운영/테스트 생성자 중 Spring 주입 대상을 명시하지 않아 Application Context가 실패했다. 운영 생성자에 `@Autowired`를 지정해 해결했다.
+- Docker 이미지 재빌드가 외부 base image metadata 조회 중 제한 시간에 걸렸다. 동일 코드로 8081 임시 서버를 실행해 실제 MySQL/Redis/API 통합 동작을 검증했다.
+- 관광사진을 100건씩 17회 조회하면 최초 요청이 느려졌다. 실제 API가 2,000건 요청을 정상 처리하는 것을 확인하고 한 번의 요청으로 현재 1,623건을 가져오도록 조정했다.
+
+**관련 commit:**
+
+- 없음 (현재 작업 트리 변경)

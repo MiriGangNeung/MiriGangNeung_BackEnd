@@ -51,6 +51,13 @@ public class KoreanTourApiClient implements TourApiClient {
 
     @Override
     public List<TourPlace> search(String keyword, String category, int page, int size) {
+        return searchSummaries(keyword, category, page, size).stream()
+                .map(this::enrichSearchImages)
+                .toList();
+    }
+
+    @Override
+    public List<TourPlace> searchSummaries(String keyword, String category, int page, int size) {
         if (!hasServiceKey()) {
             return List.of();
         }
@@ -62,7 +69,6 @@ public class KoreanTourApiClient implements TourApiClient {
         }
         return call(endpoint, params).stream()
                 .map(this::mapPlace)
-                .map(this::enrichSearchImages)
                 .toList();
     }
 

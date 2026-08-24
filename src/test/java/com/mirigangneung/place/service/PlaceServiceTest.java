@@ -99,6 +99,31 @@ class PlaceServiceTest {
     }
 
     @Test
+    void supplementsStoredImagesWithMatchedTourismGalleryPhotos() {
+        Place place = withId(new Place("100", "강릉 선교장", "강릉시", "culture", "설명",
+                37.8, 128.9, null, "KTO"));
+        TourismPhotoMatcher tourismPhotoMatcher = mock(TourismPhotoMatcher.class);
+        PlaceService matchingService = new PlaceService(
+                places, images, tour, null, new ObjectMapper(),
+                new TourApiCacheProperties(Duration.ofMinutes(5), Duration.ofHours(1)),
+                tourismPhotoMatcher);
+        when(tour.search(null, null, 0, 20)).thenReturn(List.of());
+        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+                .thenReturn(new PageImpl<>(List.of(place), PageRequest.of(0, 20), 1));
+        when(images.findByPlaceInOrderBySortOrderAsc(List.of(place))).thenReturn(List.of());
+        when(tourismPhotoMatcher.findImageUrls(List.of(place))).thenReturn(java.util.Map.of(
+                place.getId(), List.of("https://gallery.test/one.jpg", "https://gallery.test/two.jpg")));
+
+        var result = matchingService.search(null, null, 0, 20);
+
+        assertThat(result.content()).singleElement().satisfies(response -> {
+            assertThat(response.thumbnailUrl()).isEqualTo("https://gallery.test/one.jpg");
+            assertThat(response.imageUrls()).containsExactly(
+                    "https://gallery.test/one.jpg", "https://gallery.test/two.jpg");
+        });
+    }
+
+    @Test
     void filtersByTheSameNormalizedCategoryUsedForPersistence() {
         when(tour.search("", "food", 0, 20)).thenReturn(List.of());
         when(places.findByCategoryContainingAndNameContaining(eq("food"), eq(""), any()))
@@ -190,7 +215,7 @@ class PlaceServiceTest {
         when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of());
         cachedService.detail(place.getId().toString());
 
-        verify(cache).put(startsWith("place:list:v3:"), anyString(), eq(listTtl));
+        verify(cache).put(startsWith("place:list:v4:"), anyString(), eq(listTtl));
         verify(cache).put(startsWith("place:detail:v2:"), anyString(), eq(detailTtl));
     }
 
