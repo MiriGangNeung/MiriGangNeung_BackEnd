@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-24 22:07 KST
+Last Updated: 2026-08-25 18:45 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -27,6 +27,16 @@ Last Updated By: Codex
 - Route: `KakaoRouteClient`와 REST adapter, normalized route response
 - Docker: MySQL/Redis/app을 위한 `Dockerfile`, `docker-compose.yml`, `.dockerignore`. MySQL 호스트 공개 포트는 `MYSQL_PORT`를 사용하며 미설정 시 3307, 컨테이너 내부 연결은 3306이다.
 
+## 2026-08-25 코스 장소 관리 구현
+
+- `feat/course-place-management` 브랜치에서 Kakao Local 카테고리 어댑터를 추가했다. 음식점 `FD6`, 카페 `CE7`을 백엔드에서만 조회하며 기본 반경은 2km다.
+- 코스의 관광지 정거장 전체를 기준으로 주변 장소를 조회하고, Kakao 외부 장소 ID로 중복 제거한 뒤 최소 거리순으로 반환한다.
+- 코스에 추가한 음식점·카페는 `course_external_places` snapshot과 `course_stops`로 MySQL에 저장한다. 전역 KTO 장소 카탈로그에는 추가하지 않는다.
+- 코스 결과에서 주변 장소 추가, 원픽을 제외한 삭제, 전체 stopId 기반 순서 변경 API를 제공한다. 변경 후 도보 거리·시간·routeSegments를 다시 계산한다.
+- Course 생성/조회 응답의 mock 의존을 제거하고 프론트는 반환된 `courseId`를 sessionStorage에 보관한다. 새로고침 시 백엔드에서 코스를 복원한다.
+- 백엔드 API: `GET /api/v1/courses/{courseId}/nearby-places`, `POST /api/v1/courses/{courseId}/stops/external`, `DELETE /api/v1/courses/{courseId}/stops/{stopId}`, `PUT /api/v1/courses/{courseId}/stops/order`.
+- 설계 결정은 [`docs/adr/2026-08-25-kakao-course-place-snapshots.md`](./adr/2026-08-25-kakao-course-place-snapshots.md)에 기록했다.
+
 ## 현재 API Controller
 
 구현된 Controller 경로는 다음과 같다.
@@ -35,6 +45,10 @@ Last Updated By: Codex
 - `/media/images/{storageKey}` (CDN으로 교체 가능한 이미지 origin endpoint)
 - `/api/v1/compositions`
 - `/api/v1/courses`
+- `/api/v1/courses/{courseId}/nearby-places`
+- `/api/v1/courses/{courseId}/stops/external`
+- `/api/v1/courses/{courseId}/stops/{stopId}`
+- `/api/v1/courses/{courseId}/stops/order`
 - `/api/v1/share/courses`
 - `/api/v1/routes/walking`
 
@@ -99,7 +113,7 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 - 실제 AI Provider 구현체와 비동기 Provider polling은 없다. `AiGenerationClient` 인터페이스만 존재한다.
 - Composition Job은 Provider가 연결되지 않은 현재 코드에서 실제 DONE 결과를 생성하지 않는다.
 - Place 목록/상세 응답은 Redis에 서로 다른 TTL로 캐시된다. 캐시가 없거나 만료되면 DB에서만 다시 읽어 Redis에 저장하며, 화면 요청으로 관광공사 API를 호출하지 않는다.
-- CourseResponse의 route 거리/시간은 아직 추천 결과에 통합되지 않는다.
+- Kakao REST 키가 없거나 도보 경로 호출이 실패하면 `CourseResponse.routeStatus=UNAVAILABLE`, 거리·시간 0으로 반환한다. 장소 CRUD는 계속 가능하다.
 - Controller 통합 테스트와 MySQL/Redis 통합 테스트는 없다.
 - rate limit, 상세 metrics, Swagger/OpenAPI 문서는 아직 없다.
 - Gradle test는 로컬 Gradle 실행 파일로 재실행해 통과했다. Gradle Wrapper는 배포본 재다운로드가 필요한 환경에서 네트워크 권한 문제가 발생할 수 있다.

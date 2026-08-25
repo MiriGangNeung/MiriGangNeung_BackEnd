@@ -30,9 +30,9 @@ GET http://localhost:8080/actuator/health
 1. GET /api/v1/places
 2. 응답 content에서 실제 place id를 선택
 3. POST /api/v1/courses에 선택한 id 전송
-4. 필요하면 GET /api/v1/courses/{courseId}
-5. 필요하면 POST /api/v1/courses/{courseId}/share
-6. 지도 경로는 POST /api/v1/routes/walking
+4. 응답의 `courseId`로 실제 코스 결과를 표시
+5. 필요하면 주변 카페·음식점 조회 후 코스에 추가
+6. 필요하면 장소 삭제·순서 변경·공유
 ```
 
 프론트의 mock id(`jumunjin`, `anmok` 등)는 백엔드 Course API에 사용할 수 없다. 반드시 백엔드 Place API에서 받은 실제 id를 사용한다.
@@ -132,8 +132,10 @@ Content-Type: application/json
   "duration": "day",
   "stops": [
     {
+      "stopId": "stop-uuid",
       "sequence": 1,
       "placeId": "place-id-1",
+      "externalPlaceId": null,
       "name": "경포해변",
       "arrivalTime": "09:00",
       "stayMinutes": 60,
@@ -141,15 +143,70 @@ Content-Type: application/json
       "isOnePick": true,
       "note": "원픽 장소",
       "latitude": 37.8046,
-      "longitude": 128.9072
+      "longitude": 128.9072,
+      "external": false,
+      "category": "nature",
+      "address": "강릉시",
+      "placeUrl": null
     }
   ],
-  "totalDistanceMeters": 0,
-  "totalTravelMinutes": 0
+  "totalDistanceMeters": 1200,
+  "totalTravelMinutes": 15,
+  "routeStatus": "READY",
+  "routeSegments": []
 }
 ```
 
-현재 `totalDistanceMeters`와 `totalTravelMinutes`는 Course 응답에 아직 경로 계산 결과가 통합되지 않아 0일 수 있다.
+`routeStatus`는 Kakao 도보 API 키가 없거나 외부 경로를 계산하지 못하면 `UNAVAILABLE`이 된다. 이 경우 코스 CRUD와 장소 표시는 계속 사용할 수 있고 거리·시간은 0으로 반환된다. `routeSegments`의 `polyline` 좌표는 `[longitude, latitude]` 순서다.
+
+### 코스 주변 카페·음식점 조회
+
+코스에 포함된 관광지 좌표를 모두 기준으로 Kakao Local 카테고리 API를 조회한다. 같은 Kakao 장소가 여러 관광지 주변에서 발견되면 가장 가까운 거리만 남겨 거리순으로 정렬한다. 카카오 REST 키는 백엔드의 `KAKAO_API_KEY`로만 설정한다.
+
+```http
+GET /api/v1/courses/{courseId}/nearby-places?category=cafe
+GET /api/v1/courses/{courseId}/nearby-places?category=restaurant
+```
+
+`cafe`는 Kakao `CE7`, `restaurant`는 Kakao `FD6`으로 변환되며 기본 반경은 2km다. 응답은 가장 가까운 관광지와의 거리·이름을 포함한다.
+
+### 주변 장소 추가·삭제·순서 변경
+
+```http
+POST /api/v1/courses/{courseId}/stops/external
+Content-Type: application/json
+```
+
+```json
+{
+  "externalPlaceId": "kakao-place-id",
+  "name": "카페 예시",
+  "category": "cafe",
+  "categoryName": "음식점 > 카페",
+  "address": "강릉시 안목동",
+  "roadAddress": "강릉시 창해로",
+  "phone": "033-000-0000",
+  "placeUrl": "https://place.map.kakao.com/kakao-place-id",
+  "longitude": 128.948,
+  "latitude": 37.772
+}
+```
+
+추가 시 Kakao 응답을 코스 전용 snapshot으로 DB에 저장하고 `CourseStop`을 마지막 순서에 붙인다. 전역 관광지 카탈로그에는 추가하지 않는다.
+
+```http
+DELETE /api/v1/courses/{courseId}/stops/{stopId}
+PUT /api/v1/courses/{courseId}/stops/order
+Content-Type: application/json
+```
+
+```json
+{ "stopIds": ["stop-uuid-2", "stop-uuid-1"] }
+```
+
+원픽 장소는 삭제할 수 없으며, 순서 변경 요청은 현재 코스의 모든 `stopId`를 중복 없이 정확히 한 번씩 포함해야 한다. 추가·삭제·순서 변경 후에는 도보 거리·시간과 `routeSegments`를 다시 계산한다.
+
+외부 연동 기준은 [Kakao Local 카테고리 검색 가이드](https://developers.kakao.com/docs/ko/local/dev-guide)와 [Kakao 지도 REST API 가이드](https://developers.kakao.com/docs/ko/kakaomap/rest-api)다.
 
 ### 나머지 Course API
 
@@ -187,6 +244,8 @@ GET /api/v1/compositions/{jobId}/download
 주의: 현재 AI Provider는 실제로 선택·연결되지 않았고 `AiGenerationClient` 인터페이스만 존재한다. 따라서 Job 생성 API가 있어도 실제 DONE 이미지가 항상 생성되는 상태는 아니다.
 
 ## 7. 도보 경로 API
+
+코스 생성·장소 추가·삭제·순서 변경 응답은 인접한 코스 장소 간 Kakao 도보 경로를 합산한 `totalDistanceMeters`, `totalTravelMinutes`, `routeSegments`를 포함한다. 외부 API를 사용할 수 없을 때도 장소 목록은 반환하고 `routeStatus=UNAVAILABLE`로 표시한다.
 
 현재 백엔드 계약은 두 지점 사이의 POST 요청이다.
 
@@ -241,7 +300,7 @@ Content-Type: application/json
 
 ## 9. 프론트 연동 시 필드 변환
 
-현재 프론트 mock 타입과 백엔드 응답 필드가 다르다.
+프론트 API adapter는 아래 필드를 화면 타입으로 변환한다.
 
 | 프론트 mock | 백엔드 API |
 |---|---|
@@ -250,12 +309,12 @@ Content-Type: application/json
 | `lat` | `latitude` |
 | `lng` | `longitude` |
 | `n` | `sequence` |
-| `id` | `placeId` |
+| `id` | `stopId` |
 | `time` | `arrivalTime` |
 | `stay` | `stayMinutes` |
 | `crowd` | `crowdLevel` |
 
-프론트의 `usePlacesQuery`, `useCourseStopsQuery`, `useComposeRun`은 현재 static/mock 구현이다. 실제 연동 시 해당 지점부터 백엔드 API 호출로 교체해야 한다.
+프론트 코스 결과는 `POST /api/v1/courses` 응답의 `courseId`를 sessionStorage에 보관하고, 새로고침 시 `GET /api/v1/courses/{courseId}`로 복원한다. 주변 장소 탭은 백엔드 `nearby-places` API만 호출하며 브라우저에서 Kakao REST API를 직접 호출하지 않는다.
 
 ## 10. 관련 문서
 

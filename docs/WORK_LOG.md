@@ -1,5 +1,33 @@
 # Work Log
 
+## 2026-08-25 — 코스 결과 주변 장소 관리 및 실제 코스 API 연동
+
+**Agent:** Codex  
+**작업 유형:** Backend-centered Feature Implementation
+
+### 결정·구현
+
+- Kakao Local REST adapter를 추가하고 `FD6` 음식점·`CE7` 카페를 백엔드에서만 조회하도록 했다. 선택한 코스 관광지 정거장 전체를 기준으로 2km 내 결과를 수집하고 Kakao 외부 ID로 중복 제거·거리 정렬한다.
+- `CourseExternalPlace` snapshot entity를 추가했다. 사용자가 코스에 추가한 외부 장소의 이름·주소·전화번호·URL·좌표를 MySQL에 보존하므로 새로고침·공유·외부 데이터 변경에도 코스가 유지된다.
+- `nearby-places`, `stops/external`, `stops/{stopId}`, `stops/order` API를 추가했다. 원픽 삭제는 차단하고, 삭제 후 sequence를 compact하며, 추가·삭제·순서 변경 뒤 Kakao 도보 경로 합계와 segment를 재계산한다.
+- CourseResponse에 `stopId`, 외부 장소 필드, `routeStatus`, `routeSegments`를 추가했다. 경로 API가 unavailable이어도 코스 장소 CRUD는 유지된다.
+- 프론트는 mock course와 브라우저 Kakao REST 검색을 제거하고, 코스 생성 응답의 `courseId`를 sessionStorage에 저장한다. 코스 결과는 백엔드 조회를 사용하고 카페/음식점 탭, 거리·가까운 관광지 표시, 추가·삭제·native drag reorder를 제공한다. 지도 경로는 서버 응답을 우선 사용한다.
+
+### 검증
+
+- 백엔드: `bash ./gradlew test` — `BUILD SUCCESSFUL`
+- 프론트: `npm test -- --run` — `15 files / 37 tests passed`
+- 프론트: `npm run lint` — errors 0, 기존 `PhotoUpload.tsx` unused eslint-disable warnings 4개
+- 프론트: `npm run build` — production build successful
+- Gradle Wrapper cache와 프론트 local HTTP server는 sandbox 권한 제약이 있어 각각 승인된 실행으로 검증했다.
+
+### 주요 커밋
+
+- `fc03e27` — `feat: add Kakao local category client`
+- `3e76497` — `feat: persist external course places`
+- `5ee3428` — `feat: add course nearby place management APIs`
+- 프론트 변경은 `feat/course-place-management` worktree에서 검증 후 별도 commit 예정
+
 ## 2026-08-24
 
 ### 20:00 ~ 진행 중 — PhotoGalleryService1을 이미지 보충 전용으로 변경
