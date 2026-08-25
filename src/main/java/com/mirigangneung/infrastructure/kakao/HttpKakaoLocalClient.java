@@ -3,6 +3,7 @@ package com.mirigangneung.infrastructure.kakao;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mirigangneung.common.error.ApiException;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -15,13 +16,13 @@ public class HttpKakaoLocalClient implements KakaoLocalClient {
     private final RestClient client;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public HttpKakaoLocalClient(
             KakaoLocalProperties properties,
-            RestClient.Builder builder,
             ObjectMapper objectMapper
     ) {
         this.properties = properties;
-        this.client = builder.baseUrl(properties.baseUrl()).build();
+        this.client = RestClient.builder().baseUrl(properties.baseUrl()).build();
         this.objectMapper = objectMapper;
     }
 
