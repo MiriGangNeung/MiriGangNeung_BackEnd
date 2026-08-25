@@ -39,6 +39,12 @@ kakao:
   api:
     base-url: ${KAKAO_API_BASE_URL:https://apis-navi.kakaomobility.com}
     key: ${KAKAO_API_KEY:}
+  local:
+    base-url: ${KAKAO_LOCAL_API_BASE_URL:https://dapi.kakao.com}
+    key: ${KAKAO_API_KEY:}
+    timeout: ${KAKAO_LOCAL_API_TIMEOUT:5s}
+    radius-meters: ${KAKAO_LOCAL_RADIUS_METERS:2000}
+    page-size: ${KAKAO_LOCAL_PAGE_SIZE:15}
 image:
   temp-dir: ${IMAGE_TEMP_DIR:${java.io.tmpdir}/mirigangneung}
   ttl: ${IMAGE_TTL_SECONDS:86400}
