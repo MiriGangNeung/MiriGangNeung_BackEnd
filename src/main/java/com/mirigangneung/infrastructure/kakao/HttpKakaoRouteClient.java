@@ -69,18 +69,27 @@ public class HttpKakaoRouteClient implements KakaoRouteClient {
 
     private RouteResult parse(String body) {
         try {
-            JsonNode route = objectMapper.readTree(body).path("routes").path(0);
-            if (route.isMissingNode() || route.path("result_code").asInt(-1) != 0) {
-                throw new ApiException(
-                        "KAKAO_API_ERROR",
-                        HttpStatus.BAD_GATEWAY,
-                        "Kakao 도보 경로를 찾지 못했습니다."
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode currentRoute = root.path("route");
+            if (!currentRoute.isMissingNode() && !currentRoute.isNull()) {
+                if (root.has("status") && !"OK".equalsIgnoreCase(root.path("status").asText())) {
+                    throw routeNotFound();
+                }
+                return new RouteResult(
+                        routeMetric(currentRoute, "totalDistance", "distance"),
+                        routeMetric(currentRoute, "totalTime", "time"),
+                        readPolyline(currentRoute)
                 );
             }
 
-            int distance = route.path("summary").path("distance").asInt(0);
-            int duration = route.path("summary").path("duration").asInt(0);
-            return new RouteResult(distance, duration, readPolyline(route));
+            JsonNode legacyRoute = root.path("routes").path(0);
+            if (legacyRoute.isMissingNode() || legacyRoute.path("result_code").asInt(-1) != 0) {
+                throw routeNotFound();
+            }
+
+            int distance = legacyRoute.path("summary").path("distance").asInt(0);
+            int duration = legacyRoute.path("summary").path("duration").asInt(0);
+            return new RouteResult(distance, duration, readPolyline(legacyRoute));
         } catch (ApiException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -90,6 +99,27 @@ public class HttpKakaoRouteClient implements KakaoRouteClient {
                     "Kakao 도보 경로 응답을 해석하지 못했습니다."
             );
         }
+    }
+
+    private ApiException routeNotFound() {
+        return new ApiException(
+                "KAKAO_API_ERROR",
+                HttpStatus.BAD_GATEWAY,
+                "Kakao 도보 경로를 찾지 못했습니다."
+        );
+    }
+
+    private int routeMetric(JsonNode route, String totalField, String legField) {
+        int total = route.path("properties").path(totalField).asInt(0);
+        if (total > 0) {
+            return total;
+        }
+
+        int sum = 0;
+        for (JsonNode leg : route.path("legs")) {
+            sum += leg.path("properties").path(legField).asInt(0);
+        }
+        return sum;
     }
 
     private List<List<Double>> readPolyline(JsonNode route) {

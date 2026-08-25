@@ -32,6 +32,22 @@ class HttpKakaoRouteClientTest {
             }
             """;
 
+    private static final String CURRENT_RESPONSE = """
+            {
+              "route": {
+                "legs": [{
+                  "properties": {"distance": 349, "time": 430},
+                  "steps": [
+                    {"path": {"points": [[128.948, 37.772], [128.947, 37.773]]}},
+                    {"path": {"points": [[128.947, 37.773], [128.946, 37.774]]}}
+                  ]
+                }],
+                "properties": {"totalDistance": 349, "totalTime": 430}
+              },
+              "status": "OK"
+            }
+            """;
+
     @Test
     void requestsKakaoWalkingRouteWithLongitudeAndLatitude() {
         Fixture fixture = fixture("secret");
@@ -52,6 +68,23 @@ class HttpKakaoRouteClientTest {
         assertThat(result.durationSeconds()).isEqualTo(987);
         assertThat(result.polyline()).containsExactly(
                 List.of(128.948, 37.772), List.of(128.949, 37.773));
+        fixture.server.verify();
+    }
+
+    @Test
+    void parsesCurrentKakaoWalkingRouteShape() {
+        Fixture fixture = fixture("secret");
+        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/v2/routing/walk")))
+                .andRespond(withSuccess(CURRENT_RESPONSE, MediaType.APPLICATION_JSON));
+
+        KakaoRouteClient.RouteResult result = fixture.client.walking(37.772, 128.948, 37.774, 128.946);
+
+        assertThat(result.distanceMeters()).isEqualTo(349);
+        assertThat(result.durationSeconds()).isEqualTo(430);
+        assertThat(result.polyline()).containsExactly(
+                List.of(128.948, 37.772),
+                List.of(128.947, 37.773),
+                List.of(128.946, 37.774));
         fixture.server.verify();
     }
 
