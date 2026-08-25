@@ -7,7 +7,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-miri_password}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -54,8 +54,18 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-}
       AI_API_KEY: ${AI_API_KEY:-}
       IMAGE_TEMP_DIR: /tmp/mirigangneung
+      IMAGE_CACHE_ENABLED: ${IMAGE_CACHE_ENABLED:-true}
+      IMAGE_STORAGE_DIR: /var/lib/mirigangneung/images
+      IMAGE_PUBLIC_BASE_URL: ${IMAGE_PUBLIC_BASE_URL:-http://localhost:8080/media/images}
+      IMAGE_CACHE_TIMEOUT: ${IMAGE_CACHE_TIMEOUT:-10s}
+      IMAGE_CACHE_MAX_DOWNLOAD_BYTES: ${IMAGE_CACHE_MAX_DOWNLOAD_BYTES:-10485760}
+      IMAGE_CACHE_THUMBNAIL_MAX_WIDTH: ${IMAGE_CACHE_THUMBNAIL_MAX_WIDTH:-640}
+      IMAGE_CACHE_BROWSER_TTL: ${IMAGE_CACHE_BROWSER_TTL:-365d}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    volumes:
+      - image_data:/var/lib/mirigangneung/images
 
 volumes:
   mysql_data:
   redis_data:
+  image_data:

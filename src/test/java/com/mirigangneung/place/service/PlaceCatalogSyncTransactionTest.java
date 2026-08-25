@@ -18,7 +18,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-@SpringBootTest(properties = "tour.api.sync-on-startup=false")
+@SpringBootTest(properties = {
+        "tour.api.sync-on-startup=false",
+        "image.cache.enabled=false"
+})
 class PlaceCatalogSyncTransactionTest {
 
     @Autowired private PlaceCatalogSyncService service;

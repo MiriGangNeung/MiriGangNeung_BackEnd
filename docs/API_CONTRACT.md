@@ -57,10 +57,11 @@ GET /api/v1/places?keyword=경포&page=0&size=20
       "region": "강릉",
       "category": "12",
       "tags": [],
-      "thumbnailUrl": "https://example.com/image.jpg",
+      "thumbnailUrl": "http://localhost:8080/media/images/place-...-thumbnail.jpg",
       "latitude": 37.8046,
       "longitude": 128.9072,
-      "imageUrls": ["https://example.com/image.jpg"]
+      "imageUrls": ["http://localhost:8080/media/images/place-...-thumbnail.jpg"],
+      "originalImageUrls": ["http://localhost:8080/media/images/place-...-original.jpg"]
     }
   ],
   "page": 0,
@@ -90,6 +91,16 @@ GET /api/v1/places?page=0&size=20
 PhotoGalleryService1에서 장소명이 기존 KorService2 장소와 매칭되지 않는 사진은 카드로 만들지 않고 버린다. 위치·상세 정보가 부족한 사진을 별도 장소로 노출하지 않기 위한 정책이다.
 
 PhotoGalleryService1 원문 API는 공개 컨트롤러로 노출하지 않는다. 동기화 시에만 내부적으로 호출하고, 결과 이미지 URL을 `place_images`에 저장한다. 따라서 화면 요청이나 Redis 만료 때문에 관광공사 API를 다시 호출하지 않는다.
+
+동기화에서 이미지 캐시가 켜져 있으면 원본 URL을 한 번 다운로드해 로컬 저장소(운영에서는 object storage/CDN origin으로 교체 가능한 구조)에 원본과 카드용 썸네일로 저장한다. `imageUrls`는 썸네일, `originalImageUrls`는 같은 순서의 원본 URL이다. 기존 캐시 파일이 없는 레거시 행은 두 필드 모두 관광공사 원본 URL로 fallback한다.
+
+저장된 파일은 다음 endpoint에서 장기 immutable cache header와 함께 제공한다.
+
+```http
+GET http://localhost:8080/media/images/{storageKey}
+```
+
+Redis에는 장소 JSON만 저장하며 이미지 binary는 저장하지 않는다. `IMAGE_PUBLIC_BASE_URL`을 실제 CDN 도메인으로 바꾸면 DB의 storage key를 바꾸지 않고 공개 URL만 전환할 수 있다.
 
 ## 5. 코스 API
 

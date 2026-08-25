@@ -1,5 +1,8 @@
 package com.mirigangneung.place.service;
 
+import com.mirigangneung.infrastructure.image.ImageAssetCacheService;
+import com.mirigangneung.infrastructure.image.PlaceImageStorage;
+import com.mirigangneung.infrastructure.image.PlaceImageUrlResolver;
 import com.mirigangneung.infrastructure.tourapi.TourApiClient;
 import com.mirigangneung.common.redis.RedisCache;
 import com.mirigangneung.place.domain.Place;
@@ -32,6 +35,8 @@ public class PlaceCatalogSyncService {
     private final PlaceCatalogCleanupService cleanupService;
     private final ImageUrlValidator imageUrlValidator;
     private final RedisCache cache;
+    private final ImageAssetCacheService imageAssetCacheService;
+    private final PlaceImageUrlResolver imageUrlResolver;
     private final int pageSize;
 
     @Autowired
@@ -42,9 +47,12 @@ public class PlaceCatalogSyncService {
             TourismPhotoMatcher tourismPhotoMatcher,
             PlaceCatalogCleanupService cleanupService,
             ImageUrlValidator imageUrlValidator,
-            RedisCache cache) {
+            RedisCache cache,
+            ImageAssetCacheService imageAssetCacheService,
+            PlaceImageUrlResolver imageUrlResolver) {
         this(tourApiClient, placeRepository, placeImageRepository, tourismPhotoMatcher,
-                cleanupService, imageUrlValidator, cache, DEFAULT_PAGE_SIZE);
+                cleanupService, imageUrlValidator, cache, imageAssetCacheService, imageUrlResolver,
+                DEFAULT_PAGE_SIZE);
     }
 
     PlaceCatalogSyncService(
@@ -56,7 +64,7 @@ public class PlaceCatalogSyncService {
             ImageUrlValidator imageUrlValidator,
             int pageSize) {
         this(tourApiClient, placeRepository, placeImageRepository, tourismPhotoMatcher,
-                cleanupService, imageUrlValidator, null, pageSize);
+                cleanupService, imageUrlValidator, null, null, legacyImageUrlResolver(), pageSize);
     }
 
     PlaceCatalogSyncService(
@@ -68,6 +76,21 @@ public class PlaceCatalogSyncService {
             ImageUrlValidator imageUrlValidator,
             RedisCache cache,
             int pageSize) {
+        this(tourApiClient, placeRepository, placeImageRepository, tourismPhotoMatcher,
+                cleanupService, imageUrlValidator, cache, null, legacyImageUrlResolver(), pageSize);
+    }
+
+    PlaceCatalogSyncService(
+            TourApiClient tourApiClient,
+            PlaceRepository placeRepository,
+            PlaceImageRepository placeImageRepository,
+            TourismPhotoMatcher tourismPhotoMatcher,
+            PlaceCatalogCleanupService cleanupService,
+            ImageUrlValidator imageUrlValidator,
+            RedisCache cache,
+            ImageAssetCacheService imageAssetCacheService,
+            PlaceImageUrlResolver imageUrlResolver,
+            int pageSize) {
         this.tourApiClient = tourApiClient;
         this.placeRepository = placeRepository;
         this.placeImageRepository = placeImageRepository;
@@ -75,6 +98,8 @@ public class PlaceCatalogSyncService {
         this.cleanupService = cleanupService;
         this.imageUrlValidator = imageUrlValidator;
         this.cache = cache;
+        this.imageAssetCacheService = imageAssetCacheService;
+        this.imageUrlResolver = imageUrlResolver;
         this.pageSize = pageSize;
     }
 
@@ -179,23 +204,72 @@ public class PlaceCatalogSyncService {
         galleryUrls.forEach(url -> addImage(byUrl, new ImageData(
                 url, place.getName(), "KTO_PHOTO_GALLERY", ALLOWED_COPYRIGHT_CODE)));
 
-        List<ImageData> usableImages = byUrl.values().parallelStream()
-                .filter(image -> imageUrlValidator.isUsable(image.url()))
-                .toList();
+        List<CachedImage> usableImages;
+        if (cachingEnabled()) {
+            usableImages = byUrl.values().stream()
+                    .map(this::cacheImage)
+                    .flatMap(java.util.Optional::stream)
+                    .toList();
+        } else {
+            usableImages = byUrl.values().stream()
+                    .filter(image -> imageUrlValidator.isUsable(image.url()))
+                    .map(image -> new CachedImage(image, null))
+                    .toList();
+        }
         int rejectedImageUrls = byUrl.size() - usableImages.size();
 
         placeImageRepository.deleteByPlace(place);
         int sortOrder = 0;
-        for (ImageData image : usableImages.stream().limit(MAX_IMAGES_PER_PLACE).toList()) {
-            placeImageRepository.save(new PlaceImage(
+        PlaceImage firstSavedImage = null;
+        for (CachedImage cachedImage : usableImages.stream().limit(MAX_IMAGES_PER_PLACE).toList()) {
+            ImageData image = cachedImage.source();
+            PlaceImageStorage.StoredImage stored = cachedImage.stored();
+            PlaceImage placeImage = stored == null
+                    ? new PlaceImage(place, image.url(), image.title(), image.source(), sortOrder++, image.copyrightCode())
+                    : new PlaceImage(
                     place,
                     image.url(),
                     image.title(),
                     image.source(),
                     sortOrder++,
-                    image.copyrightCode()));
+                    image.copyrightCode(),
+                    stored.originalStorageKey(),
+                    stored.thumbnailStorageKey(),
+                    stored.contentType(),
+                    stored.originalByteSize(),
+                    stored.thumbnailByteSize());
+            placeImageRepository.save(placeImage);
+            if (firstSavedImage == null) {
+                firstSavedImage = placeImage;
+            }
+        }
+        if (cachingEnabled()) {
+            place.updateThumbnailUrl(firstSavedImage == null
+                    ? null
+                    : imageUrlResolver.thumbnailUrl(firstSavedImage));
+            placeRepository.save(place);
         }
         return new ImageReplacementResult(sortOrder > 0, rejectedImageUrls);
+    }
+
+    private java.util.Optional<CachedImage> cacheImage(ImageData image) {
+        return imageAssetCacheService.ensureCached(image.url())
+                .map(stored -> new CachedImage(image, stored));
+    }
+
+    private boolean cachingEnabled() {
+        return imageAssetCacheService != null && imageAssetCacheService.enabled();
+    }
+
+    private static PlaceImageUrlResolver legacyImageUrlResolver() {
+        return new PlaceImageUrlResolver(new com.mirigangneung.infrastructure.image.ImageCacheProperties(
+                false,
+                System.getProperty("java.io.tmpdir") + "/mirigangneung-images",
+                "http://localhost:8080/media/images",
+                java.time.Duration.ofSeconds(10),
+                10 * 1024 * 1024,
+                640,
+                java.time.Duration.ofDays(365)));
     }
 
     private static List<TourApiClient.TourImage> allowedImages(List<TourApiClient.TourImage> images) {
@@ -249,6 +323,9 @@ public class PlaceCatalogSyncService {
     }
 
     private record ImageData(String url, String title, String source, String copyrightCode) {
+    }
+
+    private record CachedImage(ImageData source, PlaceImageStorage.StoredImage stored) {
     }
 
     private record ImageReplacementResult(boolean hasImages, int rejectedImageUrls) {

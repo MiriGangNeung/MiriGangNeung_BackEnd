@@ -108,6 +108,10 @@ public class Place {
         return source;
     }
 
+    public void updateThumbnailUrl(String thumbnailUrl) {
+        this.thumbnailUrl = thumbnailUrl;
+    }
+
     public OffsetDateTime getSourceUpdatedAt() {
         return sourceUpdatedAt;
     }

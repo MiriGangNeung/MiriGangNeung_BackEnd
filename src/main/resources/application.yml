@@ -42,6 +42,14 @@ kakao:
 image:
   temp-dir: ${IMAGE_TEMP_DIR:${java.io.tmpdir}/mirigangneung}
   ttl: ${IMAGE_TTL_SECONDS:86400}
+  cache:
+    enabled: ${IMAGE_CACHE_ENABLED:true}
+    storage-dir: ${IMAGE_STORAGE_DIR:${java.io.tmpdir}/mirigangneung-images}
+    public-base-url: ${IMAGE_PUBLIC_BASE_URL:http://localhost:8080/media/images}
+    timeout: ${IMAGE_CACHE_TIMEOUT:10s}
+    max-download-bytes: ${IMAGE_CACHE_MAX_DOWNLOAD_BYTES:10485760}
+    thumbnail-max-width: ${IMAGE_CACHE_THUMBNAIL_MAX_WIDTH:640}
+    browser-ttl: ${IMAGE_CACHE_BROWSER_TTL:365d}
 ai:
   base-url: ${AI_BASE_URL:}
   api-key: ${AI_API_KEY:}
