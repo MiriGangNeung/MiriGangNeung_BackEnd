@@ -7,7 +7,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-miri_password}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:

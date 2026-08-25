@@ -730,3 +730,24 @@
 **관련 commit:**
 
 - 구현 완료 후 backend/frontend 각각 별도 commit으로 기록 예정
+
+### 22:05 ~ 22:07 — Docker Compose MySQL 호스트 포트 기본값 보완
+
+**Agent:** Codex
+**작업 유형:** Bugfix / Configuration / Verification
+
+**작업 내용:**
+
+- CDN worktree에는 백엔드 본체의 로컬 `.env`가 자동으로 복사되지 않아 `MYSQL_PORT`가 비어 있었고, Compose fallback인 호스트 3306으로 기동을 시도하는 문제가 있었다.
+- MySQL 포트 매핑을 `${MYSQL_PORT:-3307}:3306`으로 변경했다. 환경변수가 있으면 지정한 호스트 포트를 사용하고, 없으면 로컬 기본값 3307을 사용한다.
+- 컨테이너 간 JDBC 연결은 `mysql:3306`을 유지했다. 호스트 공개 포트와 Docker 네트워크 내부 포트를 혼동하지 않도록 README와 `.env.example`을 갱신했다.
+
+**검증 결과:**
+
+- `docker compose config --format json` — 환경변수 미설정 시 published port `3307`
+- `MYSQL_PORT=3310 docker compose config --format json` — published port `3310`
+- `bash gradlew --no-daemon test` — `BUILD SUCCESSFUL`
+
+**관련 commit:**
+
+- 없음 (현재 작업 트리 변경)

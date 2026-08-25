@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-24 21:34 KST
+Last Updated: 2026-08-24 22:07 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -25,7 +25,7 @@ Last Updated By: Codex
 - Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
 - Recommendation: `RuleBasedCourseRecommendationEngine`
 - Route: `KakaoRouteClient`와 REST adapter, normalized route response
-- Docker: MySQL/Redis/app을 위한 `Dockerfile`, `docker-compose.yml`, `.dockerignore`
+- Docker: MySQL/Redis/app을 위한 `Dockerfile`, `docker-compose.yml`, `.dockerignore`. MySQL 호스트 공개 포트는 `MYSQL_PORT`를 사용하며 미설정 시 3307, 컨테이너 내부 연결은 3306이다.
 
 ## 현재 API Controller
 

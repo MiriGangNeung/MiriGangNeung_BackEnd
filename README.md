@@ -28,7 +28,7 @@ Docker Desktop을 실행한 뒤 MySQL, Redis와 애플리케이션을 함께 기
 docker compose up --build
 ```
 
-호스트의 3306 포트가 이미 사용 중이면 다음처럼 MySQL 포트를 바꿀 수 있다. 애플리케이션 내부 연결 포트는 항상 Docker 서비스 포트 3306을 사용한다.
+MySQL은 호스트의 기본 포트 3307로 공개한다. 다른 호스트 포트를 사용하려면 `MYSQL_PORT`를 바꾼다. 애플리케이션 내부 연결 포트는 항상 Docker 서비스 포트 3306을 사용한다.
 
 ```powershell
 $env:MYSQL_PORT="3307"
