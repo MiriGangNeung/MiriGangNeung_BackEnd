@@ -12,6 +12,7 @@ public record CourseResponse(
         List<StopResponse> stops,
         int totalDistanceMeters,
         int totalTravelMinutes,
+        String routeStatus,
         List<RouteSegmentResponse> routeSegments
 ) {
     public CourseResponse(
@@ -22,7 +23,28 @@ public record CourseResponse(
             int totalDistanceMeters,
             int totalTravelMinutes
     ) {
-        this(courseId, title, duration, stops, totalDistanceMeters, totalTravelMinutes, List.of());
+        this(courseId, title, duration, stops, totalDistanceMeters, totalTravelMinutes, "UNAVAILABLE", List.of());
+    }
+
+    public CourseResponse(
+            String courseId,
+            String title,
+            String duration,
+            List<StopResponse> stops,
+            int totalDistanceMeters,
+            int totalTravelMinutes,
+            List<RouteSegmentResponse> routeSegments
+    ) {
+        this(
+                courseId,
+                title,
+                duration,
+                stops,
+                totalDistanceMeters,
+                totalTravelMinutes,
+                routeSegments.isEmpty() ? "UNAVAILABLE" : "READY",
+                routeSegments
+        );
     }
 
     public record StopResponse(
@@ -94,7 +116,7 @@ public record CourseResponse(
     }
 
     public static CourseResponse from(Course course, List<CourseStop> stops) {
-        return from(course, stops, 0, 0, List.of());
+        return from(course, stops, 0, 0, "UNAVAILABLE", List.of());
     }
 
     public static CourseResponse from(
@@ -104,6 +126,24 @@ public record CourseResponse(
             int totalTravelMinutes,
             List<RouteSegmentResponse> routeSegments
     ) {
+        return from(
+                course,
+                stops,
+                totalDistanceMeters,
+                totalTravelMinutes,
+                routeSegments.isEmpty() ? "UNAVAILABLE" : "READY",
+                routeSegments
+        );
+    }
+
+    public static CourseResponse from(
+            Course course,
+            List<CourseStop> stops,
+            int totalDistanceMeters,
+            int totalTravelMinutes,
+            String routeStatus,
+            List<RouteSegmentResponse> routeSegments
+    ) {
         return new CourseResponse(
                 course.getId().toString(),
                 course.getTitle(),
@@ -111,6 +151,7 @@ public record CourseResponse(
                 stops.stream().map(CourseResponse::stop).toList(),
                 totalDistanceMeters,
                 totalTravelMinutes,
+                routeStatus,
                 routeSegments
         );
     }
