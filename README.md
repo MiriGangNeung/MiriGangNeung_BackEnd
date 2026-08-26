@@ -1,49 +1,64 @@
 # MiriGangNeung_BackEnd
 미리강릉 백엔드 개발 레포지토리
 
-## 실행
+## 로컬 실행
 
-Java 17 이상과 Gradle을 사용한다.
+가장 간단한 방법은 Docker Compose다. Docker Desktop을 먼저 실행하고, 아래 명령은 이 저장소 루트에서 실행한다.
 
-```powershell
+### 1. 환경변수 준비
+
+```bash
+cp .env.example .env
+```
+
+`.env`에 사용할 키를 입력한다.
+
+```dotenv
+TOUR_API_KEY=실제_관광공사_키
+KAKAO_API_KEY=실제_Kakao_REST_키
+```
+
+Mac에서 MySQL 호스트 포트 충돌이 자주 발생하면 `.env`에 호스트 포트를 지정한다. 컨테이너 내부 MySQL 연결 포트는 항상 `3306`이다.
+
+```dotenv
+MYSQL_PORT=3307
+APP_PORT=8080
+REDIS_PORT=6379
+```
+
+### 2. 백엔드 시작
+
+```bash
+docker compose up -d --build
+docker compose logs -f app
+```
+
+정상 실행 확인:
+
+```bash
+curl http://localhost:8080/actuator/health
+curl 'http://localhost:8080/api/v1/places?page=0&size=10'
+```
+
+처음 한 번 전체 강릉 장소를 DB에 채우려면 `.env`의 `TOUR_API_SYNC_ON_STARTUP=true`로 바꾼 뒤 시작한다. 동기화가 끝나면 다시 `false`로 돌려 일반 재시작 때 관광공사 API를 호출하지 않게 한다. 기존 KTO 장소의 Kakao 리뷰 링크를 자동 보강하려면 `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`도 설정한다. 69개 기본 카드의 고정 리뷰 링크는 `src/main/resources/data/kakao-place-mappings.csv`에서 읽으므로 이 매핑에는 Kakao API 호출이 필요하지 않다.
+
+### 3. 백엔드 종료 및 포트 충돌
+
+```bash
+docker compose down       # 컨테이너만 정리하고 DB 볼륨은 보존
+docker compose ps
+lsof -nP -iTCP:3307 -sTCP:LISTEN
+```
+
+포트가 이미 사용 중이면 `.env`의 `MYSQL_PORT` 또는 `APP_PORT`를 다른 값으로 바꾼다. `docker compose down -v`는 DB와 Redis 볼륨까지 삭제하므로 데이터 초기화가 필요할 때만 사용한다.
+
+### Gradle로 앱만 실행할 때
+
+Docker의 MySQL/Redis가 이미 실행 중이거나 `.env`에서 H2와 로컬 Redis를 설정한 경우 사용할 수 있다.
+
+```bash
 ./gradlew bootRun
 ./gradlew test
 ```
 
-기본값은 H2 메모리 DB와 localhost Redis이며, MySQL/Redis/외부 API는 환경변수로 주입한다.
-
-프로젝트 루트의 `.env`는 로컬 Spring Boot 실행 시 optional config로 읽으며, Docker Compose도 동일한 파일을 환경변수 입력으로 사용한다. `.env`에는 실제 secret을 넣을 수 있지만 Git에는 커밋하지 않는다.
-
-주요 환경변수: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, `TOUR_API_BASE_URL`, `TOUR_API_KEY`, `TOUR_API_SYNC_ON_STARTUP`, `KAKAO_API_BASE_URL`, `KAKAO_API_KEY`, `KAKAO_PLACE_ENRICHMENT_ON_STARTUP`, `AI_BASE_URL`, `AI_API_KEY`, `IMAGE_TEMP_DIR`, `IMAGE_TTL_SECONDS`.
-
-API base path는 `/api/v1`이다. 상세 계약은 [문서 세트](MiriGangNeung_BackEnd_Codex_MD_Set/docs/CODEX_START_HERE.md)를 기준으로 한다. clone 직후에는 [루트 시작 문서](docs/CODEX_START_HERE.md)와 [AGENTS.md](AGENTS.md)를 먼저 읽는다.
-
-처음 실행할 때는 `.env.example`을 `.env`로 복사한다. 실제 인증키는 `.env`에만 입력하며, `.env`는 Git에 커밋하지 않는다.
-
-## Docker 실행
-
-Docker Desktop을 실행한 뒤 MySQL, Redis와 애플리케이션을 함께 기동한다.
-
-```powershell
-docker compose up --build
-```
-
-MySQL은 호스트의 기본 포트 3307로 공개한다. 다른 호스트 포트를 사용하려면 `MYSQL_PORT`를 바꾼다. 애플리케이션 내부 연결 포트는 항상 Docker 서비스 포트 3306을 사용한다.
-
-```powershell
-$env:MYSQL_PORT="3307"
-docker compose up --build
-```
-
-관광공사/Kakao 연동이 필요하면 실행 전에 환경변수를 설정한다.
-
-```powershell
-$env:TOUR_API_KEY="실제_관광공사_인증키"
-$env:KAKAO_API_KEY="실제_Kakao_REST_키"
-docker compose up --build
-```
-
-기존 DB의 KTO 장소에 Kakao 리뷰 링크를 API로 보강하려면 `KAKAO_API_KEY`를 입력하고 `.env`에 `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`를 설정한 뒤 백엔드를 한 번 실행한다. 이 옵션은 선택 사항이며, `TOUR_API_SYNC_ON_STARTUP=true`인 전체 동기화에서는 KTO 동기화와 고정 CSV 매핑이 먼저 적용된 뒤 별도 보강 단계가 실행된다. 69개 기본 카드의 리뷰 URL은 `src/main/resources/data/kakao-place-mappings.csv`에서 읽으므로 이 매핑에는 Kakao API 호출이 필요하지 않다.
-
-컨테이너가 정상 기동되면 `http://localhost:8080/actuator/health`와
-`http://localhost:8080/api/v1/places?page=0&size=10`으로 확인한다.
+API base path는 `/api/v1`이다. 상세 계약은 [API 계약](docs/API_CONTRACT.md)과 [문서 시작점](docs/CODEX_START_HERE.md)을 참고한다. 실제 인증키가 들어 있는 `.env`는 Git에 커밋하지 않는다.
