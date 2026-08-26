@@ -80,6 +80,54 @@ public class HttpKakaoLocalClient implements KakaoLocalClient {
         }
     }
 
+    @Override
+    public List<NearbyPlace> searchByKeyword(
+            String query,
+            double longitude,
+            double latitude,
+            int radiusMeters,
+            int page,
+            int size
+    ) {
+        ensureConfigured();
+
+        try {
+            String body = client.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/v2/local/search/keyword.json")
+                            .queryParam("query", query)
+                            .queryParam("x", longitude)
+                            .queryParam("y", latitude)
+                            .queryParam("radius", radiusMeters)
+                            .queryParam("page", page + 1)
+                            .queryParam("size", size)
+                            .queryParam("sort", "distance")
+                            .build())
+                    .header("Authorization", "KakaoAK " + properties.key())
+                    .retrieve()
+                    .body(String.class);
+            return parseDocuments(body, "");
+        } catch (ApiException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ApiException(
+                    "KAKAO_API_ERROR",
+                    HttpStatus.BAD_GATEWAY,
+                    "Kakao 장소 검색을 불러오지 못했습니다."
+            );
+        }
+    }
+
+    private void ensureConfigured() {
+        if (properties.key() == null || properties.key().isBlank()) {
+            throw new ApiException(
+                    "KAKAO_API_NOT_CONFIGURED",
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Kakao REST API 키가 설정되지 않았습니다."
+            );
+        }
+    }
+
     private List<NearbyPlace> parseDocuments(String body, String requestedCategoryCode) {
         try {
             JsonNode documents = objectMapper.readTree(body).path("documents");
