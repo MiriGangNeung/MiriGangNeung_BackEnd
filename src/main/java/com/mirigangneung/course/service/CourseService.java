@@ -29,6 +29,7 @@ public class CourseService {
     private final PlaceService places;
     private final CourseRecommendationEngine engine;
     private final CourseRouteCalculator routeCalculator;
+    private final CourseScheduleCalculator scheduleCalculator = new CourseScheduleCalculator();
 
     public CourseService(
             CourseRepository courses,
@@ -115,7 +116,8 @@ public class CourseService {
                 route.totalDistanceMeters(),
                 route.totalTravelMinutes(),
                 route.status(),
-                route.segments()
+                route.segments(),
+                scheduleCalculator.calculate(courseStops, route.segments())
         );
     }
 

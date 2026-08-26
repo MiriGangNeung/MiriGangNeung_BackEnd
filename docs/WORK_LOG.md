@@ -1,5 +1,51 @@
 # Work Log
 
+## 2026-08-26
+
+### 시간 미기록 ~ 20:30 — 코스 경로·일정 표시 문제 수정 및 Docker 재검증
+
+**Agent:** Codex
+**작업 유형:** Bug Fix / Verification
+
+### 작업 내용
+
+- 기존 Kakao 도보 Client의 404 원인이었던 `/v2/routing/walk`와 `start_x/start_y/end_x/end_y` 요청을 공식 Affiliate Walking endpoint와 `origin/destination/priority/summary` 계약으로 변경했다.
+- `CourseScheduleCalculator`를 추가해 코스 응답의 stop 도착시간을 09:00부터 체류시간과 확인된 도보시간 기준으로 계산했다. 경로가 unavailable이어도 모든 장소가 09:00으로 반복되지 않는다.
+- 프론트 코스 결과 카드 사이에 각 인접 장소의 도보시간·거리를 표시하고, 주변 장소 패널의 관광지 개수를 실제 코스 개수로 표시했다.
+- 카페·음식점은 기존 계약대로 자동 추천·자동 삽입하지 않고 Kakao Local 조회 후 사용자가 선택해 추가하는 흐름을 유지했다.
+- Windows 전체 테스트에서 파일 스트림이 닫히지 않아 발생한 이미지 저장소 테스트 잠금을 수정했다.
+
+### 주요 변경 파일
+
+- `src/main/java/com/mirigangneung/infrastructure/kakao/HttpKakaoRouteClient.java`
+- `src/main/java/com/mirigangneung/course/service/CourseScheduleCalculator.java`
+- `src/main/java/com/mirigangneung/course/dto/CourseResponse.java`
+- `src/main/java/com/mirigangneung/course/service/CourseService.java`
+- `src/main/java/com/mirigangneung/course/service/CoursePlaceService.java`
+- `src/test/java/com/mirigangneung/infrastructure/kakao/HttpKakaoRouteClientTest.java`
+- `src/test/java/com/mirigangneung/course/service/CourseScheduleCalculatorTest.java`
+- `src/test/java/com/mirigangneung/infrastructure/image/LocalPlaceImageStorageTest.java`
+- `..\\MiriGangNeung_FrontEnd\\src\\components\\organisms\\CourseResult.tsx`
+- `docs/API_CONTRACT.md`, `docs/PROJECT_STATUS.md`, `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`
+
+### 테스트 결과
+
+- 백엔드 `./gradlew.bat --project-cache-dir C:\\Users\\chin0\\AppData\\Local\\Temp\\mirigangneung-gradle-cache test`: 83개 통과
+- 프론트 `npm test -- --run`: 18개 파일 / 46개 테스트 통과
+- 프론트 `npm run build`: 성공
+- Docker app 이미지 재빌드 및 기동: 성공
+- 실제 Docker 호출: health `UP`, 장소 68개, 코스 도착시간 `09:00`·`10:00`·`11:00` 확인
+- 실제 Kakao Affiliate Walking 호출: HTTP 403. 도보 제휴/권한 승인 전까지 `routeStatus=UNAVAILABLE`로 유지됨
+
+### 발생한 문제와 해결 방법
+
+- 기존 도보 endpoint는 실제 호출에서 404였으므로 공식 Affiliate Walking 경로와 파라미터로 교체했다.
+- 전체 테스트의 이미지 저장소 재저장 단계는 Windows 파일 잠금으로 실패했다. 테스트가 `StoredAsset.input()`을 닫도록 수정해 재실행에서 해결했다.
+
+### 관련 commit
+
+- `63109cf` — `fix: repair course walking route and schedule display`
+
 ## 2026-08-25 — 코스 결과 주변 장소 관리 및 실제 코스 API 연동
 
 **Agent:** Codex  

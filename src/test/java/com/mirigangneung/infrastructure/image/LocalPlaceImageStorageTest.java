@@ -31,12 +31,13 @@ class LocalPlaceImageStorageTest {
                 .isLessThan(original.length);
         assertThat(storage.find("https://tong.visitkorea.or.kr/cms/resource/place.jpg"))
                 .contains(stored);
-        assertThat(storage.open(stored.thumbnailStorageKey()))
-                .get()
-                .satisfies(asset -> {
-                    assertThat(asset.contentType()).isEqualTo("image/jpeg");
-                    assertThat(asset.byteSize()).isEqualTo(stored.thumbnailByteSize());
-                });
+        PlaceImageStorage.StoredAsset asset = storage.open(stored.thumbnailStorageKey()).orElseThrow();
+        try {
+            assertThat(asset.contentType()).isEqualTo("image/jpeg");
+            assertThat(asset.byteSize()).isEqualTo(stored.thumbnailByteSize());
+        } finally {
+            asset.input().close();
+        }
 
         PlaceImageStorage.StoredImage repeated = storage.store(
                 "https://tong.visitkorea.or.kr/cms/resource/place.jpg", original, "image/jpeg");

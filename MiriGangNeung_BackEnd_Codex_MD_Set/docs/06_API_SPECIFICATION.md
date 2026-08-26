@@ -237,6 +237,10 @@ Response는 프론트가 지도 polyline을 그릴 수 있는 최소한의 norma
 
 Kakao 원문 response를 프론트에 그대로 노출하지 않는다.
 
+코스 응답의 `arrivalTime`은 첫 장소 09:00부터 각 장소의 `stayMinutes`와 앞 구간의 도보 `durationSeconds`를 누적해 계산한다. 도보 API가 unavailable이면 구간 이동시간을 0으로 두고 체류시간만 반영한다. 카페·음식점은 코스 생성 시 자동 삽입하지 않고 `nearby-places` 조회 후 사용자가 추가한다.
+
+백엔드 Kakao 도보 adapter는 Kakao Mobility Affiliate Walking의 `GET /affiliate/walking/v1/directions`를 사용한다. 이 endpoint는 `origin`, `destination`, `priority`, `summary` 파라미터와 `Authorization: KakaoAK <REST_API_KEY>` 헤더가 필요하며, 계정에 제휴 권한이 없으면 403이 반환될 수 있다.
+
 ## API 공통
 
 성공:

@@ -116,7 +116,8 @@ public record CourseResponse(
     }
 
     public static CourseResponse from(Course course, List<CourseStop> stops) {
-        return from(course, stops, 0, 0, "UNAVAILABLE", List.of());
+        return from(course, stops, 0, 0, "UNAVAILABLE", List.of(),
+                stops.stream().map(CourseStop::getArrivalTime).toList());
     }
 
     public static CourseResponse from(
@@ -132,7 +133,8 @@ public record CourseResponse(
                 totalDistanceMeters,
                 totalTravelMinutes,
                 routeSegments.isEmpty() ? "UNAVAILABLE" : "READY",
-                routeSegments
+                routeSegments,
+                stops.stream().map(CourseStop::getArrivalTime).toList()
         );
     }
 
@@ -142,13 +144,14 @@ public record CourseResponse(
             int totalDistanceMeters,
             int totalTravelMinutes,
             String routeStatus,
-            List<RouteSegmentResponse> routeSegments
+            List<RouteSegmentResponse> routeSegments,
+            List<String> arrivalTimes
     ) {
         return new CourseResponse(
                 course.getId().toString(),
                 course.getTitle(),
                 course.getDurationType(),
-                stops.stream().map(CourseResponse::stop).toList(),
+                stops.stream().map((stop) -> stop(stop, arrivalTimes)).toList(),
                 totalDistanceMeters,
                 totalTravelMinutes,
                 routeStatus,
@@ -157,6 +160,16 @@ public record CourseResponse(
     }
 
     private static StopResponse stop(CourseStop stop) {
+        return stop(stop, stop.getArrivalTime());
+    }
+
+    private static StopResponse stop(CourseStop stop, List<String> arrivalTimes) {
+        int index = Math.max(0, stop.getSequence() - 1);
+        String arrivalTime = index < arrivalTimes.size() ? arrivalTimes.get(index) : stop.getArrivalTime();
+        return stop(stop, arrivalTime);
+    }
+
+    private static StopResponse stop(CourseStop stop, String arrivalTime) {
         return new StopResponse(
                 stop.getId() == null ? null : stop.getId().toString(),
                 stop.getSequence(),
@@ -164,7 +177,7 @@ public record CourseResponse(
                 stop.getExternalPlaceId(),
                 stop.getDisplayName(),
                 stop.getThumbnailUrl(),
-                stop.getArrivalTime(),
+                arrivalTime,
                 stop.getStayMinutes(),
                 stop.getCrowdLevel(),
                 stop.isOnePick(),

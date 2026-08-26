@@ -161,6 +161,8 @@ Content-Type: application/json
 
 `routeStatus`는 Kakao 도보 API 키가 없거나 외부 경로를 계산하지 못하면 `UNAVAILABLE`이 된다. 이 경우 코스 CRUD와 장소 표시는 계속 사용할 수 있고 거리·시간은 0으로 반환된다. `routeSegments`의 `polyline` 좌표는 `[longitude, latitude]` 순서다.
 
+`arrivalTime`은 저장된 고정값을 그대로 반복하지 않는다. 현재 stop 순서의 첫 장소는 09:00이며, 다음 장소부터 직전 장소의 `stayMinutes`와 확인된 직전 `routeSegments.durationSeconds`를 누적해 계산한다. 도보 경로가 unavailable이면 이동시간을 0으로 두고 체류시간만 누적한 표시용 일정으로 반환한다.
+
 ### 코스 주변 카페·음식점 조회
 
 코스에 포함된 관광지 좌표를 모두 기준으로 Kakao Local 카테고리 API를 조회한다. 같은 Kakao 장소가 여러 관광지 주변에서 발견되면 가장 가까운 거리만 남겨 거리순으로 정렬한다. 카카오 REST 키는 백엔드의 `KAKAO_API_KEY`로만 설정한다.
@@ -208,7 +210,7 @@ Content-Type: application/json
 
 원픽 장소는 삭제할 수 없으며, 순서 변경 요청은 현재 코스의 모든 `stopId`를 중복 없이 정확히 한 번씩 포함해야 한다. 추가·삭제·순서 변경 후에는 도보 거리·시간과 `routeSegments`를 다시 계산한다.
 
-외부 연동 기준은 [Kakao Local 카테고리 검색 가이드](https://developers.kakao.com/docs/ko/local/dev-guide)와 [Kakao 지도 REST API 가이드](https://developers.kakao.com/docs/ko/kakaomap/rest-api)다.
+외부 연동 기준은 [Kakao Local 카테고리 검색 가이드](https://developers.kakao.com/docs/ko/local/dev-guide)와 [Kakao 지도 REST API 가이드](https://developers.kakao.com/docs/ko/kakaomap/rest-api)다. 카페·음식점은 현재 자동으로 코스에 삽입하지 않고 이 API로 조회한 뒤 사용자가 선택해 추가한다.
 
 ### 나머지 Course API
 
@@ -247,7 +249,7 @@ GET /api/v1/compositions/{jobId}/download
 
 ## 7. 도보 경로 API
 
-코스 생성·장소 추가·삭제·순서 변경 응답은 인접한 코스 장소 간 Kakao 도보 경로를 합산한 `totalDistanceMeters`, `totalTravelMinutes`, `routeSegments`를 포함한다. 외부 API를 사용할 수 없을 때도 장소 목록은 반환하고 `routeStatus=UNAVAILABLE`로 표시한다.
+코스 생성·장소 추가·삭제·순서 변경 응답은 인접한 코스 장소 간 Kakao 도보 경로를 합산한 `totalDistanceMeters`, `totalTravelMinutes`, `routeSegments`를 포함한다. 외부 API를 사용할 수 없을 때도 장소 목록은 반환하고 `routeStatus=UNAVAILABLE`로 표시한다. 현재 Client는 Kakao Mobility Affiliate Walking의 `GET /affiliate/walking/v1/directions`에 `origin=longitude,latitude`, `destination=longitude,latitude`, `priority=DISTANCE`, `summary=false`를 전달한다. 이 API는 별도 제휴·승인이 필요하며 권한이 없으면 403이므로 코드에서는 코스 CRUD를 유지하면서 unavailable로 처리한다.
 
 현재 백엔드 계약은 두 지점 사이의 POST 요청이다.
 

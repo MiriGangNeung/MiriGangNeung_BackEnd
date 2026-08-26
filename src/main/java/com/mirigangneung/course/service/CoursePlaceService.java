@@ -35,6 +35,7 @@ public class CoursePlaceService {
     private final KakaoLocalClient localClient;
     private final CourseRouteCalculator routeCalculator;
     private final KakaoLocalProperties localProperties;
+    private final CourseScheduleCalculator scheduleCalculator = new CourseScheduleCalculator();
 
     public CoursePlaceService(
             CourseRepository courses,
@@ -201,7 +202,8 @@ public class CoursePlaceService {
                 route.totalDistanceMeters(),
                 route.totalTravelMinutes(),
                 route.status(),
-                route.segments()
+                route.segments(),
+                scheduleCalculator.calculate(courseStops, route.segments())
         );
     }
 
