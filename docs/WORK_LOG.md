@@ -1,8 +1,43 @@
 # Work Log
 
+## 2026-08-26 — KTO 동기화 후 고정 Kakao URL 매핑 자동 반영
+
+**시작 시간:** 시간 미기록
+**완료 시간:** 2026-08-26 22:18 KST
+**Agent:** Codex
+**작업 유형:** Backend Feature Implementation / Verification
+
+### 작업 내용
+
+- 현재 화면 노출 카드 69개를 `tourContentId` 기준으로 관리하는 `src/main/resources/data/kakao-place-mappings.csv`를 추가했다.
+- KTO 동기화 후 기존 `places` 행을 한 번에 조회해 Kakao ID와 URL을 저장하는 매핑 서비스와 startup runner를 추가했다.
+- 매핑 파일의 빈 값은 명시적 억제값으로 처리해 `강릉 명주동 거리`의 Kakao ID·URL을 `NULL`로 유지한다.
+- KTO 동기화 runner에서 Kakao 보강을 분리했다. CSV 매핑만 적용할 때는 Kakao API를 호출하지 않으며, 자동 Kakao 보강은 `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`일 때만 실행된다.
+- 모든 매핑은 반복 실행에 안전하고, DB에 아직 없는 KTO 행은 `missing`으로 로그에 남긴다.
+
+### 주요 변경 파일
+
+- `src/main/resources/data/kakao-place-mappings.csv`
+- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMapping.java`
+- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMappingCatalog.java`
+- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMappingService.java`
+- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMappingRunner.java`
+- `src/main/java/com/mirigangneung/place/repository/PlaceRepository.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceCatalogSyncRunner.java`
+- `src/main/java/com/mirigangneung/place/service/KakaoPlaceEnrichmentRunner.java`
+
+### 테스트 결과
+
+- 관련 매핑·runner 테스트: `BUILD SUCCESSFUL`
+- 전체 테스트: `bash gradlew test` — `BUILD SUCCESSFUL`
+
+### 관련 commit
+
+- 위 작업은 `feat(course): add Kakao-backed place management`, `feat(place): backfill stored image thumbnails`, `feat(place): apply curated Kakao links after KTO sync` 커밋에 반영됨
+
 ## 2026-08-25 — 코스 결과 주변 장소 관리 및 실제 코스 API 연동
 
-**Agent:** Codex  
+**Agent:** Codex
 **작업 유형:** Backend-centered Feature Implementation
 
 ### 결정·구현

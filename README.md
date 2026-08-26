@@ -14,7 +14,7 @@ Java 17 이상과 Gradle을 사용한다.
 
 프로젝트 루트의 `.env`는 로컬 Spring Boot 실행 시 optional config로 읽으며, Docker Compose도 동일한 파일을 환경변수 입력으로 사용한다. `.env`에는 실제 secret을 넣을 수 있지만 Git에는 커밋하지 않는다.
 
-주요 환경변수: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, `TOUR_API_BASE_URL`, `TOUR_API_KEY`, `KAKAO_API_BASE_URL`, `KAKAO_API_KEY`, `AI_BASE_URL`, `AI_API_KEY`, `IMAGE_TEMP_DIR`, `IMAGE_TTL_SECONDS`.
+주요 환경변수: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, `TOUR_API_BASE_URL`, `TOUR_API_KEY`, `TOUR_API_SYNC_ON_STARTUP`, `KAKAO_API_BASE_URL`, `KAKAO_API_KEY`, `KAKAO_PLACE_ENRICHMENT_ON_STARTUP`, `AI_BASE_URL`, `AI_API_KEY`, `IMAGE_TEMP_DIR`, `IMAGE_TTL_SECONDS`.
 
 API base path는 `/api/v1`이다. 상세 계약은 [문서 세트](MiriGangNeung_BackEnd_Codex_MD_Set/docs/CODEX_START_HERE.md)를 기준으로 한다. clone 직후에는 [루트 시작 문서](docs/CODEX_START_HERE.md)와 [AGENTS.md](AGENTS.md)를 먼저 읽는다.
 
@@ -42,6 +42,8 @@ $env:TOUR_API_KEY="실제_관광공사_인증키"
 $env:KAKAO_API_KEY="실제_Kakao_REST_키"
 docker compose up --build
 ```
+
+기존 DB의 KTO 장소에 Kakao 리뷰 링크를 API로 보강하려면 `KAKAO_API_KEY`를 입력하고 `.env`에 `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`를 설정한 뒤 백엔드를 한 번 실행한다. 이 옵션은 선택 사항이며, `TOUR_API_SYNC_ON_STARTUP=true`인 전체 동기화에서는 KTO 동기화와 고정 CSV 매핑이 먼저 적용된 뒤 별도 보강 단계가 실행된다. 69개 기본 카드의 리뷰 URL은 `src/main/resources/data/kakao-place-mappings.csv`에서 읽으므로 이 매핑에는 Kakao API 호출이 필요하지 않다.
 
 컨테이너가 정상 기동되면 `http://localhost:8080/actuator/health`와
 `http://localhost:8080/api/v1/places?page=0&size=10`으로 확인한다.

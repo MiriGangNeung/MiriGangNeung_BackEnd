@@ -51,6 +51,7 @@ services:
       TOUR_PHOTO_GALLERY_API_KEY: ${TOUR_PHOTO_GALLERY_API_KEY:-${TOUR_API_KEY:-}}
       KAKAO_API_KEY: ${KAKAO_API_KEY:-}
       KAKAO_API_BASE_URL: ${KAKAO_API_BASE_URL:-https://apis-navi.kakaomobility.com}
+      KAKAO_PLACE_ENRICHMENT_ON_STARTUP: ${KAKAO_PLACE_ENRICHMENT_ON_STARTUP:-false}
       AI_BASE_URL: ${AI_BASE_URL:-}
       AI_API_KEY: ${AI_API_KEY:-}
       IMAGE_TEMP_DIR: /tmp/mirigangneung

@@ -184,14 +184,14 @@ paths:
   /api/v1/courses/{courseId}/nearby-places:
     get:
       tags: [Courses]
-      summary: 선택한 관광지 주변 카페·음식점 조회
+      summary: 선택한 관광지 주변 장소 조회
       description: 모든 관광지 정거장 주변 2km를 Kakao Local로 조회하고 외부 장소 ID로 중복 제거한다.
       parameters:
         - {$ref: '#/components/parameters/CourseId'}
         - name: category
           in: query
           required: true
-          schema: {type: string, enum: [restaurant, cafe]}
+          schema: {type: string, enum: [restaurant, cafe, attraction, culture]}
       responses:
         '200':
           description: 거리순 주변 장소 목록
@@ -416,14 +416,14 @@ components:
     NearbyPlacesResponse:
       type: object
       properties:
-        category: {type: string, enum: [restaurant, cafe]}
+        category: {type: string, enum: [restaurant, cafe, attraction, culture]}
         places: {type: array, items: {$ref: '#/components/schemas/NearbyPlace'}}
     NearbyPlace:
       type: object
       properties:
         externalPlaceId: {type: string}
         name: {type: string}
-        category: {type: string, enum: [restaurant, cafe]}
+        category: {type: string, enum: [restaurant, cafe, attraction, culture]}
         categoryName: {type: string, nullable: true}
         address: {type: string, nullable: true}
         roadAddress: {type: string, nullable: true}
@@ -440,7 +440,7 @@ components:
       properties:
         externalPlaceId: {type: string}
         name: {type: string}
-        category: {type: string, enum: [restaurant, cafe]}
+        category: {type: string, enum: [restaurant, cafe, attraction, culture]}
         categoryName: {type: string, nullable: true}
         address: {type: string, nullable: true}
         roadAddress: {type: string, nullable: true}

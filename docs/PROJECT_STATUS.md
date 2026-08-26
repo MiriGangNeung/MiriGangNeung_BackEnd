@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-25 18:45 KST
+Last Updated: 2026-08-26 22:18 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -26,6 +26,12 @@ Last Updated By: Codex
 - Recommendation: `RuleBasedCourseRecommendationEngine`
 - Route: `KakaoRouteClient`와 REST adapter, normalized route response
 - Docker: MySQL/Redis/app을 위한 `Dockerfile`, `docker-compose.yml`, `.dockerignore`. MySQL 호스트 공개 포트는 `MYSQL_PORT`를 사용하며 미설정 시 3307, 컨테이너 내부 연결은 3306이다.
+
+## 2026-08-26 KTO 동기화 후 고정 Kakao URL 매핑
+
+- `src/main/resources/data/kakao-place-mappings.csv`에 현재 화면에 노출되는 69개 KTO 장소의 `tourContentId`별 Kakao ID·상세 URL을 저장했다. 68개는 URL을 지정하고 `강릉 명주동 거리`는 빈 매핑으로 명시해 `NULL`을 유지한다.
+- `TOUR_API_SYNC_ON_STARTUP=true`이면 KTO 장소 동기화 후 CSV 매핑 runner가 기존 `places` 행만 일괄 upsert한다. 매핑은 idempotent하며 새 카드를 생성하지 않고, DB에 아직 없는 행은 로그의 `missing`으로 남긴다.
+- 고정 매핑 적용에는 Kakao API 호출이 필요하지 않다. Kakao Local 자동 보강은 `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`일 때만 별도로 실행되고, CSV 매핑이 그 뒤에 적용되어 수동값이 최종 기준이 된다.
 
 ## 2026-08-25 코스 장소 관리 구현
 
@@ -125,5 +131,7 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 - 관광사진 API는 명시적인 전체 장소 동기화 중에만 호출된다. 목록/상세 화면 요청은 Redis와 DB만 사용하므로 Redis 만료와 관광공사 데이터 갱신은 서로 연결되지 않는다.
 - 이미지 URL은 전체 동기화 시 HTTP 성공 응답과 `image/*` Content-Type을 확인한 뒤 원본·썸네일을 저장한다. 깨진 URL은 저장하지 않으며 유효 이미지가 없는 장소는 목록에서 제외한다. 캐시가 비활성화되면 기존 원본 URL 검증·저장 경로로 fallback한다.
 - 배경 합성 장소 목록은 `nature`, `culture`, `active` 카테고리만 노출한다. 음식점 데이터는 동기화 시 관련 코스 참조와 이미지를 먼저 정리한 뒤 장소 레코드를 삭제한다.
+- KTO 장소의 사진·기본정보는 유지하면서 Kakao Local 키워드 검색으로 정규화 이름을 매칭해 `kakaoPlaceId`·`kakaoPlaceUrl`을 저장한다. 코스 응답은 이 URL을 원본 관광지에도 전달하므로 프론트의 기존 Kakao iframe 리뷰 버튼을 재사용할 수 있다. `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`는 기존 DB를 한 번 보강하는 옵션이다.
+- KTO 장소의 Kakao URL은 고정 CSV 매핑(`tourContentId` 기준)을 동기화 후 적용한다. CSV에 없는 신규/미매핑 장소만 선택적 Kakao Local 자동 보강 대상으로 남기며, CSV의 빈 값은 의도적인 `NULL` 억제값이다.
 
 이 문서는 계획이 아니라 현재 코드 확인 결과를 기록한다. 변경 시 실제 코드와 테스트를 다시 확인해 갱신한다.
