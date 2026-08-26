@@ -299,6 +299,79 @@
 
 - 없음 (현재 작업 트리 변경)
 
+## 2026-08-26
+
+### 시간 미기록 ~ 18:00 — Docker 및 코스 추천 실제 API 검증
+
+**Agent:** Codex
+**작업 유형:** Verification / Documentation
+
+**작업 내용:**
+
+- 현재 추천 코드로 Docker app 이미지를 재빌드하고 MySQL·Redis와 함께 기동했다.
+- `/actuator/health`가 `UP`인지 확인했다.
+- `/api/v1/places`를 실제 호출해 관광지 목록과 실제 Place ID를 확인했다.
+- `POST /api/v1/courses`로 `active`·`solo`·`day` 조건 및 `nature`·`couple`·`night1` 조건을 실제 검증했다.
+- 생성된 코스를 `GET /api/v1/courses/{courseId}`로 재조회해 저장·복원 상태를 확인했다.
+- Kakao 도보 API 직접 호출 결과 `404`를 확인했으며, 현재 코스 응답은 `routeStatus=UNAVAILABLE`이다.
+
+**주요 변경 파일:**
+
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- `./gradlew.bat --project-cache-dir C:\Users\chin0\AppData\Local\Temp\mirigangneung-gradle-cache test` — `BUILD SUCCESSFUL`
+- Docker health — `UP`
+- 관광지 조회 — 정상 응답
+- 코스 생성·조회 — 정상 응답
+- Kakao 도보 경로 — `UNAVAILABLE` (외부 endpoint `404`)
+
+**발생한 문제와 해결 방법:**
+
+- 기존 Docker 이미지가 현재 추천 코드를 포함하지 않아 `docker compose up -d --build app`로 재빌드했다.
+- Kakao 키는 컨테이너에 전달되었지만 현재 코드가 호출하는 도보 endpoint가 `404`를 반환하는 문제를 확인했다. 관련 코드 수정은 별도 작업으로 남겼다.
+
+**관련 commit:** 없음 (현재 작업 트리 변경)
+
+### 시간 미기록 ~ 17:16 — 코스 조건 기반 RuleBased 추천 고도화
+
+**Agent:** Codex
+**작업 유형:** Implementation / Test / Documentation
+
+**작업 내용:**
+
+- `types` 여행 유형과 `companion` 동행자 조건을 추천 점수에 반영하는 `CoursePreferenceScorer`를 추가했다.
+- 조건에 맞는 후보를 하드 필터링하지 않고 점수 내림차순, 거리순 fallback으로 정렬하도록 `RuleBasedCourseRecommendationEngine`을 수정했다.
+- 기존 원픽 우선 규칙과 `day`/`night1` 정거장 수 제한은 유지했다.
+- `CourseService`가 요청 조건을 추천 엔진으로 전달하는 테스트와 조건별 추천·fallback 테스트를 추가했다.
+- API 계약, 프로젝트 상태 문서에 현재 추천 정책과 P0 범위를 기록했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/course/recommendation/CoursePreferenceScorer.java`
+- `src/main/java/com/mirigangneung/course/recommendation/RuleBasedCourseRecommendationEngine.java`
+- `src/test/java/com/mirigangneung/course/recommendation/RuleBasedCourseRecommendationEngineTest.java`
+- `src/test/java/com/mirigangneung/course/service/CourseServiceTest.java`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`
+- `docs/API_CONTRACT.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- 추천 엔진 테스트: `BUILD SUCCESSFUL`
+- Course 패키지 테스트: `BUILD SUCCESSFUL`
+- 전체 테스트: `BUILD SUCCESSFUL`, 81 tests completed, 0 failed
+
+**발생한 문제와 해결 방법:**
+
+- 신규 `CourseServiceTest`에서 테스트용 Entity ID가 null이라 원픽 비교 시 NPE가 발생했다. 테스트 fixture에 UUID를 주입해 해결했다.
+- 기존 repository Gradle cache lock 권한 문제를 피하기 위해 별도 프로젝트 cache 경로를 사용했다.
+
+**관련 commit:** 없음 (현재 작업 트리 변경)
+
 ### 18:10 ~ 18:20 — 강릉 전체 장소 카탈로그 동기화
 
 **Agent:** Codex
