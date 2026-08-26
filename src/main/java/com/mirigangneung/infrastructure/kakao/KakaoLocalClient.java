@@ -12,6 +12,15 @@ public interface KakaoLocalClient {
             int size
     );
 
+    List<NearbyPlace> searchByKeyword(
+            String query,
+            double longitude,
+            double latitude,
+            int radiusMeters,
+            int page,
+            int size
+    );
+
     record NearbyPlace(
             String externalPlaceId,
             String name,

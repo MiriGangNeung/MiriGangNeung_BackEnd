@@ -63,9 +63,10 @@ public class CourseController {
     @GetMapping("/courses/{id}/nearby-places")
     public NearbyPlacesResponse nearby(
             @PathVariable String id,
-            @RequestParam String category
+            @RequestParam String category,
+            @RequestParam(required = false) String stopId
     ) {
-        return coursePlaceService.nearby(id, category);
+        return coursePlaceService.nearby(id, category, stopId);
     }
 
     @PostMapping("/courses/{id}/stops/external")

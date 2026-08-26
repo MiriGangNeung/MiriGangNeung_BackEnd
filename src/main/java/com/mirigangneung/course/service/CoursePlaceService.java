@@ -14,6 +14,7 @@ import com.mirigangneung.course.repository.CourseRepository;
 import com.mirigangneung.course.repository.CourseStopRepository;
 import com.mirigangneung.infrastructure.kakao.KakaoLocalClient;
 import com.mirigangneung.infrastructure.kakao.KakaoLocalProperties;
+import com.mirigangneung.place.service.PlaceNameNormalizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,11 +24,18 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class CoursePlaceService {
     private static final int MAX_KAKAO_PAGES = 3;
+    private static final Map<String, String> KAKAO_CATEGORY_CODES = Map.of(
+            "restaurant", "FD6",
+            "cafe", "CE7",
+            "attraction", "AT4",
+            "culture", "CT1"
+    );
 
     private final CourseRepository courses;
     private final CourseStopRepository stops;
@@ -54,14 +62,24 @@ public class CoursePlaceService {
 
     @Transactional(readOnly = true)
     public NearbyPlacesResponse nearby(String courseId, String category) {
+        return nearby(courseId, category, null);
+    }
+
+    @Transactional(readOnly = true)
+    public NearbyPlacesResponse nearby(String courseId, String category, String stopId) {
         Course course = findCourse(courseId);
         String normalizedCategory = normalizeCategory(category);
         String categoryCode = categoryCode(normalizedCategory);
         int radiusMeters = localProperties.radiusMeters();
         int pageSize = Math.max(1, Math.min(localProperties.pageSize(), 15));
+        Set<String> existingTourismNames = tourismStops(course, null).stream()
+                .map(CourseStop::getDisplayName)
+                .map(PlaceNameNormalizer::normalize)
+                .filter(name -> !name.isBlank())
+                .collect(java.util.stream.Collectors.toSet());
 
         Map<String, NearbyCandidate> merged = new LinkedHashMap<>();
-        for (CourseStop tourismStop : tourismStops(course)) {
+        for (CourseStop tourismStop : tourismStops(course, stopId)) {
             for (int page = 0; page < MAX_KAKAO_PAGES; page++) {
                 List<KakaoLocalClient.NearbyPlace> pageResults = localClient.searchByCategory(
                         tourismStop.getLongitude(),
@@ -72,6 +90,9 @@ public class CoursePlaceService {
                         pageSize
                 );
                 for (KakaoLocalClient.NearbyPlace place : pageResults) {
+                    if (isExistingTourismPlace(normalizedCategory, place, existingTourismNames)) {
+                        continue;
+                    }
                     int distance = distanceMeters(
                             tourismStop.getLatitude(),
                             tourismStop.getLongitude(),
@@ -108,6 +129,14 @@ public class CoursePlaceService {
     public CourseResponse addExternalStop(String courseId, AddExternalStopRequest request) {
         Course course = findCourse(courseId);
         String category = normalizeCategory(request.category());
+        if (isTourismCategory(category) && existingTourismNames(course).contains(
+                PlaceNameNormalizer.normalize(request.name()))) {
+            throw new ApiException(
+                    "PLACE_ALREADY_IN_COURSE",
+                    HttpStatus.CONFLICT,
+                    "이미 코스에 추가된 장소입니다."
+            );
+        }
         if (stops.existsByCourseAndExternalPlace_ExternalPlaceId(course, request.externalPlaceId())) {
             throw new ApiException(
                     "PLACE_ALREADY_IN_COURSE",
@@ -222,27 +251,56 @@ public class CoursePlaceService {
         }
     }
 
-    private List<CourseStop> tourismStops(Course course) {
-        return stops.findByCourseOrderBySequenceAsc(course).stream()
+    private List<CourseStop> tourismStops(Course course, String selectedStopId) {
+        List<CourseStop> tourismStops = stops.findByCourseOrderBySequenceAsc(course).stream()
                 .filter(stop -> stop.getPlace() != null)
                 .filter(stop -> stop.getLatitude() != null && stop.getLongitude() != null)
                 .toList();
+        if (selectedStopId == null || selectedStopId.isBlank()) {
+            return tourismStops;
+        }
+        String normalizedStopId = selectedStopId.trim();
+        return tourismStops.stream()
+                .filter(stop -> normalizedStopId.equals(stopId(stop)))
+                .findFirst()
+                .map(List::of)
+                .orElseThrow(this::stopNotFound);
+    }
+
+    private Set<String> existingTourismNames(Course course) {
+        return tourismStops(course, null).stream()
+                .map(CourseStop::getDisplayName)
+                .map(PlaceNameNormalizer::normalize)
+                .filter(name -> !name.isBlank())
+                .collect(java.util.stream.Collectors.toSet());
+    }
+
+    private static boolean isExistingTourismPlace(
+            String category,
+            KakaoLocalClient.NearbyPlace place,
+            Set<String> existingTourismNames) {
+        return isTourismCategory(category)
+                && existingTourismNames.contains(PlaceNameNormalizer.normalize(place.name()));
+    }
+
+    private static boolean isTourismCategory(String category) {
+        return "attraction".equals(category) || "culture".equals(category);
     }
 
     private static String normalizeCategory(String category) {
         String normalized = category == null ? "" : category.trim().toLowerCase();
-        if (!normalized.equals("restaurant") && !normalized.equals("cafe")) {
+        if (!KAKAO_CATEGORY_CODES.containsKey(normalized)) {
             throw new ApiException(
                     "INVALID_CATEGORY",
                     HttpStatus.BAD_REQUEST,
-                    "category는 restaurant 또는 cafe여야 합니다."
+                    "category는 restaurant, cafe, attraction 또는 culture여야 합니다."
             );
         }
         return normalized;
     }
 
     private static String categoryCode(String category) {
-        return category.equals("restaurant") ? "FD6" : "CE7";
+        return KAKAO_CATEGORY_CODES.get(category);
     }
 
     private static int distanceMeters(double latitude1, double longitude1, double latitude2, double longitude2) {

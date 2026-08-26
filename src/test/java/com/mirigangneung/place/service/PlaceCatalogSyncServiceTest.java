@@ -111,7 +111,14 @@ class PlaceCatalogSyncServiceTest {
         verify(tourApiClient).searchSummaries(null, null, 0, 2);
         verify(tourApiClient).searchSummaries(null, null, 1, 2);
         verify(tourApiClient, never()).searchSummaries(null, null, 2, 2);
-        verify(placeRepository, times(3)).save(any(Place.class));
+        ArgumentCaptor<Place> placeCaptor = ArgumentCaptor.forClass(Place.class);
+        verify(placeRepository, times(4)).save(placeCaptor.capture());
+        assertThat(placeCaptor.getAllValues().stream()
+                .filter(saved -> "1".equals(saved.getTourContentId()))
+                .findFirst()
+                .orElseThrow()
+                .getThumbnailUrl())
+                .isEqualTo("https://gallery/1.jpg");
         verify(placeImageRepository, times(6)).save(any(PlaceImage.class));
         verify(cache).deleteByPrefix("place:list:");
         verify(cache).deleteByPrefix("place:detail:");

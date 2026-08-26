@@ -31,7 +31,7 @@ GET http://localhost:8080/actuator/health
 2. 응답 content에서 실제 place id를 선택
 3. POST /api/v1/courses에 선택한 id 전송
 4. 응답의 `courseId`로 실제 코스 결과를 표시
-5. 필요하면 주변 카페·음식점 조회 후 코스에 추가
+5. 필요하면 주변 장소 조회 후 코스에 추가
 6. 필요하면 장소 삭제·순서 변경·공유
 ```
 
@@ -159,16 +159,20 @@ Content-Type: application/json
 
 `routeStatus`는 Kakao 도보 API 키가 없거나 외부 경로를 계산하지 못하면 `UNAVAILABLE`이 된다. 이 경우 코스 CRUD와 장소 표시는 계속 사용할 수 있고 거리·시간은 0으로 반환된다. `routeSegments`의 `polyline` 좌표는 `[longitude, latitude]` 순서다.
 
-### 코스 주변 카페·음식점 조회
+KTO 원본 장소의 `placeUrl`은 버전 관리되는 `src/main/resources/data/kakao-place-mappings.csv`의 `tourContentId` 매핑으로 우선 채워진다. 현재 기본 카드 69개 중 68개는 Kakao 상세 URL을 가지며, `강릉 명주동 거리`는 의도적으로 빈 매핑이라 `null`로 유지된다. 이 URL은 리뷰 원문을 백엔드가 저장하는 값이 아니라 프론트가 기존 Kakao 장소 iframe으로 여는 링크다. 매핑되지 않은 장소는 `null`이며 리뷰 버튼을 표시하지 않는다.
 
-코스에 포함된 관광지 좌표를 모두 기준으로 Kakao Local 카테고리 API를 조회한다. 같은 Kakao 장소가 여러 관광지 주변에서 발견되면 가장 가까운 거리만 남겨 거리순으로 정렬한다. 카카오 REST 키는 백엔드의 `KAKAO_API_KEY`로만 설정한다.
+### 코스 주변 장소 조회
+
+코스에 포함된 관광지 좌표를 모두 기준으로 Kakao Local 카테고리 API를 조회한다. 같은 Kakao 장소가 여러 관광지 주변에서 발견되면 가장 가까운 거리만 남겨 거리순으로 정렬한다. 기존 원픽 관광지와 이름이 정규화되어 일치하는 `attraction`·`culture` 후보는 중복 추가를 막기 위해 제외한다. 카카오 REST 키는 백엔드의 `KAKAO_API_KEY`로만 설정한다.
 
 ```http
 GET /api/v1/courses/{courseId}/nearby-places?category=cafe
 GET /api/v1/courses/{courseId}/nearby-places?category=restaurant
+GET /api/v1/courses/{courseId}/nearby-places?category=attraction
+GET /api/v1/courses/{courseId}/nearby-places?category=culture
 ```
 
-`cafe`는 Kakao `CE7`, `restaurant`는 Kakao `FD6`으로 변환되며 기본 반경은 2km다. 응답은 가장 가까운 관광지와의 거리·이름을 포함한다.
+`cafe`는 Kakao `CE7`, `restaurant`는 `FD6`, `attraction`은 `AT4`, `culture`는 `CT1`으로 변환되며 기본 반경은 2km다. 응답은 가장 가까운 관광지와의 거리·이름을 포함한다.
 
 ### 주변 장소 추가·삭제·순서 변경
 
@@ -192,7 +196,7 @@ Content-Type: application/json
 }
 ```
 
-추가 시 Kakao 응답을 코스 전용 snapshot으로 DB에 저장하고 `CourseStop`을 마지막 순서에 붙인다. 전역 관광지 카탈로그에는 추가하지 않는다.
+추가 시 Kakao 응답을 코스 전용 snapshot으로 DB에 저장하고 `CourseStop`을 마지막 순서에 붙인다. 전역 관광지 카탈로그에는 추가하지 않는다. 기존 KTO 관광지와 이름이 정규화되어 일치하는 관광명소·문화시설은 추가 요청에서도 거절한다.
 
 ```http
 DELETE /api/v1/courses/{courseId}/stops/{stopId}
@@ -207,6 +211,12 @@ Content-Type: application/json
 원픽 장소는 삭제할 수 없으며, 순서 변경 요청은 현재 코스의 모든 `stopId`를 중복 없이 정확히 한 번씩 포함해야 한다. 추가·삭제·순서 변경 후에는 도보 거리·시간과 `routeSegments`를 다시 계산한다.
 
 외부 연동 기준은 [Kakao Local 카테고리 검색 가이드](https://developers.kakao.com/docs/ko/local/dev-guide)와 [Kakao 지도 REST API 가이드](https://developers.kakao.com/docs/ko/kakaomap/rest-api)다.
+
+### KTO 장소 Kakao URL 보강
+
+KTO 장소의 사진·설명은 계속 KTO에서 제공한다. 기본 카드의 Kakao URL은 동기화 직후 고정 CSV를 `tourContentId`로 조회해 `places`에 저장하며, 이 단계에서는 Kakao API를 호출하지 않는다. 새로 들어온 장소나 CSV에 없는 장소를 자동으로 찾고 싶을 때만 Kakao Local 키워드 검색을 장소명·좌표와 함께 호출한다. 양쪽 이름을 동일한 정규화 규칙으로 비교해 정확히 일치하고 좌표가 검색 반경 안에 있는 결과만 `kakaoPlaceId`와 `kakaoPlaceUrl`로 저장한다. 화면 요청마다 Kakao를 호출하지 않는다.
+
+전체 KTO 동기화를 실행하려면 `.env`에서 `TOUR_API_SYNC_ON_STARTUP=true`로 실행한다. 실행 순서는 KTO 동기화 → 선택적 Kakao API 보강(`KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`) → 고정 CSV 매핑 적용이다. 따라서 CSV에 있는 수동 매핑과 명시적 `null` 정책이 최종값이 된다. Kakao 키가 없거나 매칭되지 않는 장소는 동기화를 실패시키지 않고 URL 없이 남는다.
 
 ### 나머지 Course API
 

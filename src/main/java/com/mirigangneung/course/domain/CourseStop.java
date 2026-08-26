@@ -132,6 +132,9 @@ public class CourseStop {
     }
 
     public String getPlaceUrl() {
+        if (place != null) {
+            return place.getKakaoPlaceUrl();
+        }
         return externalPlace == null ? null : externalPlace.getPlaceUrl();
     }
 

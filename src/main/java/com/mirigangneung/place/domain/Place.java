@@ -10,6 +10,7 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -34,6 +35,10 @@ public class Place {
     private Double latitude;
     private Double longitude;
     private String thumbnailUrl;
+    @Column(name = "kakao_place_id", length = 128)
+    private String kakaoPlaceId;
+    @Column(name = "kakao_place_url", length = 2048)
+    private String kakaoPlaceUrl;
     private String source;
     private OffsetDateTime sourceUpdatedAt;
     private OffsetDateTime createdAt;
@@ -104,12 +109,25 @@ public class Place {
         return thumbnailUrl;
     }
 
+    public String getKakaoPlaceId() {
+        return kakaoPlaceId;
+    }
+
+    public String getKakaoPlaceUrl() {
+        return kakaoPlaceUrl;
+    }
+
     public String getSource() {
         return source;
     }
 
     public void updateThumbnailUrl(String thumbnailUrl) {
         this.thumbnailUrl = thumbnailUrl;
+    }
+
+    public void linkKakaoPlace(String placeId, String placeUrl) {
+        this.kakaoPlaceId = trimToNull(placeId);
+        this.kakaoPlaceUrl = trimToNull(placeUrl);
     }
 
     public OffsetDateTime getSourceUpdatedAt() {
@@ -121,6 +139,9 @@ public class Place {
     }
 
     public void updateFrom(Place place, OffsetDateTime sourceUpdatedAt) {
+        boolean placeIdentityChanged = !Objects.equals(name, place.name)
+                || !Objects.equals(latitude, place.latitude)
+                || !Objects.equals(longitude, place.longitude);
         name = place.name;
         region = place.region;
         category = place.category;
@@ -128,6 +149,15 @@ public class Place {
         latitude = place.latitude;
         longitude = place.longitude;
         thumbnailUrl = place.thumbnailUrl;
+        if (placeIdentityChanged) {
+            kakaoPlaceId = null;
+            kakaoPlaceUrl = null;
+        }
         this.sourceUpdatedAt = sourceUpdatedAt == null ? OffsetDateTime.now() : sourceUpdatedAt;
+    }
+
+    private static String trimToNull(String value) {
+        String trimmed = value == null ? null : value.trim();
+        return trimmed == null || trimmed.isEmpty() ? null : trimmed;
     }
 }
