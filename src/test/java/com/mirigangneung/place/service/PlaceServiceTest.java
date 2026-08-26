@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mirigangneung.common.redis.RedisCache;
 import com.mirigangneung.infrastructure.tourapi.TourApiClient;
 import com.mirigangneung.infrastructure.tourapi.TourApiCacheProperties;
+import com.mirigangneung.infrastructure.image.ImageCacheProperties;
+import com.mirigangneung.infrastructure.image.PlaceImageUrlResolver;
 import com.mirigangneung.place.domain.Place;
 import com.mirigangneung.place.domain.PlaceImage;
 import com.mirigangneung.place.dto.PlaceDetailResponse;
@@ -15,17 +17,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -46,50 +46,72 @@ class PlaceServiceTest {
     }
 
     @Test
-    void storesUpstreamSourceDateAndReplacesImagesOnEveryUpsert() {
-        OffsetDateTime sourceDate = OffsetDateTime.of(2026, 8, 9, 12, 0, 0, 0, ZoneOffset.ofHours(9));
-        TourApiClient.TourPlace remote = new TourApiClient.TourPlace(
-                "100", "경포대", "강릉시", "nature", "호수 전망", 37.8, 128.9,
-                "https://img.test/one.jpg",
-                List.of(new TourApiClient.TourImage("https://img.test/one.jpg", "대표", "Y", 0)),
-                sourceDate);
-        when(tour.search(null, null, 0, 20)).thenReturn(List.of(remote));
-        when(places.findByTourContentId("100")).thenReturn(Optional.empty());
-        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
-                .thenReturn(Page.empty());
+    void exposesAtMostFiveType1ImageUrlsForPlaceList() {
+        Place place = withId(new Place("100", "경포대", "강릉시", "nature", "설명",
+                37.8, 128.9, "https://img.test/0.jpg", "KTO"));
+        List<PlaceImage> imageEntities = List.of(
+                new PlaceImage(place, "https://img.test/0.jpg", "0", "KTO", 0, "Type3"),
+                new PlaceImage(place, "https://img.test/1.jpg", "1", "KTO", 1, "Type1"),
+                new PlaceImage(place, "https://img.test/2.jpg", "2", "KTO", 2, "Type1"),
+                new PlaceImage(place, "https://img.test/3.jpg", "3", "KTO", 3, "Type1"),
+                new PlaceImage(place, "https://img.test/4.jpg", "4", "KTO", 4, "Type1"),
+                new PlaceImage(place, "https://img.test/5.jpg", "5", "KTO", 5, "Type1"));
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
+                .thenReturn(new PageImpl<>(List.of(place), PageRequest.of(0, 20), 1));
+        when(images.findByPlaceInOrderBySortOrderAsc(List.of(place))).thenReturn(imageEntities);
 
-        service.search(null, null, 0, 20);
-        service.search(null, null, 0, 20);
+        var result = service.search(null, null, 0, 20);
+        var json = new ObjectMapper().valueToTree(result.content().get(0));
 
-        var placeCaptor = org.mockito.ArgumentCaptor.forClass(Place.class);
-        verify(places, times(2)).save(placeCaptor.capture());
-        assertThat(placeCaptor.getAllValues()).allSatisfy(place -> {
-            assertThat(place.getTourContentId()).isEqualTo("100");
-            assertThat(place.getSourceUpdatedAt()).isEqualTo(sourceDate);
+        assertThat(json.path("imageUrls")).hasSize(5);
+        assertThat(json.path("thumbnailUrl").asText()).isEqualTo("https://img.test/1.jpg");
+        assertThat(json.path("imageUrls").get(0).asText()).isEqualTo("https://img.test/1.jpg");
+        assertThat(json.path("imageUrls").get(4).asText()).isEqualTo("https://img.test/5.jpg");
+    }
+
+    @Test
+    void readsOnlyStoredImagesWithoutCallingTheGalleryAtRequestTime() {
+        Place place = withId(new Place("100", "강릉 선교장", "강릉시", "culture", "설명",
+                37.8, 128.9, null, "KTO"));
+        PlaceImage stored = new PlaceImage(
+                place, "https://stored.test/one.jpg", "대표", "KTO", 0, "Type1");
+        TourismPhotoMatcher tourismPhotoMatcher = mock(TourismPhotoMatcher.class);
+        PlaceService matchingService = new PlaceService(
+                places, images, tour, null, new ObjectMapper(),
+                new TourApiCacheProperties(Duration.ofMinutes(5), Duration.ofHours(1)));
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
+                .thenReturn(new PageImpl<>(List.of(place), PageRequest.of(0, 20), 1));
+        when(images.findByPlaceInOrderBySortOrderAsc(List.of(place))).thenReturn(List.of(stored));
+
+        var result = matchingService.search(null, null, 0, 20);
+
+        assertThat(result.content()).singleElement().satisfies(response -> {
+            assertThat(response.thumbnailUrl()).isEqualTo("https://stored.test/one.jpg");
+            assertThat(response.imageUrls()).containsExactly("https://stored.test/one.jpg");
         });
-        verify(images, times(2)).deleteByPlace(any(Place.class));
-        verify(images, times(2)).save(any(PlaceImage.class));
+        verifyNoInteractions(tour, tourismPhotoMatcher);
     }
 
     @Test
     void filtersByTheSameNormalizedCategoryUsedForPersistence() {
-        when(tour.search("", "food", 0, 20)).thenReturn(List.of());
-        when(places.findByCategoryContainingAndNameContaining(eq("food"), eq(""), any()))
+        when(places.findVisibleByCategoryAndName(eq("food"), eq(""), any()))
                 .thenReturn(Page.empty());
 
         service.search("food", "", 0, 20);
 
-        verify(places).findByCategoryContainingAndNameContaining(eq("food"), eq(""), any());
-        verify(places, never()).findByRegionContainingAndNameContaining(any(), any(), any());
+        verify(places).findVisibleByCategoryAndName(eq("food"), eq(""), any());
+        verify(places, never()).findVisibleByRegionAndName(any(), any(), any());
+        verifyNoInteractions(tour);
     }
 
     @Test
     void returnsStructuredImageMetadataAndLegacyUrls() {
         Place place = withId(new Place("100", "경포대", "강릉시", "nature", "설명",
                 37.8, 128.9, "https://img.test/one.jpg", "KTO"));
-        PlaceImage image = new PlaceImage(place, "https://img.test/one.jpg", "대표", "KTO", 0, "Y");
+        PlaceImage image = new PlaceImage(place, "https://img.test/one.jpg", "대표", "KTO", 0, "Type1");
+        PlaceImage forbidden = new PlaceImage(place, "https://img.test/type3.jpg", "변경 금지", "KTO", 1, "Type3");
         when(places.findById(place.getId())).thenReturn(Optional.of(place));
-        when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of(image));
+        when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of(image, forbidden));
 
         PlaceDetailResponse result = service.detail(place.getId().toString());
 
@@ -97,24 +119,92 @@ class PlaceServiceTest {
         assertThat(result.images()).singleElement().satisfies(detail -> {
             assertThat(detail.imageUrl()).isEqualTo("https://img.test/one.jpg");
             assertThat(detail.title()).isEqualTo("대표");
-            assertThat(detail.copyrightCode()).isEqualTo("Y");
+            assertThat(detail.copyrightCode()).isEqualTo("Type1");
         });
     }
 
     @Test
-    void fallsBackToLocalPageWhenTourSearchFails() {
+    void exposesCachedThumbnailsAndOriginalsInTheSameOrder() {
+        Place place = withId(new Place("100", "경포대", "강릉시", "nature", "설명",
+                37.8, 128.9, null, "KTO"));
+        PlaceImage first = new PlaceImage(
+                place,
+                "https://img.test/one.jpg",
+                "대표",
+                "KTO",
+                0,
+                "Type1",
+                "place-one-original.jpg",
+                "place-one-thumbnail.jpg",
+                "image/jpeg",
+                1000L,
+                100L);
+        PlaceImage second = new PlaceImage(
+                place,
+                "https://img.test/two.jpg",
+                "두 번째",
+                "KTO",
+                1,
+                "Type1",
+                "place-two-original.jpg",
+                "place-two-thumbnail.jpg",
+                "image/jpeg",
+                2000L,
+                200L);
+        PlaceImageUrlResolver resolver = new PlaceImageUrlResolver(new ImageCacheProperties(
+                true,
+                "/tmp/miri-images",
+                "http://localhost:8080/media/images",
+                Duration.ofSeconds(3),
+                2_000_000,
+                640,
+                Duration.ofDays(365)));
+        PlaceService cachedImageService = new PlaceService(
+                places,
+                images,
+                tour,
+                null,
+                new ObjectMapper(),
+                new TourApiCacheProperties(Duration.ofMinutes(5), Duration.ofHours(1)),
+                resolver);
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
+                .thenReturn(new PageImpl<>(List.of(place), PageRequest.of(0, 20), 1));
+        when(images.findByPlaceInOrderBySortOrderAsc(List.of(place))).thenReturn(List.of(first, second));
+        when(places.findById(place.getId())).thenReturn(Optional.of(place));
+        when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of(first, second));
+
+        var result = cachedImageService.search(null, null, 0, 20);
+        var detail = cachedImageService.detail(place.getId().toString());
+
+        assertThat(result.content()).singleElement().satisfies(response -> {
+            assertThat(response.imageUrls()).containsExactly(
+                    "http://localhost:8080/media/images/place-one-thumbnail.jpg",
+                    "http://localhost:8080/media/images/place-two-thumbnail.jpg");
+            assertThat(response.originalImageUrls()).containsExactly(
+                    "http://localhost:8080/media/images/place-one-original.jpg",
+                    "http://localhost:8080/media/images/place-two-original.jpg");
+        });
+        assertThat(detail.images()).hasSize(2);
+        assertThat(detail.images().get(0)).satisfies(response -> {
+            assertThat(response.imageUrl()).endsWith("place-one-thumbnail.jpg");
+            assertThat(response.originalImageUrl()).endsWith("place-one-original.jpg");
+            assertThat(response.sourceImageUrl()).isEqualTo("https://img.test/one.jpg");
+        });
+    }
+
+    @Test
+    void readsLocalPageWithoutCallingTourSearch() {
         Place local = withId(new Place("100", "경포대", "강릉시", "nature", "설명",
                 37.8, 128.9, null, "KTO"));
         Page<Place> localPage = new PageImpl<>(List.of(local), PageRequest.of(0, 20), 1);
-        when(tour.search(null, null, 0, 20))
-                .thenThrow(new ApiException("TOUR_API_ERROR", HttpStatus.BAD_GATEWAY, "upstream"));
-        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
                 .thenReturn(localPage);
 
         var result = service.search(null, null, 0, 20);
 
         assertThat(result.content()).singleElement().satisfies(place ->
                 assertThat(place.name()).isEqualTo("경포대"));
+        verifyNoInteractions(tour);
     }
 
     @Test
@@ -150,8 +240,7 @@ class PlaceServiceTest {
         TourApiCacheProperties cacheProperties = new TourApiCacheProperties(listTtl, detailTtl);
         PlaceService cachedService = new PlaceService(places, images, tour, cache, objectMapper, cacheProperties);
         when(cache.get(anyString())).thenReturn(null);
-        when(tour.search(null, null, 0, 20)).thenReturn(List.of());
-        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
                 .thenReturn(Page.empty());
 
         cachedService.search(null, null, 0, 20);
@@ -162,8 +251,9 @@ class PlaceServiceTest {
         when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of());
         cachedService.detail(place.getId().toString());
 
-        verify(cache).put(startsWith("place:list:v1:"), anyString(), eq(listTtl));
-        verify(cache).put(startsWith("place:detail:v1:"), anyString(), eq(detailTtl));
+        verify(cache).put(startsWith("place:list:v8:"), anyString(), eq(listTtl));
+        verify(cache).put(startsWith("place:detail:v4:"), anyString(), eq(detailTtl));
+        verifyNoInteractions(tour);
     }
 
     @Test
@@ -172,13 +262,12 @@ class PlaceServiceTest {
         ObjectMapper objectMapper = new ObjectMapper();
         PlaceService cachedService = cachedService(cache, objectMapper);
         when(cache.get(anyString())).thenReturn("{not-json");
-        when(tour.search(null, null, 0, 20)).thenReturn(List.of());
-        when(places.findByRegionContainingAndNameContaining(eq("강릉"), eq(""), any()))
+        when(places.findVisibleByRegionAndName(eq("강릉"), eq(""), any()))
                 .thenReturn(Page.empty());
 
         assertThat(cachedService.search(null, null, 0, 20).content()).isEmpty();
 
-        verify(tour).search(null, null, 0, 20);
+        verifyNoInteractions(tour);
     }
 
     @Test
@@ -194,8 +283,19 @@ class PlaceServiceTest {
 
         var keyCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(cache).get(keyCaptor.capture());
-        assertThat(keyCaptor.getValue()).isEqualTo("place:detail:v1:place-id");
+        assertThat(keyCaptor.getValue()).isEqualTo("place:detail:v4:place-id");
         verifyNoInteractions(places, images, tour);
+    }
+
+    @Test
+    void returnsNotFoundFromDatabaseWithoutCallingTourDetail() {
+        when(places.findByTourContentId("missing-place")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.detail("missing-place"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(error -> assertThat(((ApiException) error).getCode()).isEqualTo("PLACE_NOT_FOUND"));
+
+        verifyNoInteractions(tour);
     }
 
     private PlaceService cachedService(RedisCache cache, ObjectMapper objectMapper) {

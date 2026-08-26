@@ -27,24 +27,35 @@ tour:
     base-url: ${TOUR_API_BASE_URL:https://apis.data.go.kr/B551011/KorService2}
     key: ${TOUR_API_KEY:}
     timeout: ${TOUR_API_TIMEOUT:5s}
+    sync-on-startup: ${TOUR_API_SYNC_ON_STARTUP:false}
     cache:
       list-ttl: ${TOUR_API_LIST_CACHE_TTL:5m}
       detail-ttl: ${TOUR_API_DETAIL_CACHE_TTL:1h}
-  award:
-    base-url: ${TOUR_AWARD_API_BASE_URL:https://apis.data.go.kr/B551011/PhokoAwrdService}
-    key: ${TOUR_AWARD_API_KEY:${TOUR_API_KEY:}}
-    timeout: ${TOUR_AWARD_API_TIMEOUT:5s}
   photo-gallery:
     base-url: ${TOUR_PHOTO_GALLERY_API_BASE_URL:https://apis.data.go.kr/B551011/PhotoGalleryService1}
     key: ${TOUR_PHOTO_GALLERY_API_KEY:${TOUR_API_KEY:}}
     timeout: ${TOUR_PHOTO_GALLERY_API_TIMEOUT:5s}
 kakao:
   api:
-    base-url: ${KAKAO_API_BASE_URL:https://apis-navi.kakaomobility.com}
+    base-url: ${KAKAO_API_BASE_URL:https://dapi.kakao.com}
     key: ${KAKAO_API_KEY:}
+  local:
+    base-url: ${KAKAO_LOCAL_API_BASE_URL:https://dapi.kakao.com}
+    key: ${KAKAO_API_KEY:}
+    timeout: ${KAKAO_LOCAL_API_TIMEOUT:5s}
+    radius-meters: ${KAKAO_LOCAL_RADIUS_METERS:2000}
+    page-size: ${KAKAO_LOCAL_PAGE_SIZE:15}
 image:
   temp-dir: ${IMAGE_TEMP_DIR:${java.io.tmpdir}/mirigangneung}
   ttl: ${IMAGE_TTL_SECONDS:86400}
+  cache:
+    enabled: ${IMAGE_CACHE_ENABLED:true}
+    storage-dir: ${IMAGE_STORAGE_DIR:${java.io.tmpdir}/mirigangneung-images}
+    public-base-url: ${IMAGE_PUBLIC_BASE_URL:http://localhost:8080/media/images}
+    timeout: ${IMAGE_CACHE_TIMEOUT:10s}
+    max-download-bytes: ${IMAGE_CACHE_MAX_DOWNLOAD_BYTES:10485760}
+    thumbnail-max-width: ${IMAGE_CACHE_THUMBNAIL_MAX_WIDTH:640}
+    browser-ttl: ${IMAGE_CACHE_BROWSER_TTL:365d}
 ai:
   base-url: ${AI_BASE_URL:}
   api-key: ${AI_API_KEY:}

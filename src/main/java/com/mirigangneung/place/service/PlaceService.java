@@ -6,6 +6,8 @@ import com.mirigangneung.common.redis.RedisCache;
 import com.mirigangneung.infrastructure.tourapi.TourApiCacheProperties;
 import com.mirigangneung.infrastructure.tourapi.TourApiClient;
 import com.mirigangneung.infrastructure.tourapi.TourCategoryMapper;
+import com.mirigangneung.infrastructure.image.ImageCacheProperties;
+import com.mirigangneung.infrastructure.image.PlaceImageUrlResolver;
 import com.mirigangneung.place.domain.Place;
 import com.mirigangneung.place.domain.PlaceImage;
 import com.mirigangneung.place.dto.PlaceDetailResponse;
@@ -24,8 +26,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -35,6 +39,8 @@ import java.nio.charset.StandardCharsets;
 @Service
 public class PlaceService {
     private static final Logger log = LoggerFactory.getLogger(PlaceService.class);
+    private static final int MAX_PLACE_IMAGES = 5;
+    private static final String ALLOWED_COPYRIGHT_CODE = "Type1";
 
     private final PlaceRepository places;
     private final PlaceImageRepository images;
@@ -42,16 +48,24 @@ public class PlaceService {
     private final RedisCache cache;
     private final ObjectMapper objectMapper;
     private final TourApiCacheProperties cacheProperties;
+    private final PlaceImageUrlResolver imageUrlResolver;
 
     @Autowired
     public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour,
-                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties) {
+                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties,
+                        PlaceImageUrlResolver imageUrlResolver) {
         this.places = places;
         this.images = images;
         this.tour = tour;
         this.cache = cache;
         this.objectMapper = objectMapper;
         this.cacheProperties = cacheProperties;
+        this.imageUrlResolver = imageUrlResolver;
+    }
+
+    public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour,
+                        RedisCache cache, ObjectMapper objectMapper, TourApiCacheProperties cacheProperties) {
+        this(places, images, tour, cache, objectMapper, cacheProperties, legacyImageUrlResolver());
     }
 
     public PlaceService(PlaceRepository places, PlaceImageRepository images, TourApiClient tour) {
@@ -68,25 +82,31 @@ public class PlaceService {
             return cached;
         }
 
-        try {
-            tour.search(keyword, category, page, size).forEach(this::upsert);
-        } catch (ApiException e) {
-            if (!"TOUR_API_ERROR".equals(e.getCode())) {
-                throw e;
-            }
-            log.warn("Using local place data because tourism search failed");
-        }
-
         Pageable pageable = PageRequest.of(page, size);
         Page<Place> result;
         if (category != null && !category.isBlank()) {
             String normalizedCategory = TourCategoryMapper.toInternalCategory(
                     TourCategoryMapper.toContentTypeId(category));
-            result = places.findByCategoryContainingAndNameContaining(normalizedCategory, normalizedKeyword, pageable);
+            result = places.findVisibleByCategoryAndName(normalizedCategory, normalizedKeyword, pageable);
         } else {
-            result = places.findByRegionContainingAndNameContaining("강릉", normalizedKeyword, pageable);
+            result = places.findVisibleByRegionAndName("강릉", normalizedKeyword, pageable);
         }
-        PlacePageResponse response = PlacePageResponse.from(result);
+        List<Place> pagePlaces = result.getContent();
+        Map<UUID, List<PlaceImage>> imagesByPlace = imageEntitiesByPlace(pagePlaces);
+        PlacePageResponse response = new PlacePageResponse(
+                pagePlaces.stream()
+                        .map(place -> {
+                            List<PlaceImage> placeImages = imagesByPlace.getOrDefault(place.getId(), List.of());
+                            return PlaceResponse.from(
+                                    place,
+                                    placeImages.stream().map(imageUrlResolver::thumbnailUrl).toList(),
+                                    placeImages.stream().map(imageUrlResolver::originalUrl).toList());
+                        })
+                        .toList(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages());
         writeCache(cacheKey, response, cacheProperties.listTtl());
         return response;
     }
@@ -99,8 +119,11 @@ public class PlaceService {
             return cached;
         }
 
-        Place place = existingOrFetch(id);
-        PlaceDetailResponse response = PlaceDetailResponse.fromImages(place, images.findByPlaceOrderBySortOrderAsc(place));
+        Place place = find(id);
+        List<PlaceImage> allowedImages = images.findByPlaceOrderBySortOrderAsc(place).stream()
+                .filter(PlaceService::isAllowedImage)
+                .toList();
+        PlaceDetailResponse response = PlaceDetailResponse.fromImages(place, allowedImages, imageUrlResolver);
         writeCache(cacheKey, response, cacheProperties.detailTtl());
         return response;
     }
@@ -125,19 +148,28 @@ public class PlaceService {
         }
     }
 
-    private Place existingOrFetch(String id) {
-        try {
-            return find(id);
-        } catch (ApiException e) {
-            if (!"PLACE_NOT_FOUND".equals(e.getCode())) {
-                throw e;
-            }
-            return tour.find(id).map(this::upsert).orElseThrow(this::notFound);
-        }
-    }
-
     private ApiException notFound() {
         return new ApiException("PLACE_NOT_FOUND", HttpStatus.NOT_FOUND, "관광지를 찾을 수 없습니다.");
+    }
+
+    private Map<UUID, List<PlaceImage>> imageEntitiesByPlace(List<Place> pagePlaces) {
+        if (pagePlaces.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, List<PlaceImage>> result = new HashMap<>();
+        for (PlaceImage image : images.findByPlaceInOrderBySortOrderAsc(pagePlaces)) {
+            if (image == null || image.getPlace() == null || image.getPlace().getId() == null
+                    || !hasText(image.getImageUrl()) || !isAllowedImage(image)) {
+                continue;
+            }
+            List<PlaceImage> placeImages = result.computeIfAbsent(image.getPlace().getId(), ignored -> new java.util.ArrayList<>());
+            if (placeImages.size() < MAX_PLACE_IMAGES
+                    && placeImages.stream().noneMatch(existing -> existing.getImageUrl().equals(image.getImageUrl()))) {
+                placeImages.add(image);
+            }
+        }
+        return result;
     }
 
     private Place upsert(TourApiClient.TourPlace tourPlace) {
@@ -145,9 +177,21 @@ public class PlaceService {
             return null;
         }
 
+        List<TourApiClient.TourImage> allowedImages = tourPlace.images().stream()
+                .filter(Objects::nonNull)
+                .filter(image -> hasText(image.imageUrl()))
+                .filter(PlaceService::isAllowedImage)
+                .sorted(Comparator.comparingInt(TourApiClient.TourImage::sortOrder))
+                .limit(MAX_PLACE_IMAGES)
+                .toList();
+        String thumbnailUrl = allowedImages.stream()
+                .map(TourApiClient.TourImage::imageUrl)
+                .findFirst()
+                .orElse(null);
+
         Place incoming = new Place(tourPlace.contentId(), tourPlace.name(), tourPlace.region(),
                 tourPlace.category(), tourPlace.description(), tourPlace.latitude(), tourPlace.longitude(),
-                tourPlace.thumbnailUrl(), "KTO");
+                thumbnailUrl, "KTO", tourPlace.sourceUpdatedAt());
         Place place = places.findByTourContentId(tourPlace.contentId()).orElse(null);
         if (place == null) {
             place = incoming;
@@ -156,18 +200,25 @@ public class PlaceService {
         }
         Place saved = places.save(place);
 
-        if (tourPlace.images() != null && !tourPlace.images().isEmpty()) {
-            images.deleteByPlace(saved);
-            Set<String> seenUrls = new LinkedHashSet<>();
-            tourPlace.images().stream()
-                    .filter(Objects::nonNull)
-                    .filter(image -> hasText(image.imageUrl()))
-                    .sorted(Comparator.comparingInt(TourApiClient.TourImage::sortOrder))
-                    .filter(image -> seenUrls.add(image.imageUrl()))
-                    .forEach(image -> images.save(new PlaceImage(saved, image.imageUrl(), image.title(),
-                            "KTO", image.sortOrder(), image.copyrightCode())));
-        }
+        images.deleteByPlace(saved);
+        Set<String> seenUrls = new LinkedHashSet<>();
+        allowedImages.stream()
+                .filter(image -> seenUrls.add(image.imageUrl()))
+                .forEach(image -> images.save(new PlaceImage(saved, image.imageUrl(), image.title(),
+                        "KTO", image.sortOrder(), image.copyrightCode())));
         return saved;
+    }
+
+    private static boolean isAllowedImage(TourApiClient.TourImage image) {
+        return isAllowedCopyright(image.copyrightCode());
+    }
+
+    private static boolean isAllowedImage(PlaceImage image) {
+        return isAllowedCopyright(image.getCopyrightCode());
+    }
+
+    private static boolean isAllowedCopyright(String copyrightCode) {
+        return ALLOWED_COPYRIGHT_CODE.equalsIgnoreCase(copyrightCode == null ? "" : copyrightCode.trim());
     }
 
     private static boolean hasText(String value) {
@@ -202,14 +253,25 @@ public class PlaceService {
     }
 
     private static String listCacheKey(String category, String keyword, int page, int size) {
-        return "place:list:v1:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
+        return "place:list:v8:" + cachePart(category) + ":" + cachePart(keyword) + ":" + page + ":" + size;
     }
 
     private static String detailCacheKey(String id) {
-        return "place:detail:v1:" + cachePart(id);
+        return "place:detail:v4:" + cachePart(id);
     }
 
     private static String cachePart(String value) {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
+    }
+
+    private static PlaceImageUrlResolver legacyImageUrlResolver() {
+        return new PlaceImageUrlResolver(new ImageCacheProperties(
+                false,
+                System.getProperty("java.io.tmpdir") + "/mirigangneung-images",
+                "http://localhost:8080/media/images",
+                java.time.Duration.ofSeconds(10),
+                10 * 1024 * 1024,
+                640,
+                java.time.Duration.ofDays(365)));
     }
 }

@@ -25,6 +25,11 @@ public class PlaceImage {
     private String source;
     private Integer sortOrder;
     private String copyrightCode;
+    private String originalStorageKey;
+    private String thumbnailStorageKey;
+    private String contentType;
+    private Long originalByteSize;
+    private Long thumbnailByteSize;
 
     protected PlaceImage() {
     }
@@ -34,12 +39,36 @@ public class PlaceImage {
     }
 
     public PlaceImage(Place place, String url, String title, String source, int order, String copyrightCode) {
+        this(place, url, title, source, order, copyrightCode, null, null, null, null, null);
+    }
+
+    public PlaceImage(
+            Place place,
+            String url,
+            String title,
+            String source,
+            int order,
+            String copyrightCode,
+            String originalStorageKey,
+            String thumbnailStorageKey,
+            String contentType,
+            Long originalByteSize,
+            Long thumbnailByteSize) {
         this.place = place;
         this.imageUrl = url;
         this.title = title;
         this.source = source;
         this.sortOrder = order;
         this.copyrightCode = copyrightCode;
+        this.originalStorageKey = originalStorageKey;
+        this.thumbnailStorageKey = thumbnailStorageKey;
+        this.contentType = contentType;
+        this.originalByteSize = originalByteSize;
+        this.thumbnailByteSize = thumbnailByteSize;
+    }
+
+    public Place getPlace() {
+        return place;
     }
 
     public String getImageUrl() {
@@ -60,5 +89,25 @@ public class PlaceImage {
 
     public String getCopyrightCode() {
         return copyrightCode;
+    }
+
+    public String getOriginalStorageKey() {
+        return originalStorageKey;
+    }
+
+    public String getThumbnailStorageKey() {
+        return thumbnailStorageKey;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public Long getOriginalByteSize() {
+        return originalByteSize;
+    }
+
+    public Long getThumbnailByteSize() {
+        return thumbnailByteSize;
     }
 }

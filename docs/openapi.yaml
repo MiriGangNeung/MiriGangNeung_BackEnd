@@ -10,44 +10,11 @@ servers:
     description: Local/Docker
 tags:
   - name: Places
+  - name: Images
   - name: Compositions
   - name: Courses
   - name: Routes
-  - name: Photos
 paths:
-  /api/v1/award-photos:
-    get:
-      tags: [Photos]
-      summary: 한국관광공사 공모전 사진 미리보기
-      description: 강원 권역을 요청한 뒤 위치에 강릉이 포함되고 이미지가 있는 항목만 반환한다. totalElements와 totalPages는 현재 content 기준 근사값이다.
-      parameters:
-        - {name: region, in: query, required: false, schema: {type: string, default: '51'}}
-        - {name: page, in: query, required: false, schema: {type: integer, minimum: 0, default: 0}}
-        - {name: size, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 100, default: 100}}
-      responses:
-        '200':
-          description: 공모전 사진 페이지
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AwardPhotoPageResponse'}
-        '400': {$ref: '#/components/responses/InvalidRequest'}
-        '502': {$ref: '#/components/responses/ExternalApiError'}
-  /api/v1/tourism-photos:
-    get:
-      tags: [Photos]
-      summary: 한국관광공사 관광사진갤러리 미리보기
-      description: 강릉 키워드로 검색한 뒤 위치에 강릉이 포함되고 이미지가 있는 항목만 반환한다. PhotoGalleryService1은 단일 이미지 URL만 제공할 수 있어 두 이미지 URL이 같을 수 있다.
-      parameters:
-        - {name: page, in: query, required: false, schema: {type: integer, minimum: 0, default: 0}}
-        - {name: size, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 100, default: 100}}
-      responses:
-        '200':
-          description: 관광사진 페이지
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/TourismPhotoPageResponse'}
-        '400': {$ref: '#/components/responses/InvalidRequest'}
-        '502': {$ref: '#/components/responses/ExternalApiError'}
   /api/v1/places:
     get:
       tags: [Places]
@@ -101,6 +68,26 @@ paths:
           content:
             application/json:
               schema: {type: array, items: {$ref: '#/components/schemas/PlaceResponse'}}
+  /media/images/{storageKey}:
+    get:
+      tags: [Images]
+      summary: 저장된 장소 이미지 스트리밍
+      description: CDN으로 교체 가능한 이미지 origin endpoint다. 성공 응답은 장기 immutable Cache-Control을 제공한다.
+      parameters:
+        - name: storageKey
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: 이미지 파일
+          headers:
+            Cache-Control:
+              schema: {type: string, example: 'public, max-age=31536000, immutable'}
+          content:
+            image/*:
+              schema: {type: string, format: binary}
+        '404': {$ref: '#/components/responses/NotFound'}
   /api/v1/compositions:
     post:
       tags: [Compositions]
@@ -194,6 +181,80 @@ paths:
         - {$ref: '#/components/parameters/CourseId'}
       responses:
         '200': {description: 삭제 성공}
+  /api/v1/courses/{courseId}/nearby-places:
+    get:
+      tags: [Courses]
+      summary: 선택한 관광지 주변 카페·음식점 조회
+      description: 모든 관광지 정거장 주변 2km를 Kakao Local로 조회하고 외부 장소 ID로 중복 제거한다.
+      parameters:
+        - {$ref: '#/components/parameters/CourseId'}
+        - name: category
+          in: query
+          required: true
+          schema: {type: string, enum: [restaurant, cafe]}
+      responses:
+        '200':
+          description: 거리순 주변 장소 목록
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NearbyPlacesResponse'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '502': {$ref: '#/components/responses/ExternalApiError'}
+  /api/v1/courses/{courseId}/stops/external:
+    post:
+      tags: [Courses]
+      summary: Kakao 주변 장소를 코스 snapshot으로 추가
+      parameters:
+        - {$ref: '#/components/parameters/CourseId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AddExternalStopRequest'}
+      responses:
+        '200':
+          description: 장소가 추가된 코스
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CourseResponse'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '409': {description: 이미 코스에 있는 장소}
+  /api/v1/courses/{courseId}/stops/{stopId}:
+    delete:
+      tags: [Courses]
+      summary: 코스 장소 삭제
+      parameters:
+        - {$ref: '#/components/parameters/CourseId'}
+        - name: stopId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: 장소가 삭제된 코스
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CourseResponse'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/courses/{courseId}/stops/order:
+    put:
+      tags: [Courses]
+      summary: 코스 장소 순서 변경
+      parameters:
+        - {$ref: '#/components/parameters/CourseId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StopOrderRequest'}
+      responses:
+        '200':
+          description: 순서가 변경된 코스
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CourseResponse'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
   /api/v1/courses/{courseId}/share:
     post:
       tags: [Courses]
@@ -253,16 +314,26 @@ components:
   schemas:
     PlaceResponse:
       type: object
-      required: [id, name, region, category, tags, latitude, longitude]
+      required: [id, name, region, category, tags, latitude, longitude, imageUrls, originalImageUrls]
       properties:
         id: {type: string}
         name: {type: string}
         region: {type: string}
         category: {type: string}
         tags: {type: array, items: {type: string}}
-        thumbnailUrl: {type: string, nullable: true}
+        thumbnailUrl: {type: string, nullable: true, description: 카드 대표 썸네일 URL}
         latitude: {type: number, format: double, nullable: true}
         longitude: {type: number, format: double, nullable: true}
+        imageUrls:
+          type: array
+          maxItems: 5
+          items: {type: string}
+          description: 카드 표시용 썸네일 URL 목록. originalImageUrls와 같은 순서다.
+        originalImageUrls:
+          type: array
+          maxItems: 5
+          items: {type: string}
+          description: 합성·대형 표시용 원본 URL 목록. imageUrls와 같은 인덱스를 사용한다.
     PlacePageResponse:
       type: object
       properties:
@@ -278,6 +349,18 @@ components:
           properties:
             description: {type: string, nullable: true}
             imageUrls: {type: array, items: {type: string}}
+            originalImageUrls: {type: array, items: {type: string}}
+            images: {type: array, items: {$ref: '#/components/schemas/PlaceImageResponse'}}
+    PlaceImageResponse:
+      type: object
+      properties:
+        imageUrl: {type: string, description: 카드 표시용 썸네일 URL}
+        originalImageUrl: {type: string, description: 합성·대형 표시용 원본 URL}
+        sourceImageUrl: {type: string, description: 한국관광공사 원본 URL, attribution/debug 용도}
+        title: {type: string, nullable: true}
+        source: {type: string, nullable: true}
+        sortOrder: {type: integer, nullable: true}
+        copyrightCode: {type: string, nullable: true, example: Type1}
     CreateCourseRequest:
       type: object
       required: [placeIds, onePickId, types, companion, duration]
@@ -298,11 +381,15 @@ components:
         stops: {type: array, items: {$ref: '#/components/schemas/CourseStop'}}
         totalDistanceMeters: {type: integer}
         totalTravelMinutes: {type: integer}
+        routeStatus: {type: string, enum: [READY, UNAVAILABLE]}
+        routeSegments: {type: array, items: {$ref: '#/components/schemas/RouteSegment'}}
     CourseStop:
       type: object
       properties:
+        stopId: {type: string, format: uuid, nullable: true}
         sequence: {type: integer}
-        placeId: {type: string}
+        placeId: {type: string, nullable: true}
+        externalPlaceId: {type: string, nullable: true}
         name: {type: string}
         thumbnailUrl: {type: string, nullable: true}
         arrivalTime: {type: string}
@@ -312,6 +399,60 @@ components:
         note: {type: string}
         latitude: {type: number, format: double, nullable: true}
         longitude: {type: number, format: double, nullable: true}
+        external: {type: boolean}
+        category: {type: string, nullable: true}
+        categoryName: {type: string, nullable: true}
+        address: {type: string, nullable: true}
+        phone: {type: string, nullable: true}
+        placeUrl: {type: string, nullable: true}
+    RouteSegment:
+      type: object
+      properties:
+        fromStopId: {type: string, format: uuid, nullable: true}
+        toStopId: {type: string, format: uuid, nullable: true}
+        distanceMeters: {type: integer}
+        durationSeconds: {type: integer}
+        polyline: {type: array, items: {type: array, minItems: 2, maxItems: 2, items: {type: number}}}
+    NearbyPlacesResponse:
+      type: object
+      properties:
+        category: {type: string, enum: [restaurant, cafe]}
+        places: {type: array, items: {$ref: '#/components/schemas/NearbyPlace'}}
+    NearbyPlace:
+      type: object
+      properties:
+        externalPlaceId: {type: string}
+        name: {type: string}
+        category: {type: string, enum: [restaurant, cafe]}
+        categoryName: {type: string, nullable: true}
+        address: {type: string, nullable: true}
+        roadAddress: {type: string, nullable: true}
+        phone: {type: string, nullable: true}
+        placeUrl: {type: string, nullable: true}
+        latitude: {type: number, format: double}
+        longitude: {type: number, format: double}
+        distanceMeters: {type: integer}
+        nearestStopId: {type: string, format: uuid, nullable: true}
+        nearestStopName: {type: string, nullable: true}
+    AddExternalStopRequest:
+      type: object
+      required: [externalPlaceId, name, category, longitude, latitude]
+      properties:
+        externalPlaceId: {type: string}
+        name: {type: string}
+        category: {type: string, enum: [restaurant, cafe]}
+        categoryName: {type: string, nullable: true}
+        address: {type: string, nullable: true}
+        roadAddress: {type: string, nullable: true}
+        phone: {type: string, nullable: true}
+        placeUrl: {type: string, nullable: true}
+        longitude: {type: number, format: double, minimum: 124, maximum: 132}
+        latitude: {type: number, format: double, minimum: 33, maximum: 39}
+    StopOrderRequest:
+      type: object
+      required: [stopIds]
+      properties:
+        stopIds: {type: array, minItems: 1, items: {type: string, format: uuid}}
     ShareResponse:
       type: object
       properties:
@@ -347,49 +488,6 @@ components:
         distanceMeters: {type: integer}
         durationSeconds: {type: integer}
         polyline: {type: array, items: {type: array, minItems: 2, maxItems: 2, items: {type: number}}}
-    AwardPhotoPageResponse:
-      type: object
-      description: totalElements와 totalPages는 현재 content 기준 근사값이다.
-      properties:
-        content: {type: array, items: {$ref: '#/components/schemas/AwardPhotoResponse'}}
-        page: {type: integer}
-        size: {type: integer}
-        totalElements: {type: integer, format: int64}
-        totalPages: {type: integer}
-    AwardPhotoResponse:
-      type: object
-      properties:
-        id: {type: string}
-        title: {type: string, nullable: true}
-        location: {type: string, nullable: true}
-        award: {type: string, nullable: true}
-        keywords: {type: array, items: {type: string}}
-        originalImageUrl: {type: string, nullable: true}
-        thumbnailUrl: {type: string, nullable: true}
-        photographer: {type: string, nullable: true}
-        copyrightCode: {type: string, nullable: true}
-        source: {type: string, example: KTO_AWARD}
-    TourismPhotoPageResponse:
-      type: object
-      description: totalElements와 totalPages는 현재 content 기준 근사값이다.
-      properties:
-        content: {type: array, items: {$ref: '#/components/schemas/TourismPhotoResponse'}}
-        page: {type: integer}
-        size: {type: integer}
-        totalElements: {type: integer, format: int64}
-        totalPages: {type: integer}
-    TourismPhotoResponse:
-      type: object
-      properties:
-        id: {type: string}
-        title: {type: string, nullable: true}
-        location: {type: string, nullable: true}
-        photographyMonth: {type: string, nullable: true}
-        keywords: {type: array, items: {type: string}}
-        originalImageUrl: {type: string, nullable: true}
-        thumbnailUrl: {type: string, nullable: true}
-        photographer: {type: string, nullable: true}
-        source: {type: string, example: KTO_PHOTO_GALLERY}
     ErrorResponse:
       type: object
       properties:

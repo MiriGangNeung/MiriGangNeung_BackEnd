@@ -31,6 +31,8 @@ import java.util.Map;
 public class KoreanTourApiClient implements TourApiClient {
     private static final Logger log = LoggerFactory.getLogger(KoreanTourApiClient.class);
     private static final DateTimeFormatter SOURCE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final int MAX_PLACE_IMAGES = 5;
+    private static final String ALLOWED_COPYRIGHT_CODE = "Type1";
 
     private final TourApiProperties props;
     private final RestClient client;
@@ -49,16 +51,37 @@ public class KoreanTourApiClient implements TourApiClient {
 
     @Override
     public List<TourPlace> search(String keyword, String category, int page, int size) {
+        return searchMapped(keyword, category, page, size, false).stream()
+                .map(this::enrichSearchImages)
+                .toList();
+    }
+
+    @Override
+    public List<TourPlace> searchSummaries(String keyword, String category, int page, int size) {
+        return searchMapped(keyword, category, page, size, true);
+    }
+
+    private List<TourPlace> searchMapped(
+            String keyword,
+            String category,
+            int page,
+            int size,
+            boolean allContentTypes) {
         if (!hasServiceKey()) {
             return List.of();
         }
 
         String endpoint = hasText(keyword) ? "searchKeyword2" : "areaBasedList2";
         Map<String, Object> params = regionalParams(category, page, size);
+        if (allContentTypes && !hasText(category)) {
+            params.remove("contentTypeId");
+        }
         if (hasText(keyword)) {
             params.put("keyword", keyword.trim());
         }
-        return call(endpoint, params).stream().map(this::mapPlace).toList();
+        return call(endpoint, params).stream()
+                .map(this::mapPlace)
+                .toList();
     }
 
     @Override
@@ -86,6 +109,7 @@ public class KoreanTourApiClient implements TourApiClient {
                 .stream()
                 .map(this::mapImage)
                 .filter(image -> hasText(image.imageUrl()))
+                .filter(image -> isAllowedCopyright(image.copyrightCode()))
                 .toList();
         return java.util.Optional.of(place.withImages(mergeImages(place.images(), detailImages)));
     }
@@ -173,9 +197,12 @@ public class KoreanTourApiClient implements TourApiClient {
 
     private TourPlace mapPlace(JsonNode node) {
         String contentTypeId = text(node, "contenttypeid");
-        String thumbnailUrl = firstNonBlank(text(node, "firstimage"), text(node, "firstimage2"));
+        String copyrightCode = text(node, "cpyrhtDivCd");
+        String thumbnailUrl = isAllowedCopyright(copyrightCode)
+                ? firstNonBlank(text(node, "firstimage"), text(node, "firstimage2"))
+                : null;
         List<TourImage> images = hasText(thumbnailUrl)
-                ? List.of(new TourImage(thumbnailUrl, text(node, "title"), text(node, "cpyrhtDivCd"), 0))
+                ? List.of(new TourImage(thumbnailUrl, text(node, "title"), copyrightCode, 0))
                 : List.of();
         return new TourPlace(
                 text(node, "contentid"),
@@ -190,12 +217,42 @@ public class KoreanTourApiClient implements TourApiClient {
                 sourceUpdatedAt(text(node, "modifiedtime")));
     }
 
+    private TourPlace enrichSearchImages(TourPlace place) {
+        if (!hasText(place.contentId())) {
+            return place;
+        }
+
+        try {
+            List<TourImage> detailImages = call("detailImage2", Map.of(
+                            "contentId", place.contentId(),
+                            "imageYN", "Y",
+                            "pageNo", 1,
+                            "numOfRows", MAX_PLACE_IMAGES))
+                    .stream()
+                    .map(this::mapImage)
+                    .filter(image -> hasText(image.imageUrl()))
+                    .filter(image -> isAllowedCopyright(image.copyrightCode()))
+                    .toList();
+            List<TourImage> mergedImages = mergeImages(place.images(), detailImages).stream()
+                    .limit(MAX_PLACE_IMAGES)
+                    .toList();
+            return place.withImages(mergedImages);
+        } catch (ApiException e) {
+            log.warn("Tour API detail image lookup failed: contentId={}, code={}", place.contentId(), e.getCode());
+            return place;
+        }
+    }
+
     private TourImage mapImage(JsonNode node) {
         return new TourImage(
                 firstNonBlank(text(node, "originimgurl"), text(node, "smallimageurl")),
                 firstNonBlank(text(node, "imgname"), text(node, "title")),
                 text(node, "cpyrhtDivCd"),
                 integer(node, "serialnum"));
+    }
+
+    private static boolean isAllowedCopyright(String copyrightCode) {
+        return ALLOWED_COPYRIGHT_CODE.equalsIgnoreCase(copyrightCode == null ? "" : copyrightCode.trim());
     }
 
     private List<TourImage> mergeImages(List<TourImage> primary, List<TourImage> additional) {
