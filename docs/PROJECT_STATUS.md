@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-26 18:00 KST
+Last Updated: 2026-08-26 18:07 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -128,5 +128,6 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 - 코스 추천은 현재 선택된 `placeIds` 후보 안에서만 수행한다. 여행 유형·동행자 점수는 Place의 category/name/description 기반이며 운영시간·휴무일과 다일 일정은 아직 반영하지 않는다.
 - 2026-08-26 추천 조건 고도화 브랜치에서 여행 유형·동행자 점수, 거리 fallback, CourseService 조건 전달 테스트를 추가했다. `day`와 `night1`의 기존 정거장 수 제한은 유지한다.
 - 2026-08-26 Docker 앱을 현재 브랜치 코드로 재빌드하고 `/actuator/health`, `/api/v1/places`, 코스 생성·조회 API를 실제 호출했다. 관광지 조회와 코스 추천은 정상이며 Kakao 도보 경로는 현재 `UNAVAILABLE`이다.
+- 코스 정거장 순서 변경 브라우저 요청을 위해 CORS 허용 메서드에 `PUT`을 추가했다.
 
 이 문서는 계획이 아니라 현재 코드 확인 결과를 기록한다. 변경 시 실제 코드와 테스트를 다시 확인해 갱신한다.

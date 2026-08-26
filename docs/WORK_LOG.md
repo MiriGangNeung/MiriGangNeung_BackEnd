@@ -301,6 +301,36 @@
 
 ## 2026-08-26
 
+### 시간 미기록 ~ 18:05 — 코스 순서 변경 CORS 오류 수정
+
+**Agent:** Codex
+**작업 유형:** Bugfix / Verification
+
+**작업 내용:**
+
+- 프론트의 `PUT /api/v1/courses/{courseId}/stops/order` 요청이 브라우저 preflight에서 차단되는 원인을 확인했다.
+- 백엔드 CORS 허용 메서드에 `PUT`을 추가했다.
+- 기존 순서 변경 endpoint와 프론트 요청의 `stopIds` 계약은 유지했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/common/config/WebConfig.java`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- Gradle 전체 테스트 — `BUILD SUCCESSFUL`
+- Docker 재빌드 후 health — `UP`
+- 브라우저 CORS preflight `PUT` — HTTP `200`
+- 실제 `PUT /api/v1/courses/{courseId}/stops/order` 및 재조회 — 순서 저장 성공
+
+**발생한 문제와 해결 방법:**
+
+- 브라우저 preflight 응답이 `403`이었고 CORS `allowedMethods`에 `PUT`이 누락되어 있었다. `PUT`을 허용 메서드에 추가했다.
+
+**관련 commit:** `c966319` — `fix: allow course reorder CORS requests`
+
 ### 시간 미기록 ~ 18:00 — Docker 및 코스 추천 실제 API 검증
 
 **Agent:** Codex

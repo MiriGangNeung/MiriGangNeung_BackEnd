@@ -9,5 +9,5 @@ import org.springframework.web.servlet.config.annotation.*;
 @EnableAsync
 public class WebConfig implements WebMvcConfigurer {
     @Value("${app.cors-origins}") private String origins;
-    @Override public void addCorsMappings(CorsRegistry registry) { registry.addMapping("/api/**").allowedOrigins(origins.split(",")).allowedMethods("GET","POST","DELETE","OPTIONS"); }
+    @Override public void addCorsMappings(CorsRegistry registry) { registry.addMapping("/api/**").allowedOrigins(origins.split(",")).allowedMethods("GET","POST","PUT","DELETE","OPTIONS"); }
 }
