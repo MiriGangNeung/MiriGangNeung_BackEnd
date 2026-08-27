@@ -163,19 +163,27 @@ Content-Type: application/json
 
 KTO 원본 장소의 `placeUrl`은 버전 관리되는 `src/main/resources/data/kakao-place-mappings.csv`의 `tourContentId` 매핑으로 우선 채워진다. 현재 기본 카드 69개 중 68개는 Kakao 상세 URL을 가지며, `강릉 명주동 거리`는 의도적으로 빈 매핑이라 `null`로 유지된다. 이 URL은 리뷰 원문을 백엔드가 저장하는 값이 아니라 프론트가 기존 Kakao 장소 iframe으로 여는 링크다. 매핑되지 않은 장소는 `null`이며 리뷰 버튼을 표시하지 않는다.
 
-### 코스 주변 장소 조회
+### 코스 장소 검색
 
-코스에 포함된 관광지 좌표를 모두 기준으로 Kakao Local 카테고리 API를 조회한다. 같은 Kakao 장소가 여러 관광지 주변에서 발견되면 가장 가까운 거리만 남긴다. 기존 원픽 관광지와 이름이 정규화되어 일치하는 `attraction`·`culture` 후보는 중복 추가를 막기 위해 제외한다. 카카오 REST 키는 백엔드의 `KAKAO_API_KEY`로만 설정한다.
+장소 추가 패널은 `scope`로 주변 추천과 강릉 전체 검색을 구분한다. 화면에서 제공하는 카테고리는 카페(`CE7`), 음식점(`FD6`), 문화시설(`CT1`) 세 가지다. 기존 클라이언트 호환을 위해 백엔드는 관광명소(`AT4`)의 `nearby` 요청을 계속 읽을 수 있지만, 새 화면에는 노출하지 않는다. 카카오 REST 키는 백엔드의 `KAKAO_API_KEY`로만 설정한다.
 
 ```http
-GET /api/v1/courses/{courseId}/nearby-places?category=cafe
-GET /api/v1/courses/{courseId}/nearby-places?category=restaurant
-GET /api/v1/courses/{courseId}/nearby-places?category=attraction
-GET /api/v1/courses/{courseId}/nearby-places?category=culture
-GET /api/v1/courses/{courseId}/nearby-places?category=cafe&stopId={stopId}&sort=distance
+# 선택한 관광지 최대 3곳 주변 2km를 합쳐 추천
+GET /api/v1/courses/{courseId}/nearby-places?scope=nearby&category=cafe
+GET /api/v1/courses/{courseId}/nearby-places?scope=nearby&category=cafe&stopId={stopId}&sort=distance
+
+# 강릉 전체 영역에서 카테고리 검색
+GET /api/v1/courses/{courseId}/nearby-places?scope=all&category=cafe&page=0&size=15
+
+# 강릉 전체 영역에서 장소명 키워드 검색
+GET /api/v1/courses/{courseId}/nearby-places?scope=all&category=restaurant&keyword=테라로사&page=0&size=15
 ```
 
-`cafe`는 Kakao `CE7`, `restaurant`는 `FD6`, `attraction`은 `AT4`, `culture`는 `CT1`으로 변환되며 기본 반경은 2km다. `stopId`를 생략하면 코스의 모든 관광지 주변을 합쳐 조회하고, 지정하면 해당 관광지 주변만 조회한다. `sort`는 `recommended`(기본값) 또는 `distance`이며, 추천순은 코스의 여행 타입·동행 유형·거리·정보 완성도를 사용한 0~100점 내림차순, 거리순은 기존 거리 오름차순이다.
+`nearby`에서 `stopId`를 생략하면 코스의 모든 관광지 주변을 합쳐 조회하고, 지정하면 해당 관광지 주변만 조회한다. `sort`는 `recommended`(기본값) 또는 `distance`이며, 추천순은 코스의 여행 타입·동행 유형·거리·정보 완성도를 사용한 0~100점 내림차순이다. `nearby` 응답은 기존처럼 거리와 가장 가까운 관광지 정보를 포함한다.
+
+`all`은 Kakao Local API의 `rect` 검색을 사용해 Gangneung 사각 영역을 조회한다. `keyword`가 없으면 카테고리 전체, 있으면 선택한 카테고리 코드와 함께 해당 영역의 키워드 결과를 요청한다. rect 검색은 기준 좌표가 없으므로 Kakao에는 `accuracy` 정렬을 사용한다. `page`는 0부터 시작하고 `size`는 1~15이며, 응답의 `isEnd`가 false이면 다음 페이지를 요청할 수 있다. `all` 응답의 `distanceMeters`, `nearestStopId`, `nearestStopName`, `recommendationScore`, `recommendationReasons`는 항상 null/빈 배열이다. 현재 코스에 이미 있는 Kakao ID 또는 이름과 일치하는 후보는 제외한다.
+
+`all` 검색 영역은 `KAKAO_LOCAL_ALL_SEARCH_RECT` 환경변수로 설정하며 형식은 Kakao 문서 기준 `leftX,leftY,rightX,rightY`다. 기본값은 `128.70,37.95,129.05,37.65`다.
 
 추천 점수는 Kakao 응답에 실제로 존재하는 장소명·카테고리명·주소·좌표·상세 URL만 사용한다. 리뷰·별점·인기도·사진을 추정하지 않으며, `recommendationScore`가 점수이고 `recommendationReasons`가 최대 3개의 설명이다. 선호값이 없는 기존 코스는 두 필드를 각각 `null`·빈 배열로 반환하고 거리순과 같은 결과로 fallback한다.
 
@@ -183,19 +191,30 @@ GET /api/v1/courses/{courseId}/nearby-places?category=cafe&stopId={stopId}&sort=
 
 ```json
 {
-  "externalPlaceId": "kakao-place-id",
-  "name": "안목 바다 카페",
+  "scope": "nearby",
   "category": "cafe",
-  "distanceMeters": 150,
-  "nearestStopName": "경포해변",
-  "recommendationScore": 93,
-  "recommendationReasons": [
-    "휴식 취향에 맞는 장소예요",
-    "커플과 잘 어울리는 장소예요",
-    "관광지에서 가까워요"
+  "page": 0,
+  "size": 15,
+  "isEnd": true,
+  "places": [
+    {
+      "externalPlaceId": "kakao-place-id",
+      "name": "안목 바다 카페",
+      "category": "cafe",
+      "distanceMeters": 150,
+      "nearestStopName": "경포해변",
+      "recommendationScore": 93,
+      "recommendationReasons": [
+        "휴식 취향에 맞는 장소예요",
+        "커플과 잘 어울리는 장소예요",
+        "관광지에서 가까워요"
+      ]
+    }
   ]
 }
 ```
+
+실제 응답은 `scope`, `category`, `page`, `size`, `isEnd`, `places`를 최상위에 두고 위 항목을 `places` 배열에 담는다. `scope=all` 응답은 거리·추천 메타데이터가 null/빈 배열이다.
 
 허용되지 않은 `sort` 값은 HTTP 400(`INVALID_SORT`)으로 반환한다.
 

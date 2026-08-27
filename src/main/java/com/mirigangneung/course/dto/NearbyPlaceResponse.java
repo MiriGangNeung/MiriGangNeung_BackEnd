@@ -15,7 +15,7 @@ public record NearbyPlaceResponse(
         String placeUrl,
         double latitude,
         double longitude,
-        int distanceMeters,
+        Integer distanceMeters,
         String nearestStopId,
         String nearestStopName,
         Integer recommendationScore,
@@ -40,6 +40,29 @@ public record NearbyPlaceResponse(
                 distanceMeters,
                 nearestStopId,
                 nearestStopName,
+                null,
+                List.of()
+        );
+    }
+
+    public static NearbyPlaceResponse fromWithoutDistance(
+            KakaoLocalClient.NearbyPlace place,
+            String category
+    ) {
+        return new NearbyPlaceResponse(
+                place.externalPlaceId(),
+                place.name(),
+                category,
+                place.categoryName(),
+                place.address(),
+                place.roadAddress(),
+                place.phone(),
+                place.placeUrl(),
+                place.latitude(),
+                place.longitude(),
+                null,
+                null,
+                null,
                 null,
                 List.of()
         );

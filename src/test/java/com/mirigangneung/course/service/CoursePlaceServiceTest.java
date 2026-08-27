@@ -25,6 +25,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -115,6 +117,84 @@ class CoursePlaceServiceTest {
         var distance = service.nearby(courseId.toString(), "cafe", null, "distance");
         assertThat(distance.places()).extracting(NearbyPlaceResponse::externalPlaceId)
                 .containsExactly("near", "match");
+    }
+
+    @Test
+    void searchesAllGangneungCafesWithoutNearbyDistanceMetadata() {
+        UUID courseId = UUID.randomUUID();
+        Course course = new Course("day", null, null);
+        Place tourismPlace = new Place("1", "경포대", "강릉", "nature", "", 37.0, 128.0, null, "KTO");
+        when(courses.findById(courseId)).thenReturn(Optional.of(course));
+        when(stops.findByCourseOrderBySequenceAsc(course))
+                .thenReturn(List.of(new CourseStop(course, tourismPlace, 1, true)));
+        when(localClient.searchByCategoryInRect(eq("128.70,37.95,129.05,37.65"), eq("CE7"), eq(0), eq(15)))
+                .thenReturn(new KakaoLocalClient.SearchPage(
+                        List.of(nearby("all-cafe", "강릉 전체 카페", 37.77, 128.94, "CE7")),
+                        0,
+                        true
+                ));
+
+        CoursePlaceService service = new CoursePlaceService(
+                courses,
+                stops,
+                externalPlaces,
+                localClient,
+                routeCalculator,
+                new KakaoLocalProperties(
+                        "https://example.test", "secret", null, 2_000, 15,
+                        "128.70,37.95,129.05,37.65"
+                )
+        );
+
+        var response = service.search(
+                courseId.toString(), "all", "cafe", null, "recommended", null, 0, 15
+        );
+
+        assertThat(response.scope()).isEqualTo("all");
+        assertThat(response.category()).isEqualTo("cafe");
+        assertThat(response.page()).isZero();
+        assertThat(response.isEnd()).isTrue();
+        assertThat(response.places()).singleElement().satisfies(place -> {
+            assertThat(place.externalPlaceId()).isEqualTo("all-cafe");
+            assertThat(place.distanceMeters()).isNull();
+            assertThat(place.nearestStopId()).isNull();
+            assertThat(place.nearestStopName()).isNull();
+            assertThat(place.recommendationScore()).isNull();
+            assertThat(place.recommendationReasons()).isEmpty();
+        });
+        verify(localClient).searchByCategoryInRect(
+                "128.70,37.95,129.05,37.65", "CE7", 0, 15
+        );
+    }
+
+    @Test
+    void searchesAllGangneungPlacesByKeywordWhenKeywordIsProvided() {
+        UUID courseId = UUID.randomUUID();
+        Course course = new Course("day", null, null);
+        when(courses.findById(courseId)).thenReturn(Optional.of(course));
+        when(stops.findByCourseOrderBySequenceAsc(course)).thenReturn(List.of());
+        when(localClient.searchByKeywordInRect(
+                eq("테라로사"), eq("128.70,37.95,129.05,37.65"), eq("FD6"), eq(0), eq(15)))
+                .thenReturn(new KakaoLocalClient.SearchPage(List.of(), 0, true));
+
+        CoursePlaceService service = new CoursePlaceService(
+                courses,
+                stops,
+                externalPlaces,
+                localClient,
+                routeCalculator,
+                new KakaoLocalProperties(
+                        "https://example.test", "secret", null, 2_000, 15,
+                        "128.70,37.95,129.05,37.65"
+                )
+        );
+
+        service.search(courseId.toString(), "all", "restaurant", null, "recommended", " 테라로사 ", 0, 15);
+
+        verify(localClient).searchByKeywordInRect(
+                "테라로사", "128.70,37.95,129.05,37.65", "FD6", 0, 15
+        );
+        verify(localClient, never()).searchByCategoryInRect(anyString(), anyString(), anyInt(), anyInt());
     }
 
     @Test

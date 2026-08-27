@@ -65,9 +65,13 @@ public class CourseController {
             @PathVariable String id,
             @RequestParam String category,
             @RequestParam(required = false) String stopId,
-            @RequestParam(defaultValue = "recommended") String sort
+            @RequestParam(defaultValue = "nearby") String scope,
+            @RequestParam(defaultValue = "recommended") String sort,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size
     ) {
-        return coursePlaceService.nearby(id, category, stopId, sort);
+        return coursePlaceService.search(id, scope, category, stopId, sort, keyword, page, size);
     }
 
     @PostMapping("/courses/{id}/stops/external")

@@ -32,12 +32,14 @@ import java.util.Locale;
 @Service
 public class CoursePlaceService {
     private static final int MAX_KAKAO_PAGES = 3;
+    private static final int MAX_PAGE_SIZE = 15;
     private static final Map<String, String> KAKAO_CATEGORY_CODES = Map.of(
             "restaurant", "FD6",
             "cafe", "CE7",
             "attraction", "AT4",
             "culture", "CT1"
     );
+    private static final Set<String> ALL_SEARCH_CATEGORIES = Set.of("restaurant", "cafe", "culture");
 
     private final CourseRepository courses;
     private final CourseStopRepository stops;
@@ -147,7 +149,96 @@ public class CoursePlaceService {
                         candidate.recommendation().reasons()
                 ))
                 .toList();
-        return new NearbyPlacesResponse(normalizedCategory, response);
+        return new NearbyPlacesResponse(
+                "nearby",
+                normalizedCategory,
+                0,
+                response.size(),
+                true,
+                response
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public NearbyPlacesResponse search(
+            String courseId,
+            String scope,
+            String category,
+            String stopId,
+            String sort,
+            String keyword,
+            int page,
+            int size
+    ) {
+        String normalizedScope = normalizeScope(scope);
+        int normalizedPage = normalizePage(page);
+        int normalizedSize = normalizePageSize(size);
+        if ("all".equals(normalizedScope)) {
+            return all(
+                    courseId,
+                    category,
+                    keyword,
+                    normalizedPage,
+                    normalizedSize
+            );
+        }
+        return nearby(courseId, category, normalizeAllStopId(stopId), sort);
+    }
+
+    private NearbyPlacesResponse all(
+            String courseId,
+            String category,
+            String keyword,
+            int page,
+            int size
+    ) {
+        Course course = findCourse(courseId);
+        String normalizedCategory = normalizeCategory(category);
+        if (!ALL_SEARCH_CATEGORIES.contains(normalizedCategory)) {
+            throw new ApiException(
+                    "INVALID_CATEGORY",
+                    HttpStatus.BAD_REQUEST,
+                    "강릉 전체 검색은 restaurant, cafe 또는 culture만 지원합니다."
+            );
+        }
+
+        String categoryCode = categoryCode(normalizedCategory);
+        String normalizedKeyword = trimToEmpty(keyword);
+        KakaoLocalClient.SearchPage searchPage = normalizedKeyword.isBlank()
+                ? localClient.searchByCategoryInRect(localProperties.allSearchRect(), categoryCode, page, size)
+                : localClient.searchByKeywordInRect(
+                        normalizedKeyword,
+                        localProperties.allSearchRect(),
+                        categoryCode,
+                        page,
+                        size
+                );
+        List<CourseStop> courseStops = stops.findByCourseOrderBySequenceAsc(course);
+        Set<String> existingNames = courseStops.stream()
+                .map(CourseStop::getDisplayName)
+                .map(PlaceNameNormalizer::normalize)
+                .filter(name -> !name.isBlank())
+                .collect(java.util.stream.Collectors.toSet());
+        Set<String> existingExternalIds = courseStops.stream()
+                .map(CourseStop::getExternalPlaceId)
+                .filter(id -> id != null && !id.isBlank())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.toSet());
+
+        List<NearbyPlaceResponse> response = searchPage.places().stream()
+                .filter(place -> categoryCode.equals(place.categoryCode()))
+                .filter(place -> !existingExternalIds.contains(place.externalPlaceId()))
+                .filter(place -> !existingNames.contains(PlaceNameNormalizer.normalize(place.name())))
+                .map(place -> NearbyPlaceResponse.fromWithoutDistance(place, normalizedCategory))
+                .toList();
+        return new NearbyPlacesResponse(
+                "all",
+                normalizedCategory,
+                searchPage.page(),
+                size,
+                searchPage.isEnd(),
+                response
+        );
     }
 
     @Transactional
@@ -313,7 +404,7 @@ public class CoursePlaceService {
     }
 
     private static String normalizeCategory(String category) {
-        String normalized = category == null ? "" : category.trim().toLowerCase();
+        String normalized = category == null ? "" : category.trim().toLowerCase(Locale.ROOT);
         if (!KAKAO_CATEGORY_CODES.containsKey(normalized)) {
             throw new ApiException(
                     "INVALID_CATEGORY",
@@ -322,6 +413,49 @@ public class CoursePlaceService {
             );
         }
         return normalized;
+    }
+
+    private static String normalizeScope(String scope) {
+        String normalized = scope == null || scope.isBlank()
+                ? "nearby"
+                : scope.trim().toLowerCase(Locale.ROOT);
+        if (!"nearby".equals(normalized) && !"all".equals(normalized)) {
+            throw new ApiException(
+                    "INVALID_SCOPE",
+                    HttpStatus.BAD_REQUEST,
+                    "scope는 nearby 또는 all이어야 합니다."
+            );
+        }
+        return normalized;
+    }
+
+    private static int normalizePage(int page) {
+        if (page < 0) {
+            throw new ApiException(
+                    "INVALID_PAGE",
+                    HttpStatus.BAD_REQUEST,
+                    "page는 0 이상이어야 합니다."
+            );
+        }
+        return page;
+    }
+
+    private static int normalizePageSize(int size) {
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new ApiException(
+                    "INVALID_PAGE_SIZE",
+                    HttpStatus.BAD_REQUEST,
+                    "size는 1 이상 15 이하여야 합니다."
+            );
+        }
+        return size;
+    }
+
+    private static String normalizeAllStopId(String stopId) {
+        if (stopId == null || stopId.isBlank() || "all".equalsIgnoreCase(stopId.trim())) {
+            return null;
+        }
+        return stopId;
     }
 
     private static String categoryCode(String category) {
