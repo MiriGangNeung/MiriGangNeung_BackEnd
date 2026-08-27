@@ -814,3 +814,31 @@
 **관련 commit:**
 
 - 없음 (현재 작업 트리 변경)
+
+## 2026-08-27
+
+### 12:30 ~ — 이슈 #13 필터 기반 장소 맞춤 추천 및 추천순 정렬
+
+**Agent:** Codex
+**작업 유형:** Feature / API / Recommendation / Frontend
+
+**작업 내용:**
+
+- GitHub issue #13을 생성하고 backend `feat/issue-13-place-recommendation`, frontend `feat/issue-13-place-recommendation` 분리 브랜치에서 구현했다.
+- 코스 생성 시 선택한 여행 타입(최대 2개)과 동행 유형을 `Course`에 저장하고 코스 조회·공유 응답에서 복원하도록 확장했다.
+- Kakao Local 응답의 장소명·카테고리명·거리·주소·좌표·URL만 사용하는 `NearbyPlaceRecommendationScorer`를 추가했다. 거리 40점, 여행 타입 30점, 동행 유형 20점, 정보 완성도 10점으로 0~100점과 최대 3개 이유를 계산한다.
+- `GET /api/v1/courses/{courseId}/nearby-places`에 `sort=recommended|distance`를 추가했다. 추천순은 점수→거리→이름, 거리순은 거리→이름으로 정렬한다. 기존 3인자 service 호출 호환 오버로드와 선호값 없는 구 코스의 거리순 fallback을 유지했다.
+- 프론트 장소 추가 패널에 추천순/거리순 전환을 연결하고 카드에 추천 점수·추천 이유·거리를 표시했다. 추가 버튼을 누르기 전에는 코스에 저장하지 않는다.
+- API 계약과 OpenAPI, 프로젝트 상태 문서를 갱신했다.
+
+**검증 결과:**
+
+- backend `bash gradlew test` — `BUILD SUCCESSFUL`
+- frontend 추천 관련 `npm test -- --run src/lib/courseApi.test.ts src/components/organisms/NearbyPlaceCard.test.tsx src/components/organisms/CourseResult.test.tsx` — 3 files / 13 tests passed
+- frontend 전체 `npm test -- --run` — 30 files / 75 tests passed
+- frontend `npm run lint` — errors 0, existing warnings 4
+- frontend `npm run build` — Vite build success
+
+**관련 issue:**
+
+- https://github.com/MiriGangNeung/MiriGangNeung_BackEnd/issues/13

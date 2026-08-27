@@ -192,9 +192,19 @@ paths:
           in: query
           required: true
           schema: {type: string, enum: [restaurant, cafe, attraction, culture]}
+        - name: stopId
+          in: query
+          required: false
+          description: 특정 관광지 정거장 주변만 조회할 때 사용하는 stop UUID
+          schema: {type: string, format: uuid}
+        - name: sort
+          in: query
+          required: false
+          description: 추천 점수순 또는 거리순. 기본값은 recommended.
+          schema: {type: string, enum: [recommended, distance], default: recommended}
       responses:
         '200':
-          description: 거리순 주변 장소 목록
+          description: 추천순 또는 거리순 주변 장소 목록
           content:
             application/json:
               schema: {$ref: '#/components/schemas/NearbyPlacesResponse'}
@@ -378,6 +388,8 @@ components:
         courseId: {type: string, format: uuid}
         title: {type: string}
         duration: {type: string}
+        types: {type: array, items: {type: string}, description: 코스 생성 시 선택한 여행 타입(최대 2개)}
+        companion: {type: string, description: 코스 생성 시 선택한 동행 유형}
         stops: {type: array, items: {$ref: '#/components/schemas/CourseStop'}}
         totalDistanceMeters: {type: integer}
         totalTravelMinutes: {type: integer}
@@ -434,6 +446,8 @@ components:
         distanceMeters: {type: integer}
         nearestStopId: {type: string, format: uuid, nullable: true}
         nearestStopName: {type: string, nullable: true}
+        recommendationScore: {type: integer, minimum: 0, maximum: 100, nullable: true, description: 코스 선호 기반 추천 점수. 선호값이 없는 구 코스는 null}
+        recommendationReasons: {type: array, maxItems: 3, items: {type: string}, description: 추천 점수의 설명. 리뷰·별점이 아님}
     AddExternalStopRequest:
       type: object
       required: [externalPlaceId, name, category, longitude, latitude]

@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-26 22:18 KST
+Last Updated: 2026-08-27 12:55 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -24,6 +24,7 @@ Last Updated By: Codex
 - Composition: `CompositionJob`, 업로드, 상태 조회, retry/download API, `AiGenerationClient` 인터페이스, 로컬 임시 이미지 저장소, 만료 정리 Job
 - Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
 - Recommendation: `RuleBasedCourseRecommendationEngine`
+- Nearby recommendation: 코스에 저장된 여행 타입·동행 유형을 바탕으로 Kakao 주변 장소에 설명 가능한 0~100점과 추천 이유를 계산하고 추천순/거리순을 제공
 - Route: `KakaoRouteClient`와 REST adapter, normalized route response
 - Docker: MySQL/Redis/app을 위한 `Dockerfile`, `docker-compose.yml`, `.dockerignore`. MySQL 호스트 공개 포트는 `MYSQL_PORT`를 사용하며 미설정 시 3307, 컨테이너 내부 연결은 3306이다.
 
@@ -42,6 +43,14 @@ Last Updated By: Codex
 - Course 생성/조회 응답의 mock 의존을 제거하고 프론트는 반환된 `courseId`를 sessionStorage에 보관한다. 새로고침 시 백엔드에서 코스를 복원한다.
 - 백엔드 API: `GET /api/v1/courses/{courseId}/nearby-places`, `POST /api/v1/courses/{courseId}/stops/external`, `DELETE /api/v1/courses/{courseId}/stops/{stopId}`, `PUT /api/v1/courses/{courseId}/stops/order`.
 - 설계 결정은 [`docs/adr/2026-08-25-kakao-course-place-snapshots.md`](./adr/2026-08-25-kakao-course-place-snapshots.md)에 기록했다.
+
+## 2026-08-27 이슈 #13 장소 맞춤 추천 구현
+
+- 코스 생성 시 여행 타입 최대 2개와 동행 유형을 `courses.travel_types`, `courses.companion`에 저장하고 Course 응답에도 반환한다. 기존 선호값이 없는 코스는 빈 값으로 호환된다.
+- 주변 장소 API는 `sort=recommended`를 기본으로 사용한다. 추천 점수는 거리 40점·여행 타입 30점·동행 유형 20점·정보 완성도 10점이며, 장소명·카테고리명·주소·좌표·Kakao URL만 사용한다.
+- `recommendationScore`와 최대 3개의 `recommendationReasons`를 반환한다. 리뷰·별점·사진·인기도를 임의로 만들지 않으며, 장소는 사용자가 추가 버튼을 눌렀을 때만 코스 snapshot으로 저장한다.
+- `sort=distance`는 기존 거리순 동작을 유지한다. 프론트 장소 추가 패널은 추천순을 기본으로 보여주고 거리순으로 전환할 수 있다.
+- 관련 브랜치: backend `feat/issue-13-place-recommendation`, frontend `feat/issue-13-place-recommendation`
 
 ## 현재 API Controller
 
@@ -62,7 +71,7 @@ Last Updated By: Codex
 
 ## 현재 검증 결과
 
-2026-08-24 기준 `bash gradlew test` 실행 결과는 `BUILD SUCCESSFUL`이다.
+2026-08-27 기준 백엔드 `bash gradlew test`는 `BUILD SUCCESSFUL`, 프론트 전체 Vitest는 30 files/75 tests 통과, `npm run build`는 성공했다. 프론트 lint는 오류 0건이며 기존 경고 4건이 남아 있다.
 
 Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너가 실행 중이다. app은 `localhost:8080`, MySQL은 호스트 `3307`, Redis는 호스트 `6379`에 연결된다. `/actuator/health`는 `UP`이며 `/api/v1/places?page=0&size=2`에서 강릉 관광지 응답을 확인했다.
 

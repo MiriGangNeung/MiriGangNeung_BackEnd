@@ -130,6 +130,8 @@ Content-Type: application/json
   "courseId": "course-uuid",
   "title": "나만의 강릉 코스",
   "duration": "day",
+  "types": ["nature"],
+  "companion": "couple",
   "stops": [
     {
       "stopId": "stop-uuid",
@@ -163,16 +165,39 @@ KTO 원본 장소의 `placeUrl`은 버전 관리되는 `src/main/resources/data/
 
 ### 코스 주변 장소 조회
 
-코스에 포함된 관광지 좌표를 모두 기준으로 Kakao Local 카테고리 API를 조회한다. 같은 Kakao 장소가 여러 관광지 주변에서 발견되면 가장 가까운 거리만 남겨 거리순으로 정렬한다. 기존 원픽 관광지와 이름이 정규화되어 일치하는 `attraction`·`culture` 후보는 중복 추가를 막기 위해 제외한다. 카카오 REST 키는 백엔드의 `KAKAO_API_KEY`로만 설정한다.
+코스에 포함된 관광지 좌표를 모두 기준으로 Kakao Local 카테고리 API를 조회한다. 같은 Kakao 장소가 여러 관광지 주변에서 발견되면 가장 가까운 거리만 남긴다. 기존 원픽 관광지와 이름이 정규화되어 일치하는 `attraction`·`culture` 후보는 중복 추가를 막기 위해 제외한다. 카카오 REST 키는 백엔드의 `KAKAO_API_KEY`로만 설정한다.
 
 ```http
 GET /api/v1/courses/{courseId}/nearby-places?category=cafe
 GET /api/v1/courses/{courseId}/nearby-places?category=restaurant
 GET /api/v1/courses/{courseId}/nearby-places?category=attraction
 GET /api/v1/courses/{courseId}/nearby-places?category=culture
+GET /api/v1/courses/{courseId}/nearby-places?category=cafe&stopId={stopId}&sort=distance
 ```
 
-`cafe`는 Kakao `CE7`, `restaurant`는 `FD6`, `attraction`은 `AT4`, `culture`는 `CT1`으로 변환되며 기본 반경은 2km다. 응답은 가장 가까운 관광지와의 거리·이름을 포함한다.
+`cafe`는 Kakao `CE7`, `restaurant`는 `FD6`, `attraction`은 `AT4`, `culture`는 `CT1`으로 변환되며 기본 반경은 2km다. `stopId`를 생략하면 코스의 모든 관광지 주변을 합쳐 조회하고, 지정하면 해당 관광지 주변만 조회한다. `sort`는 `recommended`(기본값) 또는 `distance`이며, 추천순은 코스의 여행 타입·동행 유형·거리·정보 완성도를 사용한 0~100점 내림차순, 거리순은 기존 거리 오름차순이다.
+
+추천 점수는 Kakao 응답에 실제로 존재하는 장소명·카테고리명·주소·좌표·상세 URL만 사용한다. 리뷰·별점·인기도·사진을 추정하지 않으며, `recommendationScore`가 점수이고 `recommendationReasons`가 최대 3개의 설명이다. 선호값이 없는 기존 코스는 두 필드를 각각 `null`·빈 배열로 반환하고 거리순과 같은 결과로 fallback한다.
+
+주변 장소 항목의 추가 필드는 다음과 같다.
+
+```json
+{
+  "externalPlaceId": "kakao-place-id",
+  "name": "안목 바다 카페",
+  "category": "cafe",
+  "distanceMeters": 150,
+  "nearestStopName": "경포해변",
+  "recommendationScore": 93,
+  "recommendationReasons": [
+    "휴식 취향에 맞는 장소예요",
+    "커플과 잘 어울리는 장소예요",
+    "관광지에서 가까워요"
+  ]
+}
+```
+
+허용되지 않은 `sort` 값은 HTTP 400(`INVALID_SORT`)으로 반환한다.
 
 ### 주변 장소 추가·삭제·순서 변경
 
