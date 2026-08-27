@@ -9,6 +9,7 @@ import com.mirigangneung.course.dto.CourseResponse;
 import com.mirigangneung.course.dto.NearbyPlaceResponse;
 import com.mirigangneung.course.dto.NearbyPlacesResponse;
 import com.mirigangneung.course.dto.StopOrderRequest;
+import com.mirigangneung.course.recommendation.NearbyPlaceRecommendationScorer;
 import com.mirigangneung.course.repository.CourseExternalPlaceRepository;
 import com.mirigangneung.course.repository.CourseRepository;
 import com.mirigangneung.course.repository.CourseStopRepository;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Locale;
 
 @Service
 public class CoursePlaceService {
@@ -43,6 +45,7 @@ public class CoursePlaceService {
     private final KakaoLocalClient localClient;
     private final CourseRouteCalculator routeCalculator;
     private final KakaoLocalProperties localProperties;
+    private final NearbyPlaceRecommendationScorer recommendationScorer;
 
     public CoursePlaceService(
             CourseRepository courses,
@@ -58,17 +61,24 @@ public class CoursePlaceService {
         this.localClient = localClient;
         this.routeCalculator = routeCalculator;
         this.localProperties = localProperties;
+        this.recommendationScorer = new NearbyPlaceRecommendationScorer();
     }
 
     @Transactional(readOnly = true)
     public NearbyPlacesResponse nearby(String courseId, String category) {
-        return nearby(courseId, category, null);
+        return nearby(courseId, category, null, "recommended");
     }
 
     @Transactional(readOnly = true)
     public NearbyPlacesResponse nearby(String courseId, String category, String stopId) {
+        return nearby(courseId, category, stopId, "recommended");
+    }
+
+    @Transactional(readOnly = true)
+    public NearbyPlacesResponse nearby(String courseId, String category, String stopId, String sort) {
         Course course = findCourse(courseId);
         String normalizedCategory = normalizeCategory(category);
+        String normalizedSort = normalizeSort(sort);
         String categoryCode = categoryCode(normalizedCategory);
         int radiusMeters = localProperties.radiusMeters();
         int pageSize = Math.max(1, Math.min(localProperties.pageSize(), 15));
@@ -111,15 +121,30 @@ public class CoursePlaceService {
             }
         }
 
-        List<NearbyPlaceResponse> response = merged.values().stream()
-                .sorted(Comparator.comparingInt(NearbyCandidate::distanceMeters)
-                        .thenComparing(candidate -> candidate.place().name()))
+        List<ScoredNearbyCandidate> scored = merged.values().stream()
+                .map(candidate -> new ScoredNearbyCandidate(
+                        candidate,
+                        recommendationScorer.score(
+                                candidate.place(),
+                                normalizedCategory,
+                                candidate.distanceMeters(),
+                                radiusMeters,
+                                course.getTravelTypes(),
+                                course.getCompanion()
+                        )
+                ))
+                .sorted(comparatorFor(normalizedSort))
+                .toList();
+
+        List<NearbyPlaceResponse> response = scored.stream()
                 .map(candidate -> NearbyPlaceResponse.from(
-                        candidate.place(),
+                        candidate.candidate().place(),
                         normalizedCategory,
-                        candidate.distanceMeters(),
-                        stopId(candidate.stop()),
-                        candidate.stop().getDisplayName()
+                        candidate.candidate().distanceMeters(),
+                        stopId(candidate.candidate().stop()),
+                        candidate.candidate().stop().getDisplayName(),
+                        candidate.recommendation().score(),
+                        candidate.recommendation().reasons()
                 ))
                 .toList();
         return new NearbyPlacesResponse(normalizedCategory, response);
@@ -303,6 +328,43 @@ public class CoursePlaceService {
         return KAKAO_CATEGORY_CODES.get(category);
     }
 
+    private static Comparator<ScoredNearbyCandidate> comparatorFor(String sort) {
+        if ("distance".equals(sort)) {
+            return Comparator.comparingInt((ScoredNearbyCandidate candidate) -> candidate.candidate().distanceMeters())
+                    .thenComparing(candidate -> candidate.candidate().place().name());
+        }
+        return (first, second) -> {
+            Integer firstScore = first.recommendation().score();
+            Integer secondScore = second.recommendation().score();
+            if (firstScore == null && secondScore != null) return 1;
+            if (firstScore != null && secondScore == null) return -1;
+            if (firstScore != null && secondScore != null) {
+                int scoreComparison = Integer.compare(secondScore, firstScore);
+                if (scoreComparison != 0) return scoreComparison;
+            }
+            int distanceComparison = Integer.compare(
+                    first.candidate().distanceMeters(),
+                    second.candidate().distanceMeters()
+            );
+            if (distanceComparison != 0) return distanceComparison;
+            return first.candidate().place().name().compareTo(second.candidate().place().name());
+        };
+    }
+
+    private static String normalizeSort(String sort) {
+        String normalized = sort == null || sort.isBlank()
+                ? "recommended"
+                : sort.trim().toLowerCase(Locale.ROOT);
+        if (!"recommended".equals(normalized) && !"distance".equals(normalized)) {
+            throw new ApiException(
+                    "INVALID_SORT",
+                    HttpStatus.BAD_REQUEST,
+                    "sort는 recommended 또는 distance여야 합니다."
+            );
+        }
+        return normalized;
+    }
+
     private static int distanceMeters(double latitude1, double longitude1, double latitude2, double longitude2) {
         double earthRadius = 6_371_000;
         double latitudeDistance = Math.toRadians(latitude2 - latitude1);
@@ -345,6 +407,12 @@ public class CoursePlaceService {
             KakaoLocalClient.NearbyPlace place,
             CourseStop stop,
             int distanceMeters
+    ) {
+    }
+
+    private record ScoredNearbyCandidate(
+            NearbyCandidate candidate,
+            NearbyPlaceRecommendationScorer.Recommendation recommendation
     ) {
     }
 }

@@ -4,6 +4,7 @@ import com.mirigangneung.common.error.ApiException;
 import com.mirigangneung.course.domain.Course;
 import com.mirigangneung.course.domain.CourseStop;
 import com.mirigangneung.course.dto.AddExternalStopRequest;
+import com.mirigangneung.course.dto.NearbyPlaceResponse;
 import com.mirigangneung.course.repository.CourseExternalPlaceRepository;
 import com.mirigangneung.course.repository.CourseRepository;
 import com.mirigangneung.course.repository.CourseStopRepository;
@@ -28,6 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -78,6 +80,64 @@ class CoursePlaceServiceTest {
                 .containsExactly("same", "far");
         assertThat(response.places().get(0).distanceMeters())
                 .isLessThan(response.places().get(1).distanceMeters());
+    }
+
+    @Test
+    void sortsNearbyPlacesByPreferenceOrDistanceAndReturnsRecommendationDetails() {
+        UUID courseId = UUID.randomUUID();
+        Course course = new Course("day", null, null, List.of("rest"), "couple");
+        Place tourismPlace = new Place("1", "경포대", "강릉", "nature", "", 37.0, 128.0, null, "KTO");
+        CourseStop tourismStop = new CourseStop(course, tourismPlace, 1, true);
+        when(courses.findById(courseId)).thenReturn(Optional.of(course));
+        when(stops.findByCourseOrderBySequenceAsc(course)).thenReturn(List.of(tourismStop));
+        when(localClient.searchByCategory(eq(128.0), eq(37.0), eq("CE7"), eq(2_000), eq(0), eq(15)))
+                .thenReturn(List.of(
+                        nearby("near", "일반 카페", 37.0005, 128.0005),
+                        nearby("match", "안목 바다 카페", 37.0080, 128.0080, "음식점 > 카페", "CE7")
+                ));
+
+        CoursePlaceService service = new CoursePlaceService(
+                courses,
+                stops,
+                externalPlaces,
+                localClient,
+                routeCalculator,
+                new KakaoLocalProperties("https://example.test", "secret", null, 2_000, 15)
+        );
+
+        var recommended = service.nearby(courseId.toString(), "cafe", null, "recommended");
+        assertThat(recommended.places()).extracting(NearbyPlaceResponse::externalPlaceId)
+                .containsExactly("match", "near");
+        assertThat(recommended.places().get(0).recommendationScore()).isNotNull();
+        assertThat(recommended.places().get(0).recommendationReasons())
+                .anyMatch(reason -> reason.contains("휴식"));
+
+        var distance = service.nearby(courseId.toString(), "cafe", null, "distance");
+        assertThat(distance.places()).extracting(NearbyPlaceResponse::externalPlaceId)
+                .containsExactly("near", "match");
+    }
+
+    @Test
+    void rejectsUnsupportedNearbySort() {
+        UUID courseId = UUID.randomUUID();
+        Course course = new Course("day", null, null, List.of("rest"), "couple");
+        when(courses.findById(courseId)).thenReturn(Optional.of(course));
+
+        CoursePlaceService service = new CoursePlaceService(
+                courses,
+                stops,
+                externalPlaces,
+                localClient,
+                routeCalculator,
+                new KakaoLocalProperties("https://example.test", "secret", null, 2_000, 15)
+        );
+
+        assertThatThrownBy(() -> service.nearby(courseId.toString(), "cafe", null, "popular"))
+                .isInstanceOfSatisfying(ApiException.class, exception -> {
+                    assertThat(exception.getCode()).isEqualTo("INVALID_SORT");
+                    assertThat(exception.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+                });
+        verifyNoInteractions(stops, localClient);
     }
 
     @Test
@@ -230,8 +290,19 @@ class CoursePlaceServiceTest {
             double lon,
             String categoryCode
     ) {
+        return nearby(id, name, lat, lon, "주변 장소", categoryCode);
+    }
+
+    private static KakaoLocalClient.NearbyPlace nearby(
+            String id,
+            String name,
+            double lat,
+            double lon,
+            String categoryName,
+            String categoryCode
+    ) {
         return new KakaoLocalClient.NearbyPlace(
-                id, name, "주변 장소", categoryCode, "강릉", "강릉", "", "https://place.map.kakao.com/" + id,
+                id, name, categoryName, categoryCode, "강릉", "강릉", "", "https://place.map.kakao.com/" + id,
                 lat, lon, null
         );
     }

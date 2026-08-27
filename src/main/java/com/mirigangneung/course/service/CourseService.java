@@ -57,7 +57,13 @@ public class CourseService {
             );
         }
 
-        Course course = courses.save(new Course(request.duration(), request.startDate(), request.endDate()));
+        Course course = courses.save(new Course(
+                request.duration(),
+                request.startDate(),
+                request.endDate(),
+                request.types(),
+                request.companion()
+        ));
         List<Place> recommended = engine.recommend(
                 selected,
                 onePick,
