@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-27 12:55 KST
+Last Updated: 2026-08-28 15:00 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -46,8 +46,9 @@ Last Updated By: Codex
 
 ## 2026-08-27 이슈 #13 장소 맞춤 추천 구현
 
-- 코스 생성 시 여행 타입 최대 2개와 동행 유형을 `courses.travel_types`, `courses.companion`에 저장하고 Course 응답에도 반환한다. 기존 선호값이 없는 코스는 빈 값으로 호환된다.
-- 주변 장소 API는 `sort=recommended`를 기본으로 사용한다. 추천 점수는 거리 40점·여행 타입 30점·동행 유형 20점·정보 완성도 10점이며, 장소명·카테고리명·주소·좌표·Kakao URL만 사용한다.
+- 코스 생성 시 여행 타입 최대 4개, 분야별 복수 세부 선호, 동행 유형을 `courses.travel_types`, `courses.detail_types`, `courses.companion`에 저장하고 Course 응답에도 반환한다. 기존 선호값이 없는 코스와 기존 요청은 빈 detailTypes로 호환된다.
+- 주변 장소 API는 `sort=recommended`를 기본으로 사용한다. 추천 점수는 세부 선호 매칭 점수에 거리 20점·동행 유형 10점·정보 완성도 10점을 합산하며, 선택한 세부 선호와 정확히 일치하면 55점, 세부 선호를 확인할 수 없거나 다른 음식 분류면 20점의 중립 점수를 사용한다. 주변 카페 추천의 대형 프랜차이즈는 8점 감점한다. 장소명·카테고리명·주소·좌표·Kakao URL만 사용한다.
+- 장소 추가 패널은 카테고리(카페·음식점·문화시설·관광명소)를 먼저 선택하고, 그 안에서 주변 추천·강릉 전체 검색·강릉 대표를 선택한다. 강릉 전체 검색은 사용자가 키워드를 제출하기 전까지 Kakao를 호출하지 않으며, 강릉 대표는 준비 중 상태다.
 - `recommendationScore`와 최대 3개의 `recommendationReasons`를 반환한다. 리뷰·별점·사진·인기도를 임의로 만들지 않으며, 장소는 사용자가 추가 버튼을 눌렀을 때만 코스 snapshot으로 저장한다.
 - `sort=distance`는 기존 거리순 동작을 유지한다. 프론트 장소 추가 패널은 추천순을 기본으로 보여주고 거리순으로 전환할 수 있다.
 - 관련 브랜치: backend `feat/issue-13-place-recommendation`, frontend `feat/issue-13-place-recommendation`

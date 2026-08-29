@@ -33,13 +33,23 @@ import java.util.Locale;
 public class CoursePlaceService {
     private static final int MAX_KAKAO_PAGES = 3;
     private static final int MAX_PAGE_SIZE = 15;
+    private static final int MAX_KAKAO_PAGE = 44;
+    private static final int MIN_EXACT_PREFERENCE_CANDIDATES = 3;
+    private static final int FIVE_KILOMETER_RADIUS_METERS = 5_000;
+    private static final int TEN_KILOMETER_RADIUS_METERS = 10_000;
+    private static final int FIFTEEN_KILOMETER_RADIUS_METERS = 15_000;
     private static final Map<String, String> KAKAO_CATEGORY_CODES = Map.of(
             "restaurant", "FD6",
             "cafe", "CE7",
             "attraction", "AT4",
             "culture", "CT1"
     );
-    private static final Set<String> ALL_SEARCH_CATEGORIES = Set.of("restaurant", "cafe", "culture");
+    private static final Set<String> ALL_SEARCH_CATEGORIES = Set.of(
+            "restaurant",
+            "cafe",
+            "culture",
+            "attraction"
+    );
 
     private final CourseRepository courses;
     private final CourseStopRepository stops;
@@ -78,20 +88,122 @@ public class CoursePlaceService {
 
     @Transactional(readOnly = true)
     public NearbyPlacesResponse nearby(String courseId, String category, String stopId, String sort) {
+        return nearby(
+                courseId,
+                category,
+                stopId,
+                sort,
+                Math.max(1, Math.min(localProperties.pageSize(), MAX_PAGE_SIZE))
+        );
+    }
+
+    private NearbyPlacesResponse nearby(
+            String courseId,
+            String category,
+            String stopId,
+            String sort,
+            int pageSize
+    ) {
         Course course = findCourse(courseId);
         String normalizedCategory = normalizeCategory(category);
         String normalizedSort = normalizeSort(sort);
         String categoryCode = categoryCode(normalizedCategory);
-        int radiusMeters = localProperties.radiusMeters();
-        int pageSize = Math.max(1, Math.min(localProperties.pageSize(), 15));
         Set<String> existingTourismNames = tourismStops(course, null).stream()
                 .map(CourseStop::getDisplayName)
                 .map(PlaceNameNormalizer::normalize)
                 .filter(name -> !name.isBlank())
                 .collect(java.util.stream.Collectors.toSet());
 
+        List<CourseStop> tourismStops = tourismStops(course, stopId);
         Map<String, NearbyCandidate> merged = new LinkedHashMap<>();
-        for (CourseStop tourismStop : tourismStops(course, stopId)) {
+        List<Integer> searchRadii = automaticSearchRadii(localProperties.radiusMeters());
+        int searchRadiusMeters = searchRadii.get(0);
+        for (int radiusIndex = 0; radiusIndex < searchRadii.size(); radiusIndex++) {
+            int currentRadiusMeters = searchRadii.get(radiusIndex);
+            searchRadiusMeters = currentRadiusMeters;
+            collectNearbyCandidates(
+                    merged,
+                    tourismStops,
+                    normalizedCategory,
+                    categoryCode,
+                    currentRadiusMeters,
+                    pageSize,
+                    existingTourismNames,
+                    radiusIndex == 0 ? null : currentRadiusMeters
+            );
+            if (!shouldExpandSearch(course, normalizedCategory, merged)) {
+                break;
+            }
+        }
+
+        int finalSearchRadiusMeters = searchRadiusMeters;
+        List<ScoredNearbyCandidate> scored = merged.values().stream()
+                .map(candidate -> new ScoredNearbyCandidate(
+                        candidate,
+                        recommendationScorer.score(
+                                candidate.place(),
+                                normalizedCategory,
+                                candidate.distanceMeters(),
+                                finalSearchRadiusMeters,
+                                course.getTravelTypes(),
+                                course.getDetailTypes(),
+                                course.getCompanion()
+                        )
+                ))
+                .sorted(comparatorFor(normalizedSort))
+                .toList();
+
+        List<NearbyPlaceResponse> response = scored.stream()
+                .map(candidate -> NearbyPlaceResponse.from(
+                        candidate.candidate().place(),
+                        normalizedCategory,
+                        candidate.candidate().distanceMeters(),
+                        stopId(candidate.candidate().stop()),
+                        candidate.candidate().stop().getDisplayName(),
+                        candidate.recommendation().score(),
+                        recommendationReasons(candidate)
+                ))
+                .toList();
+        return new NearbyPlacesResponse(
+                "nearby",
+                normalizedCategory,
+                0,
+                pageSize,
+                true,
+                finalSearchRadiusMeters,
+                response
+        );
+    }
+
+    private static List<Integer> automaticSearchRadii(int configuredRadiusMeters) {
+        int initialRadiusMeters = configuredRadiusMeters > 0
+                ? Math.min(configuredRadiusMeters, FIFTEEN_KILOMETER_RADIUS_METERS)
+                : 2_000;
+        List<Integer> radii = new ArrayList<>();
+        for (int radiusMeters : List.of(
+                initialRadiusMeters,
+                FIVE_KILOMETER_RADIUS_METERS,
+                TEN_KILOMETER_RADIUS_METERS,
+                FIFTEEN_KILOMETER_RADIUS_METERS
+        )) {
+            if (radii.isEmpty() || radiusMeters > radii.get(radii.size() - 1)) {
+                radii.add(radiusMeters);
+            }
+        }
+        return radii;
+    }
+
+    private void collectNearbyCandidates(
+            Map<String, NearbyCandidate> merged,
+            List<CourseStop> tourismStops,
+            String normalizedCategory,
+            String categoryCode,
+            int radiusMeters,
+            int pageSize,
+            Set<String> existingTourismNames,
+            Integer expansionRadiusMeters
+    ) {
+        for (CourseStop tourismStop : tourismStops) {
             for (int page = 0; page < MAX_KAKAO_PAGES; page++) {
                 List<KakaoLocalClient.NearbyPlace> pageResults = localClient.searchByCategory(
                         tourismStop.getLongitude(),
@@ -111,10 +223,21 @@ public class CoursePlaceService {
                             place.latitude(),
                             place.longitude()
                     );
-                    NearbyCandidate candidate = new NearbyCandidate(place, tourismStop, distance);
+                    NearbyCandidate candidate = new NearbyCandidate(
+                            place,
+                            tourismStop,
+                            distance,
+                            radiusMeters,
+                            expansionRadiusMeters
+                    );
                     NearbyCandidate previous = merged.get(place.externalPlaceId());
                     if (previous == null || candidate.distanceMeters() < previous.distanceMeters()) {
-                        merged.put(place.externalPlaceId(), candidate);
+                        merged.put(
+                                place.externalPlaceId(),
+                                previous == null
+                                        ? candidate
+                                        : candidate.withExpansionRadius(previous.expansionRadiusMeters())
+                        );
                     }
                 }
                 if (pageResults.size() < pageSize) {
@@ -122,41 +245,40 @@ public class CoursePlaceService {
                 }
             }
         }
+    }
 
-        List<ScoredNearbyCandidate> scored = merged.values().stream()
-                .map(candidate -> new ScoredNearbyCandidate(
-                        candidate,
-                        recommendationScorer.score(
-                                candidate.place(),
-                                normalizedCategory,
-                                candidate.distanceMeters(),
-                                radiusMeters,
-                                course.getTravelTypes(),
-                                course.getCompanion()
-                        )
-                ))
-                .sorted(comparatorFor(normalizedSort))
-                .toList();
-
-        List<NearbyPlaceResponse> response = scored.stream()
-                .map(candidate -> NearbyPlaceResponse.from(
-                        candidate.candidate().place(),
-                        normalizedCategory,
-                        candidate.candidate().distanceMeters(),
-                        stopId(candidate.candidate().stop()),
-                        candidate.candidate().stop().getDisplayName(),
-                        candidate.recommendation().score(),
-                        candidate.recommendation().reasons()
-                ))
-                .toList();
-        return new NearbyPlacesResponse(
-                "nearby",
+    private boolean shouldExpandSearch(
+            Course course,
+            String normalizedCategory,
+            Map<String, NearbyCandidate> candidates
+    ) {
+        if (!recommendationScorer.hasApplicableDetailPreference(
                 normalizedCategory,
-                0,
-                response.size(),
-                true,
-                response
-        );
+                course.getTravelTypes(),
+                course.getDetailTypes()
+        )) {
+            return false;
+        }
+        long exactCount = candidates.values().stream()
+                .filter(candidate -> recommendationScorer.hasExactDetailPreferenceMatch(
+                        candidate.place(),
+                        normalizedCategory,
+                        course.getTravelTypes(),
+                        course.getDetailTypes()
+                ))
+                .count();
+        return exactCount < MIN_EXACT_PREFERENCE_CANDIDATES;
+    }
+
+    private static List<String> recommendationReasons(ScoredNearbyCandidate candidate) {
+        List<String> reasons = new ArrayList<>();
+        Integer expansionRadiusMeters = candidate.candidate().expansionRadiusMeters();
+        if (expansionRadiusMeters != null) {
+            reasons.add("주변에 조건에 맞는 장소가 적어 %dkm까지 검색했어요"
+                    .formatted(expansionRadiusMeters / 1_000));
+        }
+        reasons.addAll(candidate.recommendation().reasons());
+        return reasons.stream().limit(3).toList();
     }
 
     @Transactional(readOnly = true)
@@ -171,6 +293,7 @@ public class CoursePlaceService {
             int size
     ) {
         String normalizedScope = normalizeScope(scope);
+        String normalizedSort = normalizeSort(sort);
         int normalizedPage = normalizePage(page);
         int normalizedSize = normalizePageSize(size);
         if ("all".equals(normalizedScope)) {
@@ -182,7 +305,7 @@ public class CoursePlaceService {
                     normalizedSize
             );
         }
-        return nearby(courseId, category, normalizeAllStopId(stopId), sort);
+        return nearby(courseId, category, normalizeAllStopId(stopId), normalizedSort, normalizedSize);
     }
 
     private NearbyPlacesResponse all(
@@ -198,36 +321,48 @@ public class CoursePlaceService {
             throw new ApiException(
                     "INVALID_CATEGORY",
                     HttpStatus.BAD_REQUEST,
-                    "강릉 전체 검색은 restaurant, cafe 또는 culture만 지원합니다."
+                    "강릉 전체 검색은 restaurant, cafe, attraction 또는 culture만 지원합니다."
             );
         }
 
         String categoryCode = categoryCode(normalizedCategory);
         String normalizedKeyword = trimToEmpty(keyword);
-        KakaoLocalClient.SearchPage searchPage = normalizedKeyword.isBlank()
-                ? localClient.searchByCategoryInRect(localProperties.allSearchRect(), categoryCode, page, size)
-                : localClient.searchByKeywordInRect(
-                        normalizedKeyword,
-                        localProperties.allSearchRect(),
-                        categoryCode,
-                        page,
-                        size
-                );
+        if (normalizedKeyword.isBlank()) {
+            return new NearbyPlacesResponse(
+                    "all",
+                    normalizedCategory,
+                    page,
+                    size,
+                    true,
+                    null,
+                    List.of()
+            );
+        }
+        KakaoLocalClient.SearchPage searchPage = localClient.searchByKeywordInRect(
+                normalizedKeyword,
+                localProperties.allSearchRect(),
+                categoryCode,
+                page,
+                size
+        );
         List<CourseStop> courseStops = stops.findByCourseOrderBySequenceAsc(course);
         Set<String> existingNames = courseStops.stream()
                 .map(CourseStop::getDisplayName)
                 .map(PlaceNameNormalizer::normalize)
                 .filter(name -> !name.isBlank())
                 .collect(java.util.stream.Collectors.toSet());
-        Set<String> existingExternalIds = courseStops.stream()
-                .map(CourseStop::getExternalPlaceId)
+        Set<String> existingKakaoIds = courseStops.stream()
+                .flatMap(stop -> java.util.stream.Stream.of(
+                        stop.getExternalPlaceId(),
+                        stop.getKakaoPlaceId()
+                ))
                 .filter(id -> id != null && !id.isBlank())
                 .map(String::trim)
                 .collect(java.util.stream.Collectors.toSet());
 
         List<NearbyPlaceResponse> response = searchPage.places().stream()
                 .filter(place -> categoryCode.equals(place.categoryCode()))
-                .filter(place -> !existingExternalIds.contains(place.externalPlaceId()))
+                .filter(place -> !existingKakaoIds.contains(trimToEmpty(place.externalPlaceId())))
                 .filter(place -> !existingNames.contains(PlaceNameNormalizer.normalize(place.name())))
                 .map(place -> NearbyPlaceResponse.fromWithoutDistance(place, normalizedCategory))
                 .toList();
@@ -237,6 +372,7 @@ public class CoursePlaceService {
                 searchPage.page(),
                 size,
                 searchPage.isEnd(),
+                null,
                 response
         );
     }
@@ -253,7 +389,9 @@ public class CoursePlaceService {
                     "이미 코스에 추가된 장소입니다."
             );
         }
-        if (stops.existsByCourseAndExternalPlace_ExternalPlaceId(course, request.externalPlaceId())) {
+        String externalPlaceId = request.externalPlaceId().trim();
+        if (stops.existsByCourseAndExternalPlace_ExternalPlaceId(course, externalPlaceId)
+                || stops.existsByCourseAndPlace_KakaoPlaceId(course, externalPlaceId)) {
             throw new ApiException(
                     "PLACE_ALREADY_IN_COURSE",
                     HttpStatus.CONFLICT,
@@ -263,7 +401,7 @@ public class CoursePlaceService {
 
         CourseExternalPlace snapshot = externalPlaces.save(new CourseExternalPlace(
                 "KAKAO",
-                request.externalPlaceId().trim(),
+                externalPlaceId,
                 request.name().trim(),
                 trimToEmpty(request.categoryName()),
                 category,
@@ -430,11 +568,11 @@ public class CoursePlaceService {
     }
 
     private static int normalizePage(int page) {
-        if (page < 0) {
+        if (page < 0 || page > MAX_KAKAO_PAGE) {
             throw new ApiException(
                     "INVALID_PAGE",
                     HttpStatus.BAD_REQUEST,
-                    "page는 0 이상이어야 합니다."
+                    "page는 0 이상 44 이하여야 합니다."
             );
         }
         return page;
@@ -540,8 +678,19 @@ public class CoursePlaceService {
     private record NearbyCandidate(
             KakaoLocalClient.NearbyPlace place,
             CourseStop stop,
-            int distanceMeters
+            int distanceMeters,
+            int searchRadiusMeters,
+            Integer expansionRadiusMeters
     ) {
+        private NearbyCandidate withExpansionRadius(Integer expansionRadiusMeters) {
+            return new NearbyCandidate(
+                    place,
+                    stop,
+                    distanceMeters,
+                    searchRadiusMeters,
+                    expansionRadiusMeters
+            );
+        }
     }
 
     private record ScoredNearbyCandidate(

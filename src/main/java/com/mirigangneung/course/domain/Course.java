@@ -29,6 +29,9 @@ public class Course {
     @Column(name = "travel_types", length = 100)
     private String travelTypes;
 
+    @Column(name = "detail_types", length = 160)
+    private String detailTypes;
+
     @Column(length = 32)
     private String companion;
 
@@ -41,7 +44,7 @@ public class Course {
     }
 
     public Course(String duration, LocalDate start, LocalDate end) {
-        this(duration, start, end, List.of(), "");
+        this(duration, start, end, List.of(), List.of(), "");
     }
 
     public Course(
@@ -51,11 +54,23 @@ public class Course {
             List<String> travelTypes,
             String companion
     ) {
+        this(duration, start, end, travelTypes, List.of(), companion);
+    }
+
+    public Course(
+            String duration,
+            LocalDate start,
+            LocalDate end,
+            List<String> travelTypes,
+            List<String> detailTypes,
+            String companion
+    ) {
         durationType = duration;
         startDate = start;
         endDate = end;
         title = "나만의 강릉 코스";
         this.travelTypes = serializeTravelTypes(travelTypes);
+        this.detailTypes = serializeTravelTypes(detailTypes);
         this.companion = companion == null ? "" : companion.trim();
         createdAt = OffsetDateTime.now();
     }
@@ -73,13 +88,11 @@ public class Course {
     }
 
     public List<String> getTravelTypes() {
-        if (travelTypes == null || travelTypes.isBlank()) {
-            return List.of();
-        }
-        return Arrays.stream(travelTypes.split(","))
-                .map(String::trim)
-                .filter(type -> !type.isBlank())
-                .toList();
+        return deserializeTravelTypes(travelTypes);
+    }
+
+    public List<String> getDetailTypes() {
+        return deserializeTravelTypes(detailTypes);
     }
 
     public String getCompanion() {
@@ -113,5 +126,15 @@ public class Course {
                 .map(String::trim)
                 .distinct()
                 .collect(Collectors.joining(","));
+    }
+
+    private static List<String> deserializeTravelTypes(String serializedTypes) {
+        if (serializedTypes == null || serializedTypes.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(serializedTypes.split(","))
+                .map(String::trim)
+                .filter(type -> !type.isBlank())
+                .toList();
     }
 }

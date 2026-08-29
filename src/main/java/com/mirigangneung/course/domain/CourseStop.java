@@ -102,6 +102,10 @@ public class CourseStop {
         return externalPlace == null ? null : externalPlace.getExternalPlaceId();
     }
 
+    public String getKakaoPlaceId() {
+        return place == null ? null : place.getKakaoPlaceId();
+    }
+
     public String getDisplayName() {
         return place != null ? place.getName() : externalPlace.getName();
     }

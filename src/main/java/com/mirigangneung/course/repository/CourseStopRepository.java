@@ -15,5 +15,7 @@ public interface CourseStopRepository extends JpaRepository<CourseStop, UUID> {
 
     boolean existsByCourseAndExternalPlace_ExternalPlaceId(Course course, String externalPlaceId);
 
+    boolean existsByCourseAndPlace_KakaoPlaceId(Course course, String kakaoPlaceId);
+
     void deleteByPlaceIn(List<Place> places);
 }
