@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-28 15:00 KST
+Last Updated: 2026-08-30 13:35 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -51,7 +51,8 @@ Last Updated By: Codex
 - 장소 추가 패널은 카테고리(카페·음식점·문화시설·관광명소)를 먼저 선택하고, 그 안에서 주변 추천·강릉 전체 검색·강릉 대표를 선택한다. 강릉 전체 검색은 사용자가 키워드를 제출하기 전까지 Kakao를 호출하지 않으며, 강릉 대표는 준비 중 상태다.
 - `recommendationScore`와 최대 3개의 `recommendationReasons`를 반환한다. 리뷰·별점·사진·인기도를 임의로 만들지 않으며, 장소는 사용자가 추가 버튼을 눌렀을 때만 코스 snapshot으로 저장한다.
 - `sort=distance`는 기존 거리순 동작을 유지한다. 프론트 장소 추가 패널은 추천순을 기본으로 보여주고 거리순으로 전환할 수 있다.
-- 관련 브랜치: backend `feat/issue-13-place-recommendation`, frontend `feat/issue-13-place-recommendation`
+- 현재 검토 기준 브랜치: backend `feat/course-preference-recommendation` (upstream `origin/feat/course-preference-recommendation`). 프론트 참고 브랜치는 `course-place-management`이다.
+- 장소 추가 검색의 현재 지원 카테고리는 카페(`CE7`), 음식점(`FD6`), 문화시설(`CT1`), 관광명소(`AT4`) 네 가지다. `scope=all`은 키워드가 비어 있으면 Kakao를 호출하지 않고 빈 결과를 반환하며, 기준 좌표가 없으므로 `sort`는 검증만 하고 실제 결과 정렬에는 사용하지 않는다.
 
 ## 현재 API Controller
 
@@ -72,7 +73,7 @@ Last Updated By: Codex
 
 ## 현재 검증 결과
 
-2026-08-27 기준 백엔드 `bash gradlew test`는 `BUILD SUCCESSFUL`, 프론트 전체 Vitest는 30 files/75 tests 통과, `npm run build`는 성공했다. 프론트 lint는 오류 0건이며 기존 경고 4건이 남아 있다.
+2026-08-30 현재 백엔드 `./gradlew.bat --project-cache-dir C:\Users\chin0\AppData\Local\Temp\mirigangneung-pr-review-cache test`는 `BUILD SUCCESSFUL`이다. 이번 문서 정리에서는 코드와 테스트를 변경하지 않았다. 기존 프론트 검증 결과는 아래 과거 기록을 따른다.
 
 Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너가 실행 중이다. app은 `localhost:8080`, MySQL은 호스트 `3307`, Redis는 호스트 `6379`에 연결된다. `/actuator/health`는 `UP`이며 `/api/v1/places?page=0&size=2`에서 강릉 관광지 응답을 확인했다.
 

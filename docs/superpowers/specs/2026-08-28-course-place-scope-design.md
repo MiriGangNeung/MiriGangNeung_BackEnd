@@ -16,11 +16,11 @@
 ## 확정된 제품 결정
 
 - 상위 모드 버튼은 한 줄에 `[주변 추천] [강릉 전체] [강릉 대표]`를 둔다.
-- 장소 카테고리는 한 줄에 `[카페] [음식점] [문화시설]`만 둔다. 관광명소 버튼은 장소 추가 UI에서 제거한다.
+- 장소 카테고리는 `[카페] [음식점] [문화시설] [관광명소]`를 지원한다. 관광명소는 Kakao Local `AT4`로 조회한다.
 - `주변 추천`에서는 현재 코스의 외부 장소가 아닌 관광지 정거장만 기준으로 사용한다. `전체` 또는 최대 3개의 관광지 중 하나를 고를 수 있다.
 - `주변 추천`의 추천순·거리순 정렬과 2km 반경은 유지한다.
 - `강릉 전체`에서는 기준 관광지 선택 UI와 거리·가까운 관광지 문구를 숨긴다.
-- `강릉 전체`는 선택한 카테고리에 대해 강릉 전역을 검색한다. 검색어가 비어 있으면 카테고리 목록을, 검색어가 있으면 강릉 전역의 키워드 결과를 제공한다.
+- `강릉 전체`는 선택한 카테고리에 대해 강릉 전역을 검색한다. 검색어가 비어 있으면 Kakao를 호출하지 않고 빈 결과를 반환하며, 검색어가 있으면 강릉 전역의 키워드 결과를 제공한다.
 - `강릉 전체` 결과도 카카오 장소 ID, 좌표, 카카오맵 URL을 사용해 지도 노드·미리보기·코스 추가를 지원한다.
 - `강릉 대표`는 이번 작업에서 호출하지 않는다. 버튼은 비활성화하고 `준비 중` 상태를 표시한다.
 - 장소를 선택했다고 자동으로 코스에 넣지 않는다. 기존처럼 사용자가 추가 동작을 수행할 때만 코스 스냅샷을 저장한다.
@@ -29,12 +29,12 @@
 
 ## 브랜치와 기준 코드
 
-추천순·거리순과 코스 선호값 저장은 현재 `feat/issue-13-place-recommendation` 브랜치에만 있다. 따라서 새 작업은 다음 기존 브랜치에서 각각 파생한다.
+추천순·거리순과 코스 선호값 저장은 현재 장소 추천 구현 브랜치에 반영되어 있다. 이 문서의 최초 작업 당시 브랜치명은 과거 기준이며, 현재 checkout과 PR에서 사용하는 실제 브랜치명은 Git 상태와 PR 정보를 기준으로 확인한다.
 
-- 프론트: `feat/course-place-scope` ← `feat/issue-13-place-recommendation`
-- 백엔드: `feat/course-place-scope` ← `feat/issue-13-place-recommendation`
+- 프론트: 장소 추가 검색 구현 브랜치에서 작업한다.
+- 백엔드: 장소 추천 구현 브랜치에서 작업한다.
 
-최신 `main`/`develop`에서 바로 파생하면 기존 추천순·거리순 구현이 빠지므로 사용하지 않는다.
+기준 브랜치를 임의로 추정하지 말고 작업 시작 전에 현재 Git 상태와 PR의 base branch를 확인한다.
 
 ## 시스템 구조
 
@@ -66,7 +66,7 @@
 ```http
 GET /api/v1/courses/{courseId}/nearby-places
   ?scope=nearby
-  &category=cafe|restaurant|culture
+  &category=cafe|restaurant|culture|attraction
   &stopId=all|{tourismStopId}
   &sort=recommended|distance
   &page=0
@@ -76,13 +76,13 @@ GET /api/v1/courses/{courseId}/nearby-places
 ```http
 GET /api/v1/courses/{courseId}/nearby-places
   ?scope=all
-  &category=cafe|restaurant|culture
+  &category=cafe|restaurant|culture|attraction
   &keyword={optional}
   &page=0
   &size=15
 ```
 
-`scope=nearby`에서는 `stopId`와 `sort`를 사용하고, `scope=all`에서는 `stopId`와 `sort`를 무시하거나 기본값으로 처리한다. `scope=all`의 검색어는 백엔드에서 강릉 영역으로 제한한다.
+`scope=nearby`에서는 `stopId`와 `sort`를 사용한다. `scope=all`에서는 `stopId`를 사용하지 않으며, `sort`는 허용값을 검증하지만 기준 좌표가 없어 실제 결과 정렬에는 사용하지 않는다. `scope=all`의 검색어는 백엔드에서 강릉 영역으로 제한한다.
 
 응답 예시는 다음과 같다.
 
@@ -160,7 +160,7 @@ GET /api/v1/courses/{courseId}/nearby-places
 - `nearby`가 기존 관광지 기준·2km·추천순·거리순을 유지하는지 검증한다.
 - `all`이 기준 관광지와 거리값 없이 강릉 전체 검색을 수행하는지 검증한다.
 - `all`의 검색어 전달, 페이지·`isEnd` 매핑, 카카오 ID 중복 제거를 검증한다.
-- 허용 카테고리에서 `attraction`이 제외되는지 검증한다.
+- `attraction`이 `AT4`로 nearby/all 검색에 전달되는지 검증한다.
 - 기존 외부 장소 추가·삭제·순서 변경 테스트를 모두 통과시킨다.
 
 ### 프론트엔드

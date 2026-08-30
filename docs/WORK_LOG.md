@@ -1,5 +1,44 @@
 # Work Log
 
+## 2026-08-30
+
+### 13:30 ~ 13:35 — 장소 검색 범위 문서와 현재 구현 정합성 수정
+
+**시작 시간:** 2026-08-30 13:30 KST
+**완료 시간:** 2026-08-30 13:35 KST
+**Agent:** Codex
+**작업 유형:** Documentation Maintenance
+
+### 작업 내용
+
+- 현재 백엔드 코드, API 계약, 프론트 참고 브랜치를 대조했다.
+- 이전 계획 문서에 남아 있던 `attraction` 제외 내용을 현재 구현 기준인 `attraction(AT4)` 포함으로 수정했다.
+- `scope=all`의 빈 키워드 처리와 카테고리 목록을 현재 동작에 맞게 정리했다.
+- `scope=all`은 기준 좌표가 없어 `sort`를 검증만 하고 실제 결과 정렬에는 사용하지 않는다는 정책을 `PROJECT_STATUS.md`에 기록했다.
+- 프론트는 참고용으로 확인했으며 프론트 파일과 백엔드 코드는 수정하지 않았다.
+
+### 주요 변경 파일
+
+- `docs/superpowers/plans/2026-08-28-course-place-scope.md`
+- `docs/superpowers/specs/2026-08-28-course-place-scope-design.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+### 테스트 결과
+
+- 코드 변경 없음.
+- 기존 백엔드 검증: `./gradlew.bat --project-cache-dir C:\Users\chin0\AppData\Local\Temp\mirigangneung-pr-review-cache test` — `BUILD SUCCESSFUL`.
+- 문서 변경 후 `git diff --check` 통과.
+
+### 발생한 문제와 해결 방법
+
+- 이전 계획 문서와 현재 코드/API 계약 사이에 `attraction` 지원 범위가 달랐다. 현재 코드·API 계약·프론트 타입에서 모두 `attraction`을 지원하므로 계획/상태 문서를 현재 구현에 맞췄다.
+- 계획 문서에 남아 있던 `scope=all` 카테고리 사각 검색 호출 표현과 과거 브랜치 기준도 현재 서비스 흐름 및 Git 확인 절차에 맞게 정정했다.
+
+### 관련 commit
+
+- 문서 수정 후 별도 commit 예정.
+
 ## 2026-08-26 — KTO 동기화 후 고정 Kakao URL 매핑 자동 반영
 
 **시작 시간:** 시간 미기록

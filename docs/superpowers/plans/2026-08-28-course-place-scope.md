@@ -1,8 +1,10 @@
 # Course Place Search Scope Implementation Plan
 
+> **현재 구현 기준 메모 (2026-08-30):** 이 문서는 최초 범위 설계 계획이다. 이후 선호도 기반 구현과 현재 API 계약이 이 문서와 다르면 현재 구현을 기준으로 한다. 현재 백엔드는 `nearby`와 `all` 모두 관광명소(`AT4`)를 지원하고, `scope=all`에서 `keyword`가 비어 있으면 Kakao를 호출하지 않고 빈 결과를 반환한다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 코스 결과 화면의 장소 추가 패널을 `주변 추천`과 `강릉 전체` 검색으로 분리하고, 사용자가 카페·음식점·문화시설 후보를 지도와 목록에서 직접 확인한 뒤 명시적으로 코스에 추가할 수 있게 한다. `강릉 대표` 탭은 UI 자리만 마련하고 이번 작업에서는 비활성화한다.
+**Goal:** 코스 결과 화면의 장소 추가 패널을 `주변 추천`과 `강릉 전체` 검색으로 분리하고, 사용자가 카페·음식점·문화시설·관광명소 후보를 지도와 목록에서 직접 확인한 뒤 명시적으로 코스에 추가할 수 있게 한다. `강릉 대표` 탭은 UI 자리만 마련하고 이번 작업에서는 비활성화한다.
 
 **Architecture:** 기존 추천 브랜치의 주변 추천 흐름(선택 관광지 기준 2km, 추천순/거리순)은 유지한다. 백엔드는 Kakao Local API의 카테고리/키워드 검색을 같은 코스 장소 엔드포인트의 `scope`로 구분하고, `nearby`는 기존 거리·추천 메타데이터를 반환하며 `all`은 Gangneung 사각 영역(`rect`)과 Kakao 페이지네이션을 사용해 후보를 반환한다. 프론트는 scope를 쿼리 키와 UI 상태에 포함하고, `강릉 전체`의 추가 후보를 지도에 중립 마커로 표시하며 카드의 명시적 추가 버튼만 코스를 변경한다.
 
@@ -17,9 +19,9 @@
 
 ## Global Constraints
 
-- 사용자 노출 카테고리는 `cafe`, `restaurant`, `culture` 세 가지로 제한한다. `attraction`은 이번 장소 추가 UI에서 제거한다. 백엔드의 기존 attraction nearby/add 호환 계약은 기존 클라이언트 회귀를 막기 위해 유지하되, `all` scope에서는 허용하지 않는다.
+- 사용자 노출 및 백엔드 지원 카테고리는 `cafe`, `restaurant`, `culture`, `attraction` 네 가지다. 관광명소는 Kakao Local `AT4`로 조회한다.
 - `nearby`는 기존 선택 관광지 최대 3개 및 `all` 기준 선택, 반경 2km, `recommended`/`distance` 정렬을 보존한다.
-- `all`은 Kakao Local API의 `rect` 검색을 사용한다. 빈 키워드는 카테고리 전체, 입력 키워드는 Gangneung 영역 안의 키워드 검색으로 처리한다.
+- `all`은 Kakao Local API의 `rect` 검색을 사용한다. 빈 키워드는 외부 API를 호출하지 않고 빈 결과를 반환하며, 입력 키워드는 Gangneung 영역 안의 키워드 검색으로 처리한다.
 - `all` 결과에는 거리/가장 가까운 관광지 텍스트를 표시하지 않는다. `nearby` 결과에서는 기존 표시를 유지한다.
 - 추천 후보를 자동으로 코스에 넣지 않는다. 카드의 추가 동작 또는 지도 후보 선택 후 추가 동작만 코스를 변경한다.
 - `강릉 대표`는 비활성화 상태로만 두고, 리뷰/별점 조사와 하드코딩은 이번 범위에 포함하지 않는다.
@@ -66,9 +68,9 @@
 - `src/main/resources/application.yml`
 - service/controller tests
 
-- [x] 요청 파라미터를 `scope=nearby|all`, `category`, `stopId`, `sort`, `keyword`, `page`, `size`로 정규화한다. 생략된 scope는 하위 호환을 위해 `nearby`로 간주하고, `all` scope의 category만 `cafe|restaurant|culture`로 제한한다.
+- [x] 요청 파라미터를 `scope=nearby|all`, `category`, `stopId`, `sort`, `keyword`, `page`, `size`로 정규화한다. 생략된 scope는 하위 호환을 위해 `nearby`로 간주하고, `all` scope의 category를 `cafe|restaurant|culture|attraction`으로 제한한다.
 - [x] `nearby`는 현재 구현의 stop 기준, 2km, 최대 페이지 조회, 이름 중복 제거, 추천 점수/거리순 정렬을 그대로 사용한다.
-- [x] `all`은 설정된 rect와 선택 카테고리 코드(`CE7`, `FD6`, `CT1`)로 Kakao 카테고리 사각 검색을 호출한다. keyword가 공백이 아니면 키워드 사각 검색을 호출한다.
+- [x] `all`은 설정된 rect와 선택 카테고리 코드(`CE7`, `FD6`, `CT1`, `AT4`)를 사용한다. 현재 구현은 keyword가 공백이면 외부 API를 호출하지 않고 빈 결과를 반환하며, keyword가 공백이 아니면 Kakao 키워드 사각 검색을 호출한다. 카테고리 사각 검색 Client 계약은 별도로 유지되지만 현재 `all` 서비스 흐름에서는 빈 키워드 전체 목록 조회에 사용하지 않는다.
 - [x] `all`은 요청 page/size만큼만 조회하고 `isEnd`를 응답한다. 응답 후보의 `distanceMeters`, `nearestStopId`, `nearestStopName`, 추천 점수와 추천 이유는 null/빈 값으로 반환한다.
 - [x] `all` 결과는 Kakao external place ID 기준으로 dedupe하고, 현재 코스 내 장소와 이름/ID가 충돌하는 후보를 제외한다.
 - [x] 기존 코스 조회·장소 추가 API의 응답 형식을 깨뜨리지 않도록 변경된 nearby 응답 필드에 필요한 nullable/기본값 호환 처리를 둔다.
@@ -86,7 +88,7 @@
 - `src/queries/useCoursePlacesQuery.ts`
 - related tests
 
-- [x] 도메인 타입에 `NearbyPlaceScope = 'nearby' | 'all'`을 추가하고 사용자 노출 category를 `cafe | restaurant | culture`로 제한한다. distance/nearest/recommendation fields는 all 응답을 수용하도록 nullable/optional로 맞춘다.
+- [x] 도메인 타입에 `NearbyPlaceScope = 'nearby' | 'all'`을 추가하고 사용자 노출 category를 `cafe | restaurant | culture | attraction`으로 확장한다. distance/nearest/recommendation fields는 all 응답을 수용하도록 nullable/optional로 맞춘다.
 - [x] `BackendNearbyPlacesResponse`를 `scope`, `page`, `size`, `isEnd`, `places`를 포함한 페이지 응답으로 확장한다.
 - [x] API 함수는 scope, category, stopId, sort, keyword, page, size를 URLSearchParams로 생성하고, `nearby`/`all`의 불필요한 파라미터를 보내지 않는다.
 - [x] `useCoursePlacesQuery`는 scope/category/stop/sort/keyword를 query key에 포함하고 page를 누적한다. 기존 호출부가 쓰는 `data`는 평탄화된 장소 배열로 유지하며 `hasNextPage`, `fetchNextPage`, `isFetchingNextPage`를 노출한다.
@@ -103,13 +105,13 @@
 - relevant component tests
 
 - [x] 상단 mode 버튼을 `주변 추천`, `강릉 전체`, `강릉 대표` 순서로 만들고 `강릉 대표`는 disabled/준비 중 상태로 둔다.
-- [x] category 버튼을 `카페`, `음식점`, `문화시설` 세 개만 한 행에 표시하고 attraction 버튼을 제거한다.
+- [x] category 버튼을 `카페`, `음식점`, `문화시설`, `관광명소`로 표시한다.
 - [x] nearby mode에는 기준 관광지(`전체` + 최대 3개)와 추천순/거리순을 표시한다.
-- [x] all mode에는 기준 관광지와 거리순 UI를 숨기고 검색어 입력 및 `더 불러오기`/다음 페이지 UI를 표시한다. 빈 검색어는 Gangneung 전체 카테고리 검색으로 보낸다.
+- [x] all mode에는 기준 관광지와 거리순 UI를 숨기고 검색어 입력 및 `더 불러오기`/다음 페이지 UI를 표시한다. 빈 검색어는 외부 API를 호출하지 않고 빈 결과로 처리한다.
 - [x] all mode 카드에는 거리, 기준 관광지, 추천 점수/추천 이유를 표시하지 않는다. Kakao 장소 URL의 리뷰 버튼과 명시적 추가 동작은 유지한다.
 - [x] 장소를 추가하면 현재 모드나 검색 결과가 자동으로 바뀌지 않고 기존 코스 순서/카드 동작을 보존한다.
 - [x] 모드 전환 시 기준 관광지·정렬·검색어를 명확히 초기화하고, 비활성 대표 탭은 클릭해도 네트워크 요청을 발생시키지 않는다.
-- [ ] 세 카테고리 렌더링, all mode의 숨김 필드, 대표 disabled, 페이지 추가, 명시적 추가 동작을 컴포넌트 테스트로 검증한다. 현재 저장소 테스트 환경은 static markup 기반이라 API/빌드 검증으로 대체했다.
+- [ ] 네 카테고리 렌더링, all mode의 숨김 필드, 대표 disabled, 페이지 추가, 명시적 추가 동작을 컴포넌트 테스트로 검증한다. 현재 저장소 테스트 환경은 static markup 기반이라 API/빌드 검증으로 대체했다.
 
 ## 6. Frontend: map candidate markers
 
@@ -149,8 +151,8 @@
 
 ## Completion criteria
 
-- [x] UI에 세 카테고리와 세 mode가 의도한 상태로 보인다.
+- [x] UI에 네 카테고리와 세 mode가 의도한 상태로 보인다.
 - [x] nearby 기존 추천 흐름이 회귀하지 않는다.
-- [x] all mode에서 Kakao rect/keyword 페이지 결과가 목록과 지도에 보이고, 거리 텍스트 없이 리뷰 URL/추가 동작이 제공된다.
+- [x] all mode에서 Kakao rect/keyword 페이지 결과가 목록과 지도에 보이고, 거리 텍스트 없이 리뷰 URL/추가 동작이 제공된다. `attraction` 카테고리도 동일한 흐름을 사용한다.
 - [x] 대표 탭은 구현/호출되지 않는다.
 - [x] 양쪽 저장소 테스트와 빌드가 통과했다는 실제 출력이 확인된다.
