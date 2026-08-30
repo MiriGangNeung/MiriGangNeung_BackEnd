@@ -20,10 +20,19 @@ import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class CourseService {
+    private static final Map<String, Set<String>> DETAIL_TYPES_BY_TRAVEL_TYPE = Map.of(
+            "food", Set.of("food:korean", "food:chinese", "food:japanese", "food:western"),
+            "rest", Set.of("rest:coffee", "rest:dessert"),
+            "culture", Set.of("culture:art", "culture:exhibition", "culture:museum")
+    );
+
     private final CourseRepository courses;
     private final CourseStopRepository stops;
     private final PlaceService places;
@@ -47,6 +56,7 @@ public class CourseService {
     @Transactional
     public CourseResponse create(CreateCourseRequest request) {
         validateDuration(request);
+        validatePreferences(request);
         List<Place> selected = request.placeIds().stream().map(places::find).toList();
         Place onePick = places.find(request.onePickId());
         if (selected.stream().noneMatch(place -> place.getId().equals(onePick.getId()))) {
@@ -57,7 +67,14 @@ public class CourseService {
             );
         }
 
-        Course course = courses.save(new Course(request.duration(), request.startDate(), request.endDate()));
+        Course course = courses.save(new Course(
+                request.duration(),
+                request.startDate(),
+                request.endDate(),
+                request.types(),
+                request.detailTypes(),
+                request.companion()
+        ));
         List<Place> recommended = engine.recommend(
                 selected,
                 onePick,
@@ -137,6 +154,37 @@ public class CourseService {
                     HttpStatus.BAD_REQUEST,
                     "custom 기간이 올바르지 않습니다."
             );
+        }
+    }
+
+    private void validatePreferences(CreateCourseRequest request) {
+        List<String> selectedTypes = request.types() == null
+                ? List.of()
+                : request.types().stream()
+                .filter(type -> type != null)
+                .map(type -> type.trim().toLowerCase(Locale.ROOT))
+                .toList();
+        List<String> detailTypes = request.detailTypes() == null
+                ? List.of()
+                : request.detailTypes();
+
+        for (String detailType : detailTypes) {
+            String normalizedDetailType = detailType == null
+                    ? ""
+                    : detailType.trim().toLowerCase(Locale.ROOT);
+            String broadType = normalizedDetailType.contains(":")
+                    ? normalizedDetailType.substring(0, normalizedDetailType.indexOf(':'))
+                    : "";
+            if (!selectedTypes.contains(broadType)
+                    || !DETAIL_TYPES_BY_TRAVEL_TYPE
+                    .getOrDefault(broadType, Set.of())
+                    .contains(normalizedDetailType)) {
+                throw new ApiException(
+                        "INVALID_PREFERENCE",
+                        HttpStatus.BAD_REQUEST,
+                        "detailTypes는 선택한 여행 타입에 속하는 유효한 값이어야 합니다."
+                );
+            }
         }
     }
 

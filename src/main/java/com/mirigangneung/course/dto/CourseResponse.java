@@ -9,6 +9,9 @@ public record CourseResponse(
         String courseId,
         String title,
         String duration,
+        List<String> types,
+        List<String> detailTypes,
+        String companion,
         List<StopResponse> stops,
         int totalDistanceMeters,
         int totalTravelMinutes,
@@ -23,7 +26,19 @@ public record CourseResponse(
             int totalDistanceMeters,
             int totalTravelMinutes
     ) {
-        this(courseId, title, duration, stops, totalDistanceMeters, totalTravelMinutes, "UNAVAILABLE", List.of());
+        this(
+                courseId,
+                title,
+                duration,
+                List.of(),
+                List.of(),
+                "",
+                stops,
+                totalDistanceMeters,
+                totalTravelMinutes,
+                "UNAVAILABLE",
+                List.of()
+        );
     }
 
     public CourseResponse(
@@ -39,6 +54,9 @@ public record CourseResponse(
                 courseId,
                 title,
                 duration,
+                List.of(),
+                List.of(),
+                "",
                 stops,
                 totalDistanceMeters,
                 totalTravelMinutes,
@@ -148,6 +166,9 @@ public record CourseResponse(
                 course.getId().toString(),
                 course.getTitle(),
                 course.getDurationType(),
+                course.getTravelTypes(),
+                course.getDetailTypes(),
+                course.getCompanion(),
                 stops.stream().map(CourseResponse::stop).toList(),
                 totalDistanceMeters,
                 totalTravelMinutes,

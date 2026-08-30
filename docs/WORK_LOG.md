@@ -1,5 +1,44 @@
 # Work Log
 
+## 2026-08-30
+
+### 13:30 ~ 13:35 — 장소 검색 범위 문서와 현재 구현 정합성 수정
+
+**시작 시간:** 2026-08-30 13:30 KST
+**완료 시간:** 2026-08-30 13:35 KST
+**Agent:** Codex
+**작업 유형:** Documentation Maintenance
+
+### 작업 내용
+
+- 현재 백엔드 코드, API 계약, 프론트 참고 브랜치를 대조했다.
+- 이전 계획 문서에 남아 있던 `attraction` 제외 내용을 현재 구현 기준인 `attraction(AT4)` 포함으로 수정했다.
+- `scope=all`의 빈 키워드 처리와 카테고리 목록을 현재 동작에 맞게 정리했다.
+- `scope=all`은 기준 좌표가 없어 `sort`를 검증만 하고 실제 결과 정렬에는 사용하지 않는다는 정책을 `PROJECT_STATUS.md`에 기록했다.
+- 프론트는 참고용으로 확인했으며 프론트 파일과 백엔드 코드는 수정하지 않았다.
+
+### 주요 변경 파일
+
+- `docs/superpowers/plans/2026-08-28-course-place-scope.md`
+- `docs/superpowers/specs/2026-08-28-course-place-scope-design.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+### 테스트 결과
+
+- 코드 변경 없음.
+- 기존 백엔드 검증: `./gradlew.bat --project-cache-dir C:\Users\chin0\AppData\Local\Temp\mirigangneung-pr-review-cache test` — `BUILD SUCCESSFUL`.
+- 문서 변경 후 `git diff --check` 통과.
+
+### 발생한 문제와 해결 방법
+
+- 이전 계획 문서와 현재 코드/API 계약 사이에 `attraction` 지원 범위가 달랐다. 현재 코드·API 계약·프론트 타입에서 모두 `attraction`을 지원하므로 계획/상태 문서를 현재 구현에 맞췄다.
+- 계획 문서에 남아 있던 `scope=all` 카테고리 사각 검색 호출 표현과 과거 브랜치 기준도 현재 서비스 흐름 및 Git 확인 절차에 맞게 정정했다.
+
+### 관련 commit
+
+- 문서 수정 후 별도 commit 예정.
+
 ## 2026-08-26 — KTO 동기화 후 고정 Kakao URL 매핑 자동 반영
 
 **시작 시간:** 시간 미기록
@@ -814,3 +853,89 @@
 **관련 commit:**
 
 - 없음 (현재 작업 트리 변경)
+
+## 2026-08-27
+
+### 12:30 ~ 시간 미기록 — 이슈 #13 필터 기반 장소 맞춤 추천 및 추천순 정렬
+
+**Agent:** Codex
+**작업 유형:** Feature / API / Recommendation / Frontend
+
+**작업 내용:**
+
+- GitHub issue #13을 생성하고 backend `feat/issue-13-place-recommendation`, frontend `feat/issue-13-place-recommendation` 분리 브랜치에서 구현했다.
+- 코스 생성 시 선택한 여행 타입(최대 2개)과 동행 유형을 `Course`에 저장하고 코스 조회·공유 응답에서 복원하도록 확장했다.
+- Kakao Local 응답의 장소명·카테고리명·거리·주소·좌표·URL만 사용하는 `NearbyPlaceRecommendationScorer`를 추가했다. 거리 40점, 여행 타입 30점, 동행 유형 20점, 정보 완성도 10점으로 0~100점과 최대 3개 이유를 계산한다.
+- `GET /api/v1/courses/{courseId}/nearby-places`에 `sort=recommended|distance`를 추가했다. 추천순은 점수→거리→이름, 거리순은 거리→이름으로 정렬한다. 기존 3인자 service 호출 호환 오버로드와 선호값 없는 구 코스의 거리순 fallback을 유지했다.
+- 프론트 장소 추가 패널에 추천순/거리순 전환을 연결하고 카드에 추천 점수·추천 이유·거리를 표시했다. 추가 버튼을 누르기 전에는 코스에 저장하지 않는다.
+- API 계약과 OpenAPI, 프로젝트 상태 문서를 갱신했다.
+
+**검증 결과:**
+
+- backend `bash gradlew test` — `BUILD SUCCESSFUL`
+- frontend 추천 관련 `npm test -- --run src/lib/courseApi.test.ts src/components/organisms/NearbyPlaceCard.test.tsx src/components/organisms/CourseResult.test.tsx` — 3 files / 13 tests passed
+- frontend 전체 `npm test -- --run` — 30 files / 75 tests passed
+- frontend `npm run lint` — errors 0, existing warnings 4
+- frontend `npm run build` — Vite build success
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/course/domain/Course.java`
+- `src/main/java/com/mirigangneung/course/recommendation/NearbyPlaceRecommendationScorer.java`
+- `src/main/java/com/mirigangneung/course/service/CoursePlaceService.java`
+- `src/main/java/com/mirigangneung/course/controller/CourseController.java`
+- 관련 backend/frontend 추천 API·컴포넌트 테스트
+
+**문제와 해결 방법:**
+
+- 기존 장소 추가 패널이 거리순만 제공하던 문제를 선호도 점수·추천 이유·추천순 정렬로 보완했다.
+- 사용자가 직접 추가하기 전에는 코스에 저장되지 않도록 snapshot 추가 흐름을 분리했다.
+
+**관련 commit:**
+
+- `d70551e` `feat(course): add preference-based nearby recommendations`
+
+**관련 issue:**
+
+- https://github.com/MiriGangNeung/MiriGangNeung_BackEnd/issues/13
+
+## 2026-08-29
+
+### 21:50 ~ 01:06 KST — 이슈 #13 추천 선호도·검색 범위·자동 반경 확장 고도화
+
+**Agent:** Codex
+**작업 유형:** Feature / API / Recommendation / Verification
+
+**작업 내용:**
+
+- 코스 생성·조회 응답에 여행 타입별 세부 취향을 유지하고, 세부 취향·동행 유형·장소명·카테고리 경로·주소를 조합한 규칙 기반 추천 점수를 적용했다.
+- 세부 취향은 정확 일치·연관 분류·주소 기반 일치·중립 후보로 단계화하고, 중식 등 선택 취향과 다른 음식점도 후보에서 제외하지 않도록 중립 점수로 유지했다.
+- 주변 추천은 2km에서 시작해 정확 일치 후보가 부족할 때 5km·10km·15km까지 자동 확장하며, 실제 적용 반경과 추천 이유를 응답에 포함했다.
+- 카페·음식점·문화시설·관광명소의 Kakao 카테고리 검색과 검색어 제출 전 외부 호출 차단을 지원하고, 기존 관광지와 이름이 겹치는 외부 장소를 중복 추가하지 않도록 정규화했다.
+- 세부 취향 입력 개수·문자열 길이와 Kakao 페이지 범위를 제한하고, 카탈로그/외부 snapshot의 Kakao ID 중복도 함께 차단했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/course/domain/Course.java`
+- `src/main/java/com/mirigangneung/course/dto/CreateCourseRequest.java`
+- `src/main/java/com/mirigangneung/course/recommendation/NearbyPlaceRecommendationScorer.java`
+- `src/main/java/com/mirigangneung/course/service/CoursePlaceService.java`
+- `src/main/java/com/mirigangneung/infrastructure/kakao/HttpKakaoLocalClient.java`
+- `docs/API_CONTRACT.md`, `docs/openapi.yaml`, `docs/RECOMMENDATION_ALGORITHM_EVALUATION_2026-08-29.md`
+- 관련 코스·Kakao·추천 테스트
+
+**문제와 해결 방법:**
+
+- 중식 선택 시 카테고리 경로의 상위 분류만 읽어 정확한 `중식 > 중국요리` 후보를 놓치던 문제를 전체 상세 경로와 장소명까지 정규화해 해결했다.
+- 일반 음식점이 세부 취향 일치 후보보다 과도하게 높은 점수를 받던 문제를 정확·연관·중립 점수 단계로 재조정했다.
+- 조건에 맞는 후보가 적어도 사용자가 볼 후보가 사라지지 않도록 자동 반경 확장과 적용 반경 안내를 추가했다.
+- 확장 결과를 합칠 때 최종 반경을 공통 거리 점수 기준으로 사용하고 최초 발견 단계 안내를 보존해 후보 간 점수와 안내가 흔들리지 않도록 했다.
+
+**검증 결과:**
+
+- `bash ./gradlew test` — `BUILD SUCCESSFUL`
+- `git diff --check origin/develop` — 통과
+
+**관련 commit:**
+
+- 이 PR의 최종 커밋 (추천 알고리즘·Kakao 검색 범위·자동 반경 확장)
