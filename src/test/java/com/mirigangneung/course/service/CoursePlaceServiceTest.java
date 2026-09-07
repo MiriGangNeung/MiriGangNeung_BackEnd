@@ -178,6 +178,69 @@ class CoursePlaceServiceTest {
     }
 
     @Test
+    void fetchesUpToThreeSelectedCuisinePlacesForEachTourismStop() {
+        UUID courseId = UUID.randomUUID();
+        Course course = new Course(
+                "day",
+                null,
+                null,
+                List.of("food"),
+                List.of("food:chinese"),
+                "solo"
+        );
+        Place firstPlace = new Place("1", "경포대", "강릉", "nature", "", 37.0, 128.0, null, "KTO");
+        Place secondPlace = new Place("2", "안목해변", "강릉", "nature", "", 37.01, 128.01, null, "KTO");
+        when(courses.findById(courseId)).thenReturn(Optional.of(course));
+        when(stops.findByCourseOrderBySequenceAsc(course)).thenReturn(List.of(
+                new CourseStop(course, firstPlace, 1, true),
+                new CourseStop(course, secondPlace, 2, false)
+        ));
+        when(localClient.searchByCategory(
+                anyDouble(), anyDouble(), eq("FD6"), anyInt(), anyInt(), eq(15)
+        )).thenReturn(List.of());
+        when(localClient.searchByKeyword(
+                eq("중식"), anyDouble(), anyDouble(), eq(2_000), anyInt(), eq(15)
+        )).thenAnswer(invocation -> {
+            double longitude = invocation.getArgument(1, Double.class);
+            int page = invocation.getArgument(4, Integer.class);
+            if (page > 0) {
+                return List.of();
+            }
+            String prefix = longitude < 128.005 ? "first" : "second";
+            return List.of(
+                    nearby(prefix + "-fish", prefix + " 횟집", 37.0005, 128.0005, "음식점 > 한식 > 해물,생선 > 회", "FD6"),
+                    nearby(prefix + "-chinese-1", prefix + " 중식당 1", 37.001, 128.001, "음식점 > 중식", "FD6"),
+                    nearby(prefix + "-chinese-2", prefix + " 중식당 2", 37.002, 128.002, "음식점 > 중식", "FD6"),
+                    nearby(prefix + "-chinese-3", prefix + " 중식당 3", 37.003, 128.003, "음식점 > 중식", "FD6")
+            );
+        });
+
+        CoursePlaceService service = new CoursePlaceService(
+                courses,
+                stops,
+                externalPlaces,
+                localClient,
+                routeCalculator,
+                new KakaoLocalProperties("https://example.test", "secret", null, 2_000, 15)
+        );
+
+        var response = service.nearby(courseId.toString(), "restaurant");
+
+        assertThat(response.searchRadiusMeters()).isEqualTo(2_000);
+        assertThat(response.places()).filteredOn(place ->
+                place.externalPlaceId().endsWith("-chinese-1")
+                        || place.externalPlaceId().endsWith("-chinese-2")
+                        || place.externalPlaceId().endsWith("-chinese-3")
+        ).hasSize(6);
+        assertThat(response.places()).noneMatch(place -> place.externalPlaceId().endsWith("-fish"));
+        verify(localClient).searchByKeyword("중식", 128.0, 37.0, 2_000, 0, 15);
+        verify(localClient).searchByKeyword("중식", 128.01, 37.01, 2_000, 0, 15);
+        verify(localClient, never()).searchByKeyword(
+                eq("중식"), anyDouble(), anyDouble(), eq(5_000), anyInt(), eq(15)
+        );
+    }
+
+    @Test
     void expandsNearbySearchToFiveKilometersWhenFiveKilometersProvideEnoughExactMatches() {
         UUID courseId = UUID.randomUUID();
         Course course = new Course(
@@ -373,6 +436,19 @@ class CoursePlaceServiceTest {
                     }
                     return List.of();
                 });
+        when(localClient.searchByKeyword(
+                eq("중식"), anyDouble(), anyDouble(), anyInt(), anyInt(), eq(15)
+        )).thenAnswer(invocation -> {
+            double longitude = invocation.getArgument(1, Double.class);
+            int radius = invocation.getArgument(3, Integer.class);
+            if (radius == 5_000 && longitude == 128.0) {
+                return List.of(
+                        nearby("keyword-expanded-1", "중식당 키워드1", 37.011, 128.011, "음식점 > 중식", "FD6"),
+                        nearby("keyword-expanded-2", "중식당 키워드2", 37.012, 128.012, "음식점 > 중식", "FD6")
+                );
+            }
+            return List.of();
+        });
 
         CoursePlaceService service = new CoursePlaceService(
                 courses,
