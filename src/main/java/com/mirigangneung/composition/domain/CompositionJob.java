@@ -145,6 +145,9 @@ public class CompositionJob {
         errorCode = null;
         errorMessage = null;
         errorRetryable = null;
+        provider = null;
+        modelVersion = null;
+        promptVersion = null;
         safetyStatus = null;
         safetyReasonCode = null;
         warningCode = null;

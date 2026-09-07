@@ -19,6 +19,8 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class HttpAiGenerationClient implements AiGenerationClient {
     private static final String API_KEY_HEADER = "X-API-Key";
+    private static final List<String> SUPPORTED_RESULT_CONTENT_TYPES = List.of(
+            MediaType.IMAGE_PNG_VALUE, MediaType.IMAGE_JPEG_VALUE, "image/webp");
 
     private final AiGenerationProperties properties;
     private final RestClient client;
@@ -97,8 +99,13 @@ public class HttpAiGenerationClient implements AiGenerationClient {
                     .toEntity(byte[].class);
             byte[] bytes = response.getBody();
             MediaType contentType = response.getHeaders().getContentType();
-            String value = contentType == null ? MediaType.IMAGE_PNG_VALUE : contentType.toString();
-            if (bytes == null || bytes.length == 0 || !value.toLowerCase().startsWith("image/")) {
+            String value = contentType == null
+                    ? null
+                    : contentType.getType() + "/" + contentType.getSubtype();
+            if (bytes == null || bytes.length == 0
+                    || value == null
+                    || !SUPPORTED_RESULT_CONTENT_TYPES.contains(value.toLowerCase())
+                    || !matchesImageSignature(bytes, value)) {
                 throw invalidResponse("AI 결과 이미지 응답이 올바르지 않습니다.");
             }
             return new DownloadedImage(bytes, value);
@@ -226,6 +233,28 @@ public class HttpAiGenerationClient implements AiGenerationClient {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static boolean matchesImageSignature(byte[] bytes, String contentType) {
+        return switch (contentType.toLowerCase()) {
+            case MediaType.IMAGE_PNG_VALUE -> bytes.length >= 8
+                    && (bytes[0] & 0xff) == 0x89
+                    && bytes[1] == 0x50
+                    && bytes[2] == 0x4e
+                    && bytes[3] == 0x47
+                    && bytes[4] == 0x0d
+                    && bytes[5] == 0x0a
+                    && bytes[6] == 0x1a
+                    && bytes[7] == 0x0a;
+            case MediaType.IMAGE_JPEG_VALUE -> bytes.length >= 3
+                    && (bytes[0] & 0xff) == 0xff
+                    && (bytes[1] & 0xff) == 0xd8
+                    && (bytes[2] & 0xff) == 0xff;
+            case "image/webp" -> bytes.length >= 12
+                    && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+                    && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
+            default -> false;
+        };
     }
 
     private static AiGenerationClientException unavailable() {

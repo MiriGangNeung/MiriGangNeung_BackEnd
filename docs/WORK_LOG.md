@@ -397,6 +397,46 @@
 
 - 없음 (현재 작업 트리 변경)
 
+## 2026-09-08
+
+### 시간 미기록 ~ 08:15 — AI 합성 연동 최종 검증 및 안정성 보완
+
+**Agent:** Codex
+**작업 유형:** Security / Bugfix / Verification
+
+**작업 내용:**
+
+- Agent 결과 다운로드와 임시 저장이 성공한 뒤에만 Backend composition Job을 `DONE`으로 전환하도록 상태 순서를 보완했다.
+- retry 시 이전 provider metadata와 결과 상태를 초기화하고, polling/retry 동시 실행을 단일 인스턴스에서 직렬화했다.
+- 이전 provider 응답이 retry 이후 새 provider 작업을 덮어쓰지 않도록 stale response를 무시하게 했다.
+- 만료된 `QUEUED`/진행 중 Job의 입력 파일을 cleanup하지 않고, `DONE`/`FAILED` terminal Job만 정리하도록 변경했다.
+- Agent 결과의 Content-Type과 PNG/JPEG/WebP signature를 검증하고, 관련 실패·race·cleanup 테스트를 추가했다.
+- 실제 Agent의 얼굴 검출 모델에 의존하지 않는 자체 Mock Agent HTTP 계약 E2E로 생성→providerJobId→polling→결과 다운로드→로컬 저장→DONE→Backend download 흐름을 검증했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/composition/domain/CompositionJob.java`
+- `src/main/java/com/mirigangneung/composition/repository/CompositionJobRepository.java`
+- `src/main/java/com/mirigangneung/composition/service/CompositionCleanupJob.java`
+- `src/main/java/com/mirigangneung/composition/service/CompositionService.java`
+- `src/main/java/com/mirigangneung/infrastructure/ai/HttpAiGenerationClient.java`
+- 관련 composition/AI 테스트 파일
+- `docs/PROJECT_STATUS.md`
+
+**테스트 결과:**
+
+- `./gradlew test` — 98개 테스트, 실패 0, `BUILD SUCCESSFUL`
+- `RUN_AI_MOCK_E2E=true ./gradlew test` — 자체 Mock Agent HTTP E2E 포함 성공
+- `git diff --check` — 통과
+
+**발생한 문제와 해결 방법:**
+
+- 실제 Agent 프로세스 E2E의 기존 단색 테스트 이미지는 Agent의 정상적인 `NO_PERSON_DETECTED` 검증에 걸렸다. Agent 코드는 수정하지 않고, Backend 계약 검증 테스트를 자체 Mock Agent HTTP 서버로 분리해 환경·얼굴 모델 의존성을 제거했다.
+
+**관련 commit:**
+
+- 작업 완료 후 새 commit으로 기록
+
 ## 2026-08-26
 
 ### 시간 미기록 ~ 18:05 — 코스 순서 변경 CORS 오류 수정

@@ -9,7 +9,8 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CompositionJobRepository extends JpaRepository<CompositionJob, UUID> {
-    List<CompositionJob> findByExpiresAtBefore(OffsetDateTime now);
+    List<CompositionJob> findByExpiresAtBeforeAndStatusIn(
+            OffsetDateTime now, Collection<CompositionStatus> statuses);
 
     List<CompositionJob> findByStatusInAndProviderJobIdIsNotNull(Collection<CompositionStatus> statuses);
 }

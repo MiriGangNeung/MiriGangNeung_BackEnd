@@ -58,7 +58,7 @@ class HttpAiGenerationClientTest {
         fixture.server.expect(once(), request -> {
                     assertThat(request.getURI().getPath()).isEqualTo("/v1/generations/provider-1/result");
                 })
-                .andRespond(withSuccess(new byte[]{1, 2, 3}, MediaType.IMAGE_PNG));
+                .andRespond(withSuccess(pngBytes(), MediaType.IMAGE_PNG));
 
         var status = fixture.client.getStatus("provider-1");
         var image = fixture.client.downloadResult("provider-1");
@@ -67,8 +67,24 @@ class HttpAiGenerationClientTest {
         assertThat(status.imageReference()).endsWith("/result");
         assertThat(status.warnings()).singleElement().satisfies(warning ->
                 assertThat(warning.code()).isEqualTo("FACE_NOT_PRESERVED"));
-        assertThat(image.bytes()).containsExactly(1, 2, 3);
+        assertThat(image.bytes()).containsExactly(pngBytes());
         assertThat(image.contentType()).isEqualTo("image/png");
+        fixture.server.verify();
+    }
+
+    @Test
+    void rejectsResultWhoseDeclaredImageTypeDoesNotMatchItsBytes() {
+        Fixture fixture = fixture("");
+        fixture.server.expect(once(), request ->
+                        assertThat(request.getURI().getPath())
+                                .isEqualTo("/v1/generations/provider-1/result"))
+                .andRespond(withSuccess("not-an-image".getBytes(StandardCharsets.UTF_8), MediaType.IMAGE_PNG));
+
+        assertThatThrownBy(() -> fixture.client.downloadResult("provider-1"))
+                .isInstanceOfSatisfying(AiGenerationClientException.class, exception -> {
+                    assertThat(exception.getCode()).isEqualTo("AI_INVALID_RESPONSE");
+                    assertThat(exception.isRetryable()).isTrue();
+                });
         fixture.server.verify();
     }
 
@@ -137,6 +153,10 @@ class HttpAiGenerationClientTest {
                     "onePickPlaceId":"place-id","createdAt":"2026-09-08T00:00:00Z","styleTags":[]}
                 }
                 """;
+    }
+
+    private byte[] pngBytes() {
+        return new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1};
     }
 
     private record Fixture(HttpAiGenerationClient client, MockRestServiceServer server) {

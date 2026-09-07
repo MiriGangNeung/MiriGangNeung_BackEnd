@@ -90,7 +90,7 @@ public class CompositionService {
         return response(find(id));
     }
 
-    public CompositionStatusResponse retry(String id) {
+    public synchronized CompositionStatusResponse retry(String id) {
         CompositionJob job = find(id);
         if (job.getStatus() != CompositionStatus.FAILED) {
             throw new ApiException(
@@ -121,7 +121,7 @@ public class CompositionService {
         return response(job);
     }
 
-    public void pollPendingJobs() {
+    public synchronized void pollPendingJobs() {
         if (!ai.isConfigured()) {
             return;
         }
@@ -201,7 +201,8 @@ public class CompositionService {
     private void applyProviderResponse(CompositionJob job, AiGenerationResponse response) {
         if (job.getProviderJobId() != null
                 && !job.getProviderJobId().equals(response.providerJobId())) {
-            job.fail("AI_JOB_ID_MISMATCH", "AI 생성 작업 식별자가 일치하지 않습니다.", false);
+            log.warn("Ignoring stale AI generation response: jobId={}, expectedProviderJobId={}",
+                    job.getId(), job.getProviderJobId());
             return;
         }
         CompositionStatus status;
@@ -213,8 +214,11 @@ public class CompositionService {
         }
 
         if (status == CompositionStatus.DONE) {
-            applyProviderStatus(job, response, status);
-            saveResult(job);
+            StoredResult storedResult = saveResult(job);
+            if (storedResult != null) {
+                applyProviderStatus(job, response, status);
+                job.complete(storedResult.storageKey(), storedResult.contentType());
+            }
             return;
         }
         applyProviderStatus(job, response, status);
@@ -244,7 +248,7 @@ public class CompositionService {
                 error == null ? null : error.retryable());
     }
 
-    private void saveResult(CompositionJob job) {
+    private StoredResult saveResult(CompositionJob job) {
         try {
             DownloadedImage result = ai.downloadResult(job.getProviderJobId());
             String storageKey = storage.save(
@@ -252,12 +256,13 @@ public class CompositionService {
                     result.contentType(),
                     result.bytes().length,
                     job.getExpiresAt().toInstant());
-            job.complete(storageKey, result.contentType());
+            return new StoredResult(storageKey, result.contentType());
         } catch (AiGenerationClientException exception) {
             job.fail(exception.getCode(), exception.getMessage(), exception.isRetryable());
         } catch (IOException exception) {
             job.fail("RESULT_STORAGE_ERROR", "생성 결과를 저장할 수 없습니다.", true);
         }
+        return null;
     }
 
     private ImagePayload readInput(CompositionJob job) throws IOException {
@@ -339,5 +344,8 @@ public class CompositionService {
     }
 
     public record CompositionDownload(InputStream input, String contentType, String filename) {
+    }
+
+    private record StoredResult(String storageKey, String contentType) {
     }
 }

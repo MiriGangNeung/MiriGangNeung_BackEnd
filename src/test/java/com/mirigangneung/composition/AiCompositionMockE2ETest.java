@@ -11,9 +11,16 @@ import com.mirigangneung.place.repository.PlaceRepository;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Duration;
+import java.util.Base64;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import javax.imageio.ImageIO;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,19 +30,47 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "ai.base-url=http://127.0.0.1:8100",
         "ai.api-key=",
         "ai.poll-delay=100ms",
         "image.cache.enabled=true"
 })
 @EnabledIfEnvironmentVariable(named = "RUN_AI_MOCK_E2E", matches = "true")
 class AiCompositionMockE2ETest {
+    private static HttpServer agentServer;
+    private static ExecutorService agentExecutor;
+
+    @DynamicPropertySource
+    static void agentProperties(DynamicPropertyRegistry registry) {
+        try {
+            agentServer = HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+            agentServer.createContext("/", AiCompositionMockE2ETest::handleAgentRequest);
+            agentExecutor = Executors.newCachedThreadPool();
+            agentServer.setExecutor(agentExecutor);
+            agentServer.start();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Mock Agent 서버를 시작할 수 없습니다.", exception);
+        }
+        registry.add("ai.base-url", () -> "http://127.0.0.1:" + agentServer.getAddress().getPort());
+    }
+
+    @AfterAll
+    static void stopAgentServer() {
+        if (agentServer != null) {
+            agentServer.stop(0);
+        }
+        if (agentExecutor != null) {
+            agentExecutor.shutdownNow();
+        }
+    }
+
     @LocalServerPort
     private int port;
 
@@ -104,7 +139,9 @@ class AiCompositionMockE2ETest {
                     .body(CompositionStatusResponse.class);
         }
 
-        assertThat(current.status()).isEqualTo(CompositionStatus.DONE.name());
+        assertThat(current.status())
+                .withFailMessage("AI composition ended with status=%s, error=%s", current.status(), current.error())
+                .isEqualTo(CompositionStatus.DONE.name());
         assertThat(current.resultAvailable()).isTrue();
         var download = client.get()
                 .uri(current.downloadUrl())
@@ -130,6 +167,58 @@ class AiCompositionMockE2ETest {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         ImageIO.write(image, format, output);
         return output.toByteArray();
+    }
+
+    private static void handleAgentRequest(HttpExchange exchange) throws IOException {
+        String path = exchange.getRequestURI().getPath();
+        if ("POST".equals(exchange.getRequestMethod()) && "/v1/generations".equals(path)) {
+            sendJson(exchange, queuedResponse(), 202);
+            return;
+        }
+        if ("GET".equals(exchange.getRequestMethod())
+                && "/v1/generations/provider-1".equals(path)) {
+            sendJson(exchange, doneResponse(), 200);
+            return;
+        }
+        if ("GET".equals(exchange.getRequestMethod())
+                && "/v1/generations/provider-1/result".equals(path)) {
+            byte[] image = Base64.getDecoder().decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+            exchange.getResponseHeaders().set("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, image.length);
+            try (var output = exchange.getResponseBody()) {
+                output.write(image);
+            }
+            return;
+        }
+        exchange.sendResponseHeaders(404, -1);
+        exchange.close();
+    }
+
+    private static void sendJson(HttpExchange exchange, String body, int status) throws IOException {
+        byte[] bytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(status, bytes.length);
+        try (var output = exchange.getResponseBody()) {
+            output.write(bytes);
+        }
+    }
+
+    private static String queuedResponse() {
+        return """
+                {"providerJobId":"provider-1","status":"QUEUED","stage":"요청 접수","progress":0,
+                 "safety":{"status":"UNKNOWN","reasonCode":null,"warnings":[]},"error":null,
+                 "metadata":{"provider":"mock","model":"mock-v1","promptVersion":"v5"}}
+                """;
+    }
+
+    private static String doneResponse() {
+        return """
+                {"providerJobId":"provider-1","status":"DONE","stage":"완료","progress":100,
+                 "result":{"imageReference":"/v1/generations/provider-1/result","width":1,"height":1,"aspectRatio":"4:5"},
+                 "safety":{"status":"PASSED","reasonCode":null,"warnings":[]},"error":null,
+                 "metadata":{"provider":"mock","model":"mock-v1","promptVersion":"v5"}}
+                """;
     }
 
     private static HttpEntity<ByteArrayResource> imagePart(byte[] bytes, String contentType, String filename) {

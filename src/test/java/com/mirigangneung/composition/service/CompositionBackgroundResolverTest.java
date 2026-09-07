@@ -79,6 +79,23 @@ class CompositionBackgroundResolverTest {
                         assertThat(exception.getCode()).isEqualTo("EDITABLE_BACKGROUND_NOT_FOUND"));
     }
 
+    @Test
+    void rejectsArbitraryOrOtherPlaceImageUrlWithoutFetchingIt() {
+        Place place = place();
+        PlaceImage type1 = new PlaceImage(
+                place, "https://img.test/editable.jpg", "허용", "KTO", 0, "Type1",
+                "place-original.jpg", "place-thumbnail.jpg", "image/jpeg", 3L, 1L);
+        when(places.findById(place.getId())).thenReturn(Optional.of(place));
+        when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of(type1));
+
+        assertThatThrownBy(() -> resolver.resolve(
+                place.getId().toString(), "http://127.0.0.1/internal-image.jpg"))
+                .isInstanceOfSatisfying(ApiException.class, exception ->
+                        assertThat(exception.getCode()).isEqualTo("BACKGROUND_IMAGE_NOT_FOUND"));
+
+        verifyNoInteractions(storage, cache);
+    }
+
     private Place place() {
         Place place = new Place("100", "안목해변", "강릉시", "nature", "바다",
                 37.0, 128.0, null, "KTO");

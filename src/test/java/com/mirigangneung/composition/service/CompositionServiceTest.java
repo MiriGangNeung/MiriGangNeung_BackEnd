@@ -8,6 +8,7 @@ import com.mirigangneung.infrastructure.ai.AiGenerationClient.AiGenerationRespon
 import com.mirigangneung.infrastructure.ai.AiGenerationClient.DownloadedImage;
 import com.mirigangneung.infrastructure.ai.AiGenerationClient.GenerationError;
 import com.mirigangneung.infrastructure.ai.AiGenerationClient.ImagePayload;
+import com.mirigangneung.infrastructure.ai.AiGenerationClientException;
 import com.mirigangneung.infrastructure.storage.TemporaryImageStorage;
 import com.mirigangneung.place.domain.Place;
 import java.io.ByteArrayInputStream;
@@ -99,10 +100,29 @@ class CompositionServiceTest {
     }
 
     @Test
+    void resultDownloadFailureNeverLeavesLocalJobDone() {
+        when(ai.create(any())).thenReturn(response("provider-1", "QUEUED", null));
+        var created = service.create(photo(), place.getId().toString(), "1:1", null);
+        CompositionJob job = capturedSavedJob();
+        when(jobs.findByStatusInAndProviderJobIdIsNotNull(any())).thenReturn(List.of(job));
+        when(ai.getStatus("provider-1")).thenReturn(response("provider-1", "DONE", null));
+        when(ai.downloadResult("provider-1")).thenThrow(new AiGenerationClientException(
+                "AI_PROVIDER_UNAVAILABLE", 502, "결과 다운로드 실패", true));
+
+        service.pollPendingJobs();
+        var result = service.get(created.jobId());
+
+        assertThat(result.status()).isEqualTo("FAILED");
+        assertThat(result.resultAvailable()).isFalse();
+        assertThat(result.downloadUrl()).isNull();
+        assertThat(result.error().retryable()).isTrue();
+    }
+
+    @Test
     void failedProviderJobCanRetryByCreatingANewProviderJob() {
         when(ai.create(any()))
-                .thenReturn(response("FAILED", new GenerationError("PROVIDER_TIMEOUT", "시간 초과", true)))
-                .thenReturn(response("QUEUED", null));
+                .thenReturn(response("provider-1", "FAILED", new GenerationError("PROVIDER_TIMEOUT", "시간 초과", true)))
+                .thenReturn(response("provider-2", "QUEUED", null));
 
         var failed = service.create(photo(), place.getId().toString(), "4:5", null);
         CompositionJob job = capturedSavedJob();
@@ -115,7 +135,27 @@ class CompositionServiceTest {
         assertThat(failed.error().retryable()).isTrue();
         assertThat(retried.status()).isEqualTo("QUEUED");
         assertThat(job.getRetryCount()).isEqualTo(1);
+        assertThat(job.getProviderJobId()).isEqualTo("provider-2");
         verify(ai, org.mockito.Mockito.times(2)).create(any());
+    }
+
+    @Test
+    void staleProviderResponseDoesNotOverwriteRetriedGeneration() {
+        when(ai.create(any()))
+                .thenReturn(response("provider-1", "FAILED", new GenerationError("PROVIDER_TIMEOUT", "시간 초과", true)))
+                .thenReturn(response("provider-2", "QUEUED", null));
+        var failed = service.create(photo(), place.getId().toString(), "4:5", null);
+        CompositionJob job = capturedSavedJob();
+        when(storage.exists("input.jpg")).thenReturn(true);
+        service.retry(failed.jobId());
+        when(jobs.findByStatusInAndProviderJobIdIsNotNull(any())).thenReturn(List.of(job));
+        when(ai.getStatus("provider-2")).thenReturn(response("provider-1", "DONE", null));
+
+        service.pollPendingJobs();
+
+        assertThat(job.getProviderJobId()).isEqualTo("provider-2");
+        assertThat(job.getStatus()).isEqualTo(CompositionStatus.QUEUED);
+        verify(ai, org.mockito.Mockito.never()).downloadResult(anyString());
     }
 
     private CompositionJob capturedSavedJob() {
@@ -131,12 +171,16 @@ class CompositionServiceTest {
     }
 
     private AiGenerationResponse response(String status, GenerationError error) {
+        return response("provider-1", status, error);
+    }
+
+    private AiGenerationResponse response(String providerJobId, String status, GenerationError error) {
         return new AiGenerationResponse(
-                "provider-1",
+                providerJobId,
                 status,
                 status.equals("DONE") ? "완료" : status,
                 status.equals("DONE") ? 100 : 0,
-                status.equals("DONE") ? "/v1/generations/provider-1/result" : null,
+                status.equals("DONE") ? "/v1/generations/" + providerJobId + "/result" : null,
                 status.equals("DONE") ? "PASSED" : "UNKNOWN",
                 null,
                 List.of(),

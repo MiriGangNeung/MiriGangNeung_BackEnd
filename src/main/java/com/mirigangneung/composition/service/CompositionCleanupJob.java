@@ -1,13 +1,18 @@
 package com.mirigangneung.composition.service;
 
 import com.mirigangneung.composition.repository.CompositionJobRepository;
+import com.mirigangneung.composition.domain.CompositionStatus;
 import com.mirigangneung.infrastructure.storage.TemporaryImageStorage;
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CompositionCleanupJob {
+    private static final EnumSet<CompositionStatus> TERMINAL_STATUSES = EnumSet.of(
+            CompositionStatus.DONE, CompositionStatus.FAILED);
+
     private final CompositionJobRepository jobs;
     private final TemporaryImageStorage storage;
 
@@ -18,7 +23,7 @@ public class CompositionCleanupJob {
 
     @Scheduled(fixedDelayString = "${IMAGE_CLEANUP_DELAY_MS:3600000}")
     public void cleanup() {
-        jobs.findByExpiresAtBefore(OffsetDateTime.now()).forEach(job -> {
+        jobs.findByExpiresAtBeforeAndStatusIn(OffsetDateTime.now(), TERMINAL_STATUSES).forEach(job -> {
             deleteQuietly(job.getInputStorageKey());
             deleteQuietly(job.getResultStorageKey());
             jobs.delete(job);
