@@ -437,6 +437,31 @@
 
 - 작업 완료 후 새 commit으로 기록
 
+### 08:15 ~ 08:25 — AI 합성 PR 전 최종 상태·문서 검토
+
+**Agent:** Codex
+**작업 유형:** Review / Documentation / Verification
+
+**작업 내용:**
+
+- `codex-ai-composition-integration`의 `db878ad`와 원격 동기화 상태, 변경 범위, secret·임시 파일 포함 여부를 확인했다.
+- 상태 전이, retry/polling, terminal cleanup, 결과 이미지 형식 검증, 기존 Composition API 계약을 재검토했다.
+- `PROJECT_STATUS.md`의 Mock Agent E2E와 실제 Agent 프로세스/Gemini 검증 상태가 혼동되지 않도록 현재 상태를 정정했다.
+
+**검증 결과:**
+
+- `RUN_AI_MOCK_E2E=true .\gradlew.bat clean test` — 98개 테스트, 실패 0, `BUILD SUCCESSFUL`
+- `git diff --check` — 통과
+- Frontend/Agent 저장소 — 변경 없음
+
+**발생한 문제와 해결 방법:**
+
+- 코드 결함은 새로 발견되지 않았다. 현재 문서의 실제 Agent E2E 성공 표현이 최신 검증 결과보다 강해 Mock Agent E2E 완료·실제 Agent/Gemini 미검증으로 구분했다.
+
+**관련 commit:**
+
+- 검토 문서 수정 후 새 commit으로 기록
+
 ## 2026-08-26
 
 ### 시간 미기록 ~ 18:05 — 코스 순서 변경 CORS 오류 수정

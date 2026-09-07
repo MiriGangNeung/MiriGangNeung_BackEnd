@@ -70,17 +70,17 @@ Last Updated By: Codex
 
 ## 현재 검증 결과
 
-2026-09-08 기준 전체 93개 테스트를 실행해 실패 0, 오류 0으로 `BUILD SUCCESSFUL`이다. 일반 전체
-테스트에서는 외부 Agent가 필요한 opt-in E2E 1개만 skip되고, mock Agent를 실행해
-`RUN_AI_MOCK_E2E=true`로 수행한 전체 검증에서는 93개 모두 실행됐다.
+2026-09-08 기준 `RUN_AI_MOCK_E2E=true`로 전체 98개 테스트를 실행해 실패 0, 오류 0으로
+`BUILD SUCCESSFUL`이다. `AiCompositionMockE2ETest`는 테스트 내부의 자체 HTTP Mock Agent를 사용해
+Backend의 Agent 계약 왕복을 검증한다.
 
-`AI_PROVIDER=mock` Agent를 로컬 8100 포트에 실행하고 Spring Boot random-port HTTP API를 통해
-`POST /api/v1/compositions` → 상태 polling → Agent 결과 다운로드 → 백엔드 결과 다운로드까지
-`AiCompositionMockE2ETest`로 검증했다. 최종 E2E 왕복 테스트는 약 2.1초였고 BUILD SUCCESSFUL이다.
-Docker Desktop 프로세스는 실행됐지만 현재 환경에서 Linux engine named pipe가 열리지 않아 이 검증은
-Docker가 아닌 격리된 Python 3.10 가상환경의 Agent와 H2 기반 Spring Boot 테스트로 수행했다.
+현재 Mock Agent E2E는 `POST /api/v1/compositions` → providerJobId 저장 → 상태 polling → Agent
+`DONE` → 결과 이미지 다운로드·백엔드 저장 → 상태 조회 → 백엔드 결과 다운로드까지 검증한다.
+실제 Agent 프로세스 E2E는 별도 검증 대상이다. 기존 단색 테스트 이미지로 실제 Agent를 재실행했을 때
+Agent의 정상적인 `NO_PERSON_DETECTED` 검증이 발생했으며, Backend 결함으로 분류하지 않았다.
+실제 Gemini Provider 호출과 Docker 기반 전체 왕복은 아직 검증하지 않았다.
 
-Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너가 실행 중이다. app은 `localhost:8080`, MySQL은 호스트 `3307`, Redis는 호스트 `6379`에 연결된다. `/actuator/health`는 `UP`이며 `/api/v1/places?page=0&size=2`에서 강릉 관광지 응답을 확인했다.
+이전 로컬 Docker 검증에서는 app이 `localhost:8080`, MySQL이 호스트 `3307`, Redis가 호스트 `6379`에 연결되었고 `/actuator/health`와 장소 API 응답을 확인했다. 이번 최종 검토에서는 Docker 전체 왕복을 재실행하지 않았다.
 
 관광사진 정보 GW의 `강릉` 검색 결과는 동기화 때만 내부 호출한다. KorService2 장소명과 매칭되는 사진만 기존 장소 카드에 보충하고, 매칭되지 않는 사진은 별도 카드로 만들지 않는다.
 
