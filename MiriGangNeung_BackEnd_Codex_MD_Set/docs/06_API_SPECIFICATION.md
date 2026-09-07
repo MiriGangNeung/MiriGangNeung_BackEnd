@@ -66,8 +66,9 @@ Fields:
 
 ```text
 photo: required file
-onePickId: required string
-aspectRatio: optional string
+onePickId: required Place.id UUID
+aspectRatio: optional 1:1 | 4:5 | 9:16 (default 4:5)
+backgroundImageUrl: optional selected Type1 PlaceImage URL (originalImageUrls recommended)
 ```
 
 Response:
@@ -75,9 +76,25 @@ Response:
 ```json
 {
   "jobId": "string",
-  "status": "QUEUED"
+  "status": "QUEUED",
+  "progress": 0,
+  "stage": "요청 접수",
+  "resultAvailable": false,
+  "downloadUrl": null,
+  "place": null,
+  "error": null,
+  "safety": {
+    "status": "UNKNOWN",
+    "reasonCode": null,
+    "warnings": []
+  }
 }
 ```
+
+`onePickId`는 `GET /api/v1/places`가 반환한 `Place.id` UUID다. 별도 사진 소스의 표시용 ID를
+UUID로 변환하지 않는다. 백엔드는 Type1 PlaceImage만 배경으로 선택하고, 저장된
+`originalStorageKey`를 `PlaceImageStorage.open()`으로 읽는다. 저장 파일이 사라졌다면 기존
+`ImageAssetCacheService`로 같은 원본 URL을 한 번 복구한다.
 
 ### GET /compositions/{jobId}
 
@@ -92,7 +109,8 @@ Response:
   "resultAvailable": false,
   "downloadUrl": null,
   "place": null,
-  "error": null
+  "error": null,
+  "safety": null
 }
 ```
 
@@ -106,14 +124,20 @@ DONE:
   "stage": "COMPLETED",
   "resultAvailable": true,
   "downloadUrl": "/api/v1/compositions/{jobId}/download",
-  "place": {
-    "id": "string",
-    "name": "string",
-    "region": "string",
-    "description": "string"
+  "place": null,
+  "error": null,
+  "safety": {
+    "status": "PASSED",
+    "reasonCode": null,
+    "warnings": []
   }
 }
 ```
+
+현재 `place` 필드는 호환성을 위해 유지하는 예약 필드이며 실제 응답은 `null`이다. DONE 판별은
+`status == "DONE" && resultAvailable == true && downloadUrl != null` 세 조건으로 한다.
+polling 권장 간격은 1~2초이며 Agent의 얼굴 보존 재생성 때문에 전체 처리 시간에 고정된 짧은
+타임아웃을 두지 않는다.
 
 ### GET /compositions/{jobId}/download
 
@@ -127,6 +151,10 @@ DONE:
 ### POST /compositions/{jobId}/retry
 
 재시도 가능 상태에서만 허용.
+
+- `status=FAILED`이고 `error.retryable=true`일 때 호출한다.
+- 같은 백엔드 Job ID를 유지하면서 Agent에 새 generation을 생성하고 새 `providerJobId`를 저장한다.
+- 사용자 원본 파일이 TTL 만료됐거나 비재시도 오류면 409/410을 반환한다.
 
 ## 3. Courses
 

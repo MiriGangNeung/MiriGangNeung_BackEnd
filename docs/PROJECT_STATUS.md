@@ -1,9 +1,9 @@
 # Project Status
 
-Last Updated: 2026-08-26 20:30 KST
+Last Updated: 2026-09-08 01:19 KST
 Last Updated By: Codex
 
-기준일: 2026-08-08
+기준일: 2026-09-08
 
 ## Repository
 
@@ -21,7 +21,7 @@ Last Updated By: Codex
 - 관광공사: `TourApiClient`, Korean API adapter와 JSON/XML 응답 정규화
 - 관광지 이미지: KorService2 대표/상세 이미지와 관광사진 정보 GW의 장소명 일치 이미지를 합쳐 장소별 최대 5장 노출. KorService2는 `cpyrhtDivCd=Type1`만 허용하고, 제1유형 전용인 관광사진 정보 GW는 별도 저작권 코드 필터 없이 사용
 - 이미지 전달: 동기화 시 원본을 로컬 저장소에 한 번 저장하고 카드용 JPEG 썸네일과 합성용 원본 storage key를 `place_images`에 보존. 목록·상세 요청은 저장된 URL만 반환하며 Redis에는 JSON만 저장
-- Composition: `CompositionJob`, 업로드, 상태 조회, retry/download API, `AiGenerationClient` 인터페이스, 로컬 임시 이미지 저장소, 만료 정리 Job
+- Composition: 업로드, Type1 배경 원본 resolve, FastAPI Agent generation 생성, providerJobId 저장, 상태 polling, DONE 결과 임시 저장·다운로드, 오류·retry 처리
 - Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
 - Recommendation: `RuleBasedCourseRecommendationEngine` + `CoursePreferenceScorer`로 `types`·`companion` 조건 점수와 거리 fallback을 적용
 - Route: `KakaoRouteClient`와 REST adapter, normalized route response
@@ -56,9 +56,29 @@ Last Updated By: Codex
 
 세부 request/response 계약은 `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`를 기준으로 한다.
 
+## 2026-09-08 AI 이미지 합성 Agent 연동
+
+- `HttpAiGenerationClient`가 Agent의 `POST /v1/generations`, 상태 조회, 결과 다운로드, 취소 계약을 구현한다.
+- `CompositionService.create()`는 사용자 사진을 `TemporaryImageStorage`에 저장하고 Agent Job을 생성한 뒤 `providerJobId`와 provider/model/prompt metadata를 MySQL에 저장한다.
+- `CompositionPollingJob`은 기본 2초 간격으로 활성 Job을 조회한다. Agent가 DONE이면 결과 이미지 바이트를 백엔드 `TemporaryImageStorage`에 저장한 뒤 `downloadUrl`을 노출한다.
+- Agent의 `error.code`, `message`, `retryable`과 `safety.status`, `reasonCode`, 경고를 백엔드 상태 응답에 정규화한다. 현재 DB에는 첫 번째 safety warning을 저장한다.
+- retry API는 `FAILED && error.retryable=true`인 Job에서 기존 사용자 원본으로 새 Agent generation을 만들고 새 `providerJobId`를 저장한다.
+- 배경은 `PlaceImage.copyrightCode=Type1`만 허용한다. `originalStorageKey`는 사용자 업로드 저장소가 아니라 `PlaceImageStorage.open()`으로 읽으며, 로컬 파일이 사라졌을 때 기존 `ImageAssetCacheService`로 같은 원본 URL을 복구한다.
+- 현재 코스 선택 프론트 흐름의 `onePickId`는 `Place.id` UUID다. `kto-award:*`, `kto-gallery:*` 같은 표시용 ID는 UUID로 변환하지 않고 `INVALID_ONE_PICK_ID`로 거부한다.
+- 선택적인 `backgroundImageUrl` multipart 필드를 추가했다. 생략하면 첫 Type1 이미지를 사용하므로 기존 요청 필드는 유지된다.
+- 실제 AI Provider 선택은 Agent의 `AI_PROVIDER` 설정 책임이며 백엔드는 Provider나 모델을 하드코딩하지 않는다.
+
 ## 현재 검증 결과
 
-2026-08-24 기준 `bash gradlew test` 실행 결과는 `BUILD SUCCESSFUL`이다.
+2026-09-08 기준 전체 93개 테스트를 실행해 실패 0, 오류 0으로 `BUILD SUCCESSFUL`이다. 일반 전체
+테스트에서는 외부 Agent가 필요한 opt-in E2E 1개만 skip되고, mock Agent를 실행해
+`RUN_AI_MOCK_E2E=true`로 수행한 전체 검증에서는 93개 모두 실행됐다.
+
+`AI_PROVIDER=mock` Agent를 로컬 8100 포트에 실행하고 Spring Boot random-port HTTP API를 통해
+`POST /api/v1/compositions` → 상태 polling → Agent 결과 다운로드 → 백엔드 결과 다운로드까지
+`AiCompositionMockE2ETest`로 검증했다. 최종 E2E 왕복 테스트는 약 2.1초였고 BUILD SUCCESSFUL이다.
+Docker Desktop 프로세스는 실행됐지만 현재 환경에서 Linux engine named pipe가 열리지 않아 이 검증은
+Docker가 아닌 격리된 Python 3.10 가상환경의 Agent와 H2 기반 Spring Boot 테스트로 수행했다.
 
 Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너가 실행 중이다. app은 `localhost:8080`, MySQL은 호스트 `3307`, Redis는 호스트 `6379`에 연결된다. `/actuator/health`는 `UP`이며 `/api/v1/places?page=0&size=2`에서 강릉 관광지 응답을 확인했다.
 
@@ -103,7 +123,11 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 | `TOUR_API_KEY` | 한국관광공사 OpenAPI 인증키 | 루트 `.env`에 등록됨. `.gitignore`로 Git 제외 |
 | `TOUR_PHOTO_GALLERY_API_KEY` | 한국관광공사 관광사진갤러리 API 인증키 | 미등록 시 `TOUR_API_KEY` fallback |
 | `KAKAO_API_KEY` | Kakao REST API 인증키 | 미등록 |
-| `AI_API_KEY` | 선택된 AI Provider 인증키 | Provider 미정 및 미등록 |
+| `AI_BASE_URL` | 백엔드가 호출할 Agent base URL | 루트 `.env` 미등록 |
+| `AI_API_KEY` | 백엔드와 Agent가 공유하는 선택적 API 인증값 | 루트 `.env` 미등록 |
+| `AI_CONNECT_TIMEOUT` | Agent 연결 제한 시간 | 기본 `5s` |
+| `AI_READ_TIMEOUT` | Agent HTTP 응답 제한 시간 | 기본 `30s` |
+| `AI_POLL_DELAY` | 백엔드의 Agent 상태 polling 간격 | 기본 `2s` |
 | `IMAGE_CACHE_ENABLED` | 동기화 시 원본·썸네일 저장 사용 여부 | 기본 `true` |
 | `IMAGE_STORAGE_DIR` | 이미지 저장 디렉터리 | Docker에서는 `/var/lib/mirigangneung/images` |
 | `IMAGE_PUBLIC_BASE_URL` | 저장 이미지 공개 base URL | 기본 `http://localhost:8080/media/images`, CDN 도메인으로 교체 가능 |
@@ -112,8 +136,9 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 
 ## 확인된 미완성/제한
 
-- 실제 AI Provider 구현체와 비동기 Provider polling은 없다. `AiGenerationClient` 인터페이스만 존재한다.
-- Composition Job은 Provider가 연결되지 않은 현재 코드에서 실제 DONE 결과를 생성하지 않는다.
+- 루트 `.env`의 `AI_BASE_URL`이 비어 있으면 Composition 생성은 `503 AI_NOT_CONFIGURED`를 반환한다. 실제 실행 전 Agent 주소를 등록해야 한다.
+- `kto-award:*`, `kto-gallery:*` 사진 소스는 `Place.id` UUID와 Type1 저작권 근거가 없어 현재 Composition API에서 지원하지 않는다.
+- 현재 schema migration 도구는 없고 기존 `JPA_DDL_AUTO=update` 방식으로 CompositionJob의 Agent 연동 컬럼을 추가한다. 운영 배포에서 명시적 migration 도구를 도입하면 해당 컬럼 migration이 필요하다.
 - Place 목록/상세 응답은 Redis에 서로 다른 TTL로 캐시된다. 캐시가 없거나 만료되면 DB에서만 다시 읽어 Redis에 저장하며, 화면 요청으로 관광공사 API를 호출하지 않는다.
 - Kakao REST 키가 없거나 도보 경로 호출이 실패하면 `CourseResponse.routeStatus=UNAVAILABLE`, 거리·시간 0으로 반환한다. 장소 CRUD는 계속 가능하다. 이때 응답 도착시간은 기본 시작 09:00과 장소별 체류 60분을 기준으로 순차 계산한다.
 - Controller 통합 테스트와 MySQL/Redis 통합 테스트는 없다.

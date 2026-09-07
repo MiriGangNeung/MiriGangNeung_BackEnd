@@ -93,11 +93,15 @@ POST /api/v1/compositions/{jobId}/retry
 multipart request:
 
 - `photo`
-- `onePickId`
-- 선택적 `aspectRatio`
-- 선택적 generation option
+- `onePickId`: `GET /api/v1/places`의 Place.id UUID
+- 선택적 `aspectRatio`: `1:1` | `4:5` | `9:16`, 기본 `4:5`
+- 선택적 `backgroundImageUrl`: 선택한 이미지 인덱스의 `originalImageUrls[index]` 권장
 
 Consent 여부는 실제 서비스 정책에 맞춰 별도 metadata로 전달하거나 프론트에서 필수 검증한다.
+
+생성 후 1~2초 간격으로 GET을 polling한다. `DONE && resultAvailable=true`이면 `downloadUrl`을
+사용하고, `FAILED`이면 `error.retryable`에 따라 retry 버튼을 노출한다. `safety.warnings`는 결과를
+차단하지 않는 경고이므로 DONE 결과와 함께 표시할 수 있다.
 
 ## Screen 4 — 합성 결과
 

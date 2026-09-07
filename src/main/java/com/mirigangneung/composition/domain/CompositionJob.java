@@ -1,4 +1,243 @@
 package com.mirigangneung.composition.domain;
-import jakarta.persistence.*; import java.time.*; import java.util.*;
-@Entity @Table(name="composition_jobs") public class CompositionJob { @Id @GeneratedValue(strategy=GenerationType.UUID) private UUID id; private String onePickPlaceId; @Enumerated(EnumType.STRING) private CompositionStatus status; private String stage; private Integer progress; private String inputStorageKey; private String resultStorageKey; private String provider; private String modelVersion; private String promptVersion; private String safetyStatus; private String errorCode; private int retryCount; private OffsetDateTime createdAt,startedAt,completedAt,expiresAt; protected CompositionJob(){}
- public CompositionJob(String onePick,String input,OffsetDateTime expires){onePickPlaceId=onePick;inputStorageKey=input;status=CompositionStatus.QUEUED;stage="QUEUED";progress=0;createdAt=OffsetDateTime.now();expiresAt=expires;} public UUID getId(){return id;} public String getOnePickPlaceId(){return onePickPlaceId;} public CompositionStatus getStatus(){return status;} public String getStage(){return stage;} public Integer getProgress(){return progress;} public String getResultStorageKey(){return resultStorageKey;} public String getErrorCode(){return errorCode;} public OffsetDateTime getExpiresAt(){return expiresAt;} public String getInputStorageKey(){return inputStorageKey;} public void fail(String code){status=CompositionStatus.FAILED;stage="FAILED";errorCode=code;} public void retry(){status=CompositionStatus.QUEUED;stage="QUEUED";progress=0;retryCount++;errorCode=null;} }
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Entity
+@Table(name = "composition_jobs")
+public class CompositionJob {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    private String onePickPlaceId;
+
+    @Enumerated(EnumType.STRING)
+    private CompositionStatus status;
+
+    private String stage;
+    private Integer progress;
+    private String inputStorageKey;
+    private String inputContentType;
+    private String resultStorageKey;
+    private String resultContentType;
+    private String providerJobId;
+    private String aspectRatio;
+
+    @Column(length = 2000)
+    private String backgroundImageUrl;
+
+    private String provider;
+    private String modelVersion;
+    private String promptVersion;
+    private String safetyStatus;
+    private String safetyReasonCode;
+    private String warningCode;
+
+    @Column(length = 1000)
+    private String warningMessage;
+
+    private String errorCode;
+
+    @Column(length = 1000)
+    private String errorMessage;
+
+    private Boolean errorRetryable;
+    private int retryCount;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime startedAt;
+    private OffsetDateTime completedAt;
+    private OffsetDateTime expiresAt;
+
+    protected CompositionJob() {
+    }
+
+    public CompositionJob(
+            String onePickPlaceId,
+            String inputStorageKey,
+            String inputContentType,
+            String aspectRatio,
+            String backgroundImageUrl,
+            OffsetDateTime expiresAt) {
+        this.onePickPlaceId = onePickPlaceId;
+        this.inputStorageKey = inputStorageKey;
+        this.inputContentType = inputContentType;
+        this.aspectRatio = aspectRatio;
+        this.backgroundImageUrl = backgroundImageUrl;
+        this.status = CompositionStatus.QUEUED;
+        this.stage = "QUEUED";
+        this.progress = 0;
+        this.createdAt = OffsetDateTime.now();
+        this.expiresAt = expiresAt;
+    }
+
+    public void applyProviderStatus(
+            String providerJobId,
+            CompositionStatus providerStatus,
+            String stage,
+            Integer progress,
+            String provider,
+            String modelVersion,
+            String promptVersion,
+            String safetyStatus,
+            String safetyReasonCode,
+            String warningCode,
+            String warningMessage,
+            String errorCode,
+            String errorMessage,
+            Boolean errorRetryable) {
+        this.providerJobId = providerJobId;
+        status = providerStatus;
+        this.stage = hasText(stage) ? stage : providerStatus.name();
+        this.progress = progress == null ? this.progress : progress;
+        this.provider = provider;
+        this.modelVersion = modelVersion;
+        this.promptVersion = promptVersion;
+        this.safetyStatus = safetyStatus;
+        this.safetyReasonCode = safetyReasonCode;
+        this.warningCode = warningCode;
+        this.warningMessage = warningMessage;
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        this.errorRetryable = errorRetryable;
+        if (startedAt == null && providerStatus != CompositionStatus.QUEUED) {
+            startedAt = OffsetDateTime.now();
+        }
+        if (providerStatus == CompositionStatus.FAILED) {
+            completedAt = OffsetDateTime.now();
+        }
+    }
+
+    public void complete(String storageKey, String contentType) {
+        resultStorageKey = storageKey;
+        resultContentType = contentType;
+        status = CompositionStatus.DONE;
+        stage = "COMPLETED";
+        progress = 100;
+        completedAt = OffsetDateTime.now();
+    }
+
+    public void fail(String code, String message, boolean retryable) {
+        status = CompositionStatus.FAILED;
+        stage = "FAILED";
+        errorCode = code;
+        errorMessage = message;
+        errorRetryable = retryable;
+        completedAt = OffsetDateTime.now();
+    }
+
+    public void retry() {
+        status = CompositionStatus.QUEUED;
+        stage = "QUEUED";
+        progress = 0;
+        retryCount++;
+        providerJobId = null;
+        resultStorageKey = null;
+        resultContentType = null;
+        errorCode = null;
+        errorMessage = null;
+        errorRetryable = null;
+        safetyStatus = null;
+        safetyReasonCode = null;
+        warningCode = null;
+        warningMessage = null;
+        startedAt = null;
+        completedAt = null;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public String getOnePickPlaceId() {
+        return onePickPlaceId;
+    }
+
+    public CompositionStatus getStatus() {
+        return status;
+    }
+
+    public String getStage() {
+        return stage;
+    }
+
+    public Integer getProgress() {
+        return progress;
+    }
+
+    public String getInputStorageKey() {
+        return inputStorageKey;
+    }
+
+    public String getInputContentType() {
+        return inputContentType;
+    }
+
+    public String getResultStorageKey() {
+        return resultStorageKey;
+    }
+
+    public String getResultContentType() {
+        return resultContentType;
+    }
+
+    public String getProviderJobId() {
+        return providerJobId;
+    }
+
+    public String getAspectRatio() {
+        return aspectRatio;
+    }
+
+    public String getBackgroundImageUrl() {
+        return backgroundImageUrl;
+    }
+
+    public String getErrorCode() {
+        return errorCode;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public Boolean getErrorRetryable() {
+        return errorRetryable;
+    }
+
+    public String getSafetyStatus() {
+        return safetyStatus;
+    }
+
+    public String getSafetyReasonCode() {
+        return safetyReasonCode;
+    }
+
+    public String getWarningCode() {
+        return warningCode;
+    }
+
+    public String getWarningMessage() {
+        return warningMessage;
+    }
+
+    public int getRetryCount() {
+        return retryCount;
+    }
+
+    public OffsetDateTime getExpiresAt() {
+        return expiresAt;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+}

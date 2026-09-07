@@ -97,7 +97,8 @@ GET /compositions/{jobId}
 → 현재 상태
 ```
 
-현재 MVP에서는 Spring의 `@Async` 등 단순한 비동기부터 시작할 수 있다. 실제 AI provider가 자체 queue를 제공하면 Adapter 내부에서 이를 사용한다.
+현재 Agent가 자체 비동기 Job을 제공한다. 백엔드는 생성 요청에서 받은 `providerJobId`를 MySQL에
+저장하고 `CompositionPollingJob`으로 상태를 조회한다. DONE 결과만 `TemporaryImageStorage`로 내려받는다.
 
 ## 트랜잭션
 

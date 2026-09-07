@@ -53,6 +53,9 @@ services:
       KAKAO_API_BASE_URL: ${KAKAO_API_BASE_URL:-https://apis-navi.kakaomobility.com}
       AI_BASE_URL: ${AI_BASE_URL:-}
       AI_API_KEY: ${AI_API_KEY:-}
+      AI_CONNECT_TIMEOUT: ${AI_CONNECT_TIMEOUT:-5s}
+      AI_READ_TIMEOUT: ${AI_READ_TIMEOUT:-30s}
+      AI_POLL_DELAY: ${AI_POLL_DELAY:-2s}
       IMAGE_TEMP_DIR: /tmp/mirigangneung
       IMAGE_CACHE_ENABLED: ${IMAGE_CACHE_ENABLED:-true}
       IMAGE_STORAGE_DIR: /var/lib/mirigangneung/images

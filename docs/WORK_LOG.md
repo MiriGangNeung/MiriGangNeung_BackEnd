@@ -1,5 +1,57 @@
 # Work Log
 
+## 2026-09-08
+
+### 00:29 ~ 01:19 — Backend-Agent 이미지 합성 Job 실제 연동
+
+**Agent:** Codex
+**작업 유형:** Implementation / Integration / Verification
+
+### 작업 내용
+
+- Agent 공식 계약에 맞춰 `AiGenerationClient`를 multipart 생성, 상태 조회, 결과 다운로드, 취소 인터페이스로 정리하고 `HttpAiGenerationClient`를 구현했다.
+- `CompositionService.create()`에서 사용자 사진과 Type1 관광지 원본을 Agent에 전달하고 `providerJobId` 및 provider metadata를 저장하도록 연결했다.
+- `CompositionPollingJob`을 추가해 Agent 상태를 MySQL Job에 반영하고 DONE 결과를 `TemporaryImageStorage`에 저장하도록 했다.
+- Agent 오류의 code/message/retryable과 safety 경고를 백엔드 DTO로 정규화하고, retry API가 실제로 새 Agent generation을 호출하도록 구현했다.
+- `PlaceImage.originalStorageKey`는 `PlaceImageStorage.open()`으로 읽고 누락 파일은 기존 `ImageAssetCacheService`로 복구한다. Type1이 아닌 이미지는 합성에 사용하지 않는다.
+- 현재 프론트 흐름의 `Place.id` UUID만 onePickId로 허용하고 `kto-award:*`, `kto-gallery:*` ID는 명시적으로 거부한다.
+- 기존 multipart 계약을 유지하면서 사용자가 고른 Type1 이미지를 정확히 전달할 수 있도록 선택적인 `backgroundImageUrl`을 추가했다.
+- 만료 정리 작업이 입력뿐 아니라 결과 이미지도 삭제하도록 보완했다.
+- API 계약, OpenAPI, AI·데이터 모델·이미지 저장 문서와 실행 환경변수를 현재 구현에 맞게 갱신했다.
+
+### 주요 변경 파일
+
+- `src/main/java/com/mirigangneung/infrastructure/ai/*`
+- `src/main/java/com/mirigangneung/composition/*`
+- `src/test/java/com/mirigangneung/infrastructure/ai/HttpAiGenerationClientTest.java`
+- `src/test/java/com/mirigangneung/composition/*`
+- `src/main/resources/application.yml`
+- `.env.example`, `docker-compose.yml`, `README.md`
+- `docs/API_CONTRACT.md`, `docs/openapi.yaml`, `docs/PROJECT_STATUS.md`
+- `docs/adr/2026-09-08-ai-composition-agent-integration.md`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/07_DATA_MODEL.md`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/09_AI_INTEGRATION.md`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/10_IMAGE_STORAGE.md`
+
+### 테스트 결과
+
+- 변경 영역 단위 테스트: `BUILD SUCCESSFUL`
+- 백엔드 일반 전체 테스트: 93개 중 opt-in E2E 1개 skip, 실패 0, 오류 0, `BUILD SUCCESSFUL`
+- `RUN_AI_MOCK_E2E=true` 전체 테스트: 93개 실행, 실패 0, 오류 0, `BUILD SUCCESSFUL`
+- `AI_PROVIDER=mock` 실제 Agent와 Spring Boot HTTP E2E: 생성 → polling → DONE → 결과 다운로드 성공(약 2.1초)
+- `git diff --check`: 통과
+
+### 발생한 문제와 해결 방법
+
+- multipart helper가 요청 타입을 넓게 반환해 body 메서드를 사용할 수 없던 컴파일 오류를 body request 전용 overload로 해결했다.
+- Agent 응답에 백엔드 내부 DTO에 없는 metadata 필드가 있어 Jackson 역직렬화가 실패했다. 외부 응답 DTO에 unknown-field 허용을 적용해 계약의 확장 가능성을 유지했다.
+- Docker Desktop Linux engine이 현재 환경에서 기동되지 않아 Docker E2E는 실행하지 못했다. Agent 의존성을 `%TEMP%`의 격리 Python 3.10 가상환경에 설치하고 mock Agent를 8100에 실행해 실제 HTTP 왕복을 검증했다. Agent repository 파일은 수정하지 않았다.
+
+### 관련 commit
+
+- 없음 (현재 작업 트리 변경)
+
 ## 2026-08-26
 
 ### 시간 미기록 ~ 20:30 — 코스 경로·일정 표시 문제 수정 및 Docker 재검증

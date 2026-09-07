@@ -232,12 +232,39 @@ Content-Type: multipart/form-data
 multipart 필드:
 
 ```text
-photo: 이미지 파일
-onePickId: 장소 id
-aspectRatio: 선택값
+photo: 이미지 파일 (필수, JPEG/PNG/WEBP, 최대 10MB)
+onePickId: GET /api/v1/places에서 받은 Place.id UUID (필수)
+aspectRatio: 1:1 | 4:5 | 9:16 (선택, 기본 4:5)
+backgroundImageUrl: 사용자가 선택한 해당 Place의 Type1 이미지 URL (선택, originalImageUrls 권장)
 ```
 
-그 후 polling한다.
+`onePickId`는 `kto-award:*`, `kto-gallery:*` 표시용 ID가 아니라 백엔드 `Place.id` UUID여야 한다.
+백엔드는 해당 Place의 `copyrightCode=Type1` 이미지 원본을 `PlaceImageStorage`에서 읽어 Agent에
+`background` 파일로 전달한다. `backgroundImageUrl`을 생략하면 정렬 순서가 가장 앞선 Type1 이미지를
+사용한다. 지정한 URL이 해당 Place의 Type1 이미지가 아니거나 원본을 준비할 수 없으면 Job을 만들지
+않고 오류를 반환한다.
+
+생성 성공 예시:
+
+```json
+{
+  "jobId": "f7a1d2de-8215-4b0e-98bd-27d8e4cbf671",
+  "status": "QUEUED",
+  "progress": 0,
+  "stage": "요청 접수",
+  "resultAvailable": false,
+  "downloadUrl": null,
+  "place": null,
+  "error": null,
+  "safety": {
+    "status": "UNKNOWN",
+    "reasonCode": null,
+    "warnings": []
+  }
+}
+```
+
+생성 후 다음 API를 1~2초 간격으로 polling한다.
 
 ```http
 GET /api/v1/compositions/{jobId}
@@ -245,7 +272,81 @@ POST /api/v1/compositions/{jobId}/retry
 GET /api/v1/compositions/{jobId}/download
 ```
 
-주의: 현재 AI Provider는 실제로 선택·연결되지 않았고 `AiGenerationClient` 인터페이스만 존재한다. 따라서 Job 생성 API가 있어도 실제 DONE 이미지가 항상 생성되는 상태는 아니다.
+상태는 `QUEUED`, `ANALYZING`, `COMPOSITING`, `QUALITY_CHECK`, `DONE`, `FAILED`다.
+`DONE && resultAvailable == true`일 때만 `downloadUrl`을 사용한다. `FAILED` 응답의 `error`는
+`code`, `message`, `retryable`을 포함하며, `retryable=true`인 경우에만 retry API를 호출한다.
+`safety.warnings`는 결과를 차단하지 않는 품질 경고이며 경고가 있어도 상태는 `DONE`일 수 있다.
+
+진행 중 응답:
+
+```json
+{
+  "jobId": "f7a1d2de-8215-4b0e-98bd-27d8e4cbf671",
+  "status": "COMPOSITING",
+  "progress": 60,
+  "stage": "이미지 합성 중",
+  "resultAvailable": false,
+  "downloadUrl": null,
+  "place": null,
+  "error": null,
+  "safety": {
+    "status": "UNKNOWN",
+    "reasonCode": null,
+    "warnings": []
+  }
+}
+```
+
+완료 응답:
+
+```json
+{
+  "jobId": "f7a1d2de-8215-4b0e-98bd-27d8e4cbf671",
+  "status": "DONE",
+  "progress": 100,
+  "stage": "COMPLETED",
+  "resultAvailable": true,
+  "downloadUrl": "/api/v1/compositions/f7a1d2de-8215-4b0e-98bd-27d8e4cbf671/download",
+  "place": null,
+  "error": null,
+  "safety": {
+    "status": "PASSED",
+    "reasonCode": null,
+    "warnings": [
+      {
+        "code": "FACE_NOT_PRESERVED",
+        "message": "얼굴이 실제 모습과 조금 다르게 표현됐을 수 있습니다."
+      }
+    ]
+  }
+}
+```
+
+실패 응답:
+
+```json
+{
+  "jobId": "f7a1d2de-8215-4b0e-98bd-27d8e4cbf671",
+  "status": "FAILED",
+  "progress": 60,
+  "stage": "FAILED",
+  "resultAvailable": false,
+  "downloadUrl": null,
+  "place": null,
+  "error": {
+    "code": "PROVIDER_TIMEOUT",
+    "message": "AI 이미지 생성 시간이 초과되었습니다.",
+    "retryable": true
+  },
+  "safety": null
+}
+```
+
+retry는 request body가 없으며 성공 시 같은 `jobId`로 `QUEUED` 상태가 반환된다. 다운로드 응답은
+실제 이미지 Content-Type과 `Content-Disposition: attachment`를 사용한다.
+
+Backend-Agent 연결에는 `AI_BASE_URL`과 선택적인 공유 인증값 `AI_API_KEY`가 필요하다. 실제 모델과
+Provider 선택은 Agent 측 `AI_PROVIDER` 설정의 책임이며 백엔드는 특정 모델을 선택하지 않는다.
 
 ## 7. 도보 경로 API
 

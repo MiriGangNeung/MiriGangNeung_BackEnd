@@ -14,7 +14,7 @@ Java 17 이상과 Gradle을 사용한다.
 
 프로젝트 루트의 `.env`는 로컬 Spring Boot 실행 시 optional config로 읽으며, Docker Compose도 동일한 파일을 환경변수 입력으로 사용한다. `.env`에는 실제 secret을 넣을 수 있지만 Git에는 커밋하지 않는다.
 
-주요 환경변수: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, `TOUR_API_BASE_URL`, `TOUR_API_KEY`, `KAKAO_API_BASE_URL`, `KAKAO_API_KEY`, `AI_BASE_URL`, `AI_API_KEY`, `IMAGE_TEMP_DIR`, `IMAGE_TTL_SECONDS`.
+주요 환경변수: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, `TOUR_API_BASE_URL`, `TOUR_API_KEY`, `KAKAO_API_BASE_URL`, `KAKAO_API_KEY`, `AI_BASE_URL`, `AI_API_KEY`, `AI_CONNECT_TIMEOUT`, `AI_READ_TIMEOUT`, `AI_POLL_DELAY`, `IMAGE_TEMP_DIR`, `IMAGE_TTL_SECONDS`.
 
 API base path는 `/api/v1`이다. 상세 계약은 [문서 세트](MiriGangNeung_BackEnd_Codex_MD_Set/docs/CODEX_START_HERE.md)를 기준으로 한다. clone 직후에는 [루트 시작 문서](docs/CODEX_START_HERE.md)와 [AGENTS.md](AGENTS.md)를 먼저 읽는다.
 
@@ -43,5 +43,23 @@ $env:KAKAO_API_KEY="실제_Kakao_REST_키"
 docker compose up --build
 ```
 
+AI 이미지 합성은 별도 `MiriGangNeung_Agent` 서버를 먼저 `AI_PROVIDER=mock` 또는 운영 Provider로
+실행한 뒤 백엔드 `.env`에 연결 주소를 설정한다. 실제 Provider 선택과 모델 키는 Agent 저장소에서
+관리한다.
+
+```properties
+AI_BASE_URL=http://localhost:8100
+AI_API_KEY=
+AI_CONNECT_TIMEOUT=5s
+AI_READ_TIMEOUT=30s
+AI_POLL_DELAY=2s
+```
+
+백엔드를 Docker 컨테이너로 실행하고 Agent를 호스트에서 실행한다면 `AI_BASE_URL`은 일반적으로
+`http://host.docker.internal:8100`을 사용한다. 두 서비스에서 `AI_API_KEY`를 사용한다면 값이 서로
+같아야 하며 실제 값은 Git에 커밋하지 않는다.
+
 컨테이너가 정상 기동되면 `http://localhost:8080/actuator/health`와
 `http://localhost:8080/api/v1/places?page=0&size=10`으로 확인한다.
+
+사진 합성 API의 multipart 필드와 polling 순서는 [API 계약](docs/API_CONTRACT.md)을 참고한다.

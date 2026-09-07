@@ -92,7 +92,7 @@ paths:
     post:
       tags: [Compositions]
       summary: 사진 합성 Job 생성
-      description: 실제 AI Provider가 연결되지 않은 현재 구현에서는 완료 이미지가 생성되지 않을 수 있다.
+      description: Place.id UUID와 Type1 관광지 원본을 사용해 Agent generation Job을 생성한다.
       requestBody:
         required: true
         content:
@@ -102,8 +102,12 @@ paths:
               required: [photo, onePickId]
               properties:
                 photo: {type: string, format: binary}
-                onePickId: {type: string}
-                aspectRatio: {type: string, example: '4:3'}
+                onePickId: {type: string, format: uuid}
+                aspectRatio: {type: string, enum: ['1:1', '4:5', '9:16'], default: '4:5'}
+                backgroundImageUrl:
+                  type: string
+                  nullable: true
+                  description: 해당 Place에서 사용자가 선택한 Type1 원본 이미지 URL. 생략 시 첫 Type1 이미지 사용.
       responses:
         '200':
           description: Job 생성 결과
@@ -111,6 +115,11 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/CompositionStatusResponse'}
         '400': {$ref: '#/components/responses/InvalidRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '415': {description: 지원하지 않는 이미지 형식}
+        '422': {description: 합성 가능한 Type1 배경 없음}
+        '502': {description: 배경 원본 또는 Agent 호출 실패}
+        '503': {description: AI_BASE_URL 미설정}
   /api/v1/compositions/{jobId}:
     get:
       tags: [Compositions]
@@ -136,6 +145,8 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CompositionStatusResponse'}
+        '409': {description: 재시도 불가능한 상태 또는 오류}
+        '410': {description: 사용자 원본 이미지 TTL 만료}
   /api/v1/compositions/{jobId}/download:
     get:
       tags: [Compositions]
@@ -143,7 +154,9 @@ paths:
       parameters:
         - {$ref: '#/components/parameters/JobId'}
       responses:
-        '200': {description: 파일 다운로드, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        '200': {description: 합성 이미지 다운로드, content: {image/*: {schema: {type: string, format: binary}}}}
+        '409': {description: 결과가 아직 준비되지 않음}
+        '410': {description: 결과 TTL 만료}
   /api/v1/courses:
     post:
       tags: [Courses]
@@ -461,15 +474,44 @@ components:
         expiresAt: {type: string, format: date-time}
     CompositionStatusResponse:
       type: object
+      required: [jobId, status, progress, stage, resultAvailable]
       properties:
         jobId: {type: string, format: uuid}
-        status: {type: string, enum: [QUEUED, RUNNING, DONE, FAILED, EXPIRED]}
+        status: {type: string, enum: [QUEUED, ANALYZING, COMPOSITING, QUALITY_CHECK, DONE, FAILED]}
         progress: {type: integer}
         stage: {type: string, nullable: true}
         resultAvailable: {type: boolean}
         downloadUrl: {type: string, nullable: true}
         place: {type: object, nullable: true}
-        error: {type: string, nullable: true}
+        error:
+          allOf:
+            - {$ref: '#/components/schemas/CompositionError'}
+          nullable: true
+        safety:
+          allOf:
+            - {$ref: '#/components/schemas/CompositionSafety'}
+          nullable: true
+    CompositionError:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        retryable: {type: boolean}
+    CompositionSafety:
+      type: object
+      properties:
+        status: {type: string, nullable: true, enum: [PASSED, REJECTED, UNKNOWN]}
+        reasonCode: {type: string, nullable: true}
+        warnings:
+          type: array
+          items: {$ref: '#/components/schemas/CompositionWarning'}
+    CompositionWarning:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string}
+        message: {type: string}
     WalkingRouteRequest:
       type: object
       required: [origin, destination]
