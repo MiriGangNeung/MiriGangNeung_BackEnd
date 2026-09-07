@@ -35,7 +35,7 @@ public class CoursePlaceService {
     private static final int MAX_KAKAO_PAGES = 3;
     private static final int MAX_PAGE_SIZE = 15;
     private static final int MAX_KAKAO_PAGE = 44;
-    private static final int TARGET_PREFERENCE_CANDIDATES_PER_STOP = 3;
+    private static final int TARGET_PREFERENCE_CANDIDATES_PER_STOP = 5;
     private static final int FIVE_KILOMETER_RADIUS_METERS = 5_000;
     private static final int TEN_KILOMETER_RADIUS_METERS = 10_000;
     private static final int FIFTEEN_KILOMETER_RADIUS_METERS = 15_000;

@@ -178,7 +178,7 @@ class CoursePlaceServiceTest {
     }
 
     @Test
-    void fetchesUpToThreeSelectedCuisinePlacesForEachTourismStop() {
+    void fetchesUpToFiveSelectedCuisinePlacesForEachTourismStop() {
         UUID courseId = UUID.randomUUID();
         Course course = new Course(
                 "day",
@@ -211,7 +211,9 @@ class CoursePlaceServiceTest {
                     nearby(prefix + "-fish", prefix + " 횟집", 37.0005, 128.0005, "음식점 > 한식 > 해물,생선 > 회", "FD6"),
                     nearby(prefix + "-chinese-1", prefix + " 중식당 1", 37.001, 128.001, "음식점 > 중식", "FD6"),
                     nearby(prefix + "-chinese-2", prefix + " 중식당 2", 37.002, 128.002, "음식점 > 중식", "FD6"),
-                    nearby(prefix + "-chinese-3", prefix + " 중식당 3", 37.003, 128.003, "음식점 > 중식", "FD6")
+                    nearby(prefix + "-chinese-3", prefix + " 중식당 3", 37.003, 128.003, "음식점 > 중식", "FD6"),
+                    nearby(prefix + "-chinese-4", prefix + " 중식당 4", 37.004, 128.004, "음식점 > 중식", "FD6"),
+                    nearby(prefix + "-chinese-5", prefix + " 중식당 5", 37.005, 128.005, "음식점 > 중식", "FD6")
             );
         });
 
@@ -231,7 +233,9 @@ class CoursePlaceServiceTest {
                 place.externalPlaceId().endsWith("-chinese-1")
                         || place.externalPlaceId().endsWith("-chinese-2")
                         || place.externalPlaceId().endsWith("-chinese-3")
-        ).hasSize(6);
+                        || place.externalPlaceId().endsWith("-chinese-4")
+                        || place.externalPlaceId().endsWith("-chinese-5")
+        ).hasSize(10);
         assertThat(response.places()).noneMatch(place -> place.externalPlaceId().endsWith("-fish"));
         verify(localClient).searchByKeyword("중식", 128.0, 37.0, 2_000, 0, 15);
         verify(localClient).searchByKeyword("중식", 128.01, 37.01, 2_000, 0, 15);
@@ -262,7 +266,10 @@ class CoursePlaceServiceTest {
                             nearby("near-western", "강릉 양식당", 37.0005, 128.0005, "음식점 > 양식", "FD6"));
                     case 5_000 -> List.of(
                             nearby("expanded-chinese-1", "강릉 중국집1", 37.02, 128.02, "음식점 > 중식", "FD6"),
-                            nearby("expanded-chinese-2", "강릉 중국집2", 37.021, 128.021, "음식점 > 중식", "FD6"));
+                            nearby("expanded-chinese-2", "강릉 중국집2", 37.021, 128.021, "음식점 > 중식", "FD6"),
+                            nearby("expanded-chinese-3", "강릉 중국집3", 37.022, 128.022, "음식점 > 중식", "FD6"),
+                            nearby("expanded-chinese-4", "강릉 중국집4", 37.023, 128.023, "음식점 > 중식", "FD6"),
+                            nearby("expanded-chinese-5", "강릉 중국집5", 37.024, 128.024, "음식점 > 중식", "FD6"));
                     default -> List.of();
                 });
 
@@ -282,7 +289,10 @@ class CoursePlaceServiceTest {
                         "near-chinese",
                         "near-western",
                         "expanded-chinese-1",
-                        "expanded-chinese-2"
+                        "expanded-chinese-2",
+                        "expanded-chinese-3",
+                        "expanded-chinese-4",
+                        "expanded-chinese-5"
                 );
         assertThat(response.places().stream()
                 .filter(place -> place.externalPlaceId().equals("expanded-chinese-1"))
@@ -296,7 +306,7 @@ class CoursePlaceServiceTest {
     }
 
     @Test
-    void expandsNearbySearchToTenKilometersWhenFiveKilometersStillHaveFewerThanThreeExactPreferences() {
+    void expandsNearbySearchToTenKilometersWhenFiveKilometersStillHaveFewerThanFiveExactPreferences() {
         UUID courseId = UUID.randomUUID();
         Course course = new Course(
                 "day",
@@ -317,8 +327,10 @@ class CoursePlaceServiceTest {
                             nearby("near-western", "강릉 양식당", 37.0005, 128.0005, "음식점 > 양식", "FD6"));
                     case 5_000 -> List.of(nearby(
                             "five-kilometer-chinese", "강릉 중국집", 37.02, 128.02, "음식점 > 중식", "FD6"));
-                    case 10_000 -> List.of(nearby(
-                            "ten-kilometer-chinese", "강릉 중국요리점", 37.06, 128.06, "음식점 > 중식", "FD6"));
+                    case 10_000 -> List.of(
+                            nearby("ten-kilometer-chinese", "강릉 중국요리점", 37.06, 128.06, "음식점 > 중식", "FD6"),
+                            nearby("ten-kilometer-chinese-2", "강릉 중국요리점2", 37.061, 128.061, "음식점 > 중식", "FD6"),
+                            nearby("ten-kilometer-chinese-3", "강릉 중국요리점3", 37.062, 128.062, "음식점 > 중식", "FD6"));
                     default -> List.of();
                 });
 
@@ -369,7 +381,8 @@ class CoursePlaceServiceTest {
                             "far-exact", "먼 중식당", 37.035, 128.0, "음식점 > 중식", "FD6"));
                     case 10_000 -> List.of(
                             nearby("ten-exact-1", "중식당 3", 37.06, 128.06, "음식점 > 중식", "FD6"),
-                            nearby("ten-exact-2", "중식당 4", 37.065, 128.065, "음식점 > 중식", "FD6"));
+                            nearby("ten-exact-2", "중식당 4", 37.065, 128.065, "음식점 > 중식", "FD6"),
+                            nearby("ten-exact-3", "중식당 5", 37.07, 128.07, "음식점 > 중식", "FD6"));
                     default -> List.of();
                 });
 
@@ -444,7 +457,15 @@ class CoursePlaceServiceTest {
             if (radius == 5_000 && longitude == 128.0) {
                 return List.of(
                         nearby("keyword-expanded-1", "중식당 키워드1", 37.011, 128.011, "음식점 > 중식", "FD6"),
-                        nearby("keyword-expanded-2", "중식당 키워드2", 37.012, 128.012, "음식점 > 중식", "FD6")
+                        nearby("keyword-expanded-2", "중식당 키워드2", 37.012, 128.012, "음식점 > 중식", "FD6"),
+                        nearby("keyword-expanded-3", "중식당 키워드3", 37.013, 128.013, "음식점 > 중식", "FD6"),
+                        nearby("keyword-expanded-4", "중식당 키워드4", 37.014, 128.014, "음식점 > 중식", "FD6")
+                );
+            }
+            if (radius == 5_000 && longitude == 128.01) {
+                return List.of(
+                        nearby("keyword-second-1", "중식당 두번째1", 37.015, 128.015, "음식점 > 중식", "FD6"),
+                        nearby("keyword-second-2", "중식당 두번째2", 37.016, 128.016, "음식점 > 중식", "FD6")
                 );
             }
             return List.of();
@@ -522,7 +543,7 @@ class CoursePlaceServiceTest {
     }
 
     @Test
-    void keepsTheTwoKilometerSearchWhenAtLeastThreeExactPreferencesMatch() {
+    void keepsTheTwoKilometerSearchWhenAtLeastFiveExactPreferencesMatch() {
         UUID courseId = UUID.randomUUID();
         Course course = new Course(
                 "day",
@@ -540,7 +561,9 @@ class CoursePlaceServiceTest {
                 .thenReturn(List.of(
                         nearby("chinese-1", "강릉 중식당1", 37.001, 128.001, "음식점 > 중식", "FD6"),
                         nearby("chinese-2", "강릉 중식당2", 37.002, 128.002, "음식점 > 중식", "FD6"),
-                        nearby("chinese-3", "강릉 중식당3", 37.003, 128.003, "음식점 > 중식", "FD6")));
+                        nearby("chinese-3", "강릉 중식당3", 37.003, 128.003, "음식점 > 중식", "FD6"),
+                        nearby("chinese-4", "강릉 중식당4", 37.004, 128.004, "음식점 > 중식", "FD6"),
+                        nearby("chinese-5", "강릉 중식당5", 37.005, 128.005, "음식점 > 중식", "FD6")));
 
         CoursePlaceService service = new CoursePlaceService(
                 courses,
@@ -553,7 +576,7 @@ class CoursePlaceServiceTest {
 
         var response = service.nearby(courseId.toString(), "restaurant");
 
-        assertThat(response.places()).hasSize(3);
+        assertThat(response.places()).hasSize(5);
         verify(localClient, never()).searchByCategory(128.0, 37.0, "FD6", 5_000, 0, 15);
         verify(localClient, never()).searchByCategory(128.0, 37.0, "FD6", 10_000, 0, 15);
     }
