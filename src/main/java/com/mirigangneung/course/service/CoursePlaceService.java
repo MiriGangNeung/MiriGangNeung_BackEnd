@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class CoursePlaceService {
     private static final int MAX_KAKAO_PAGES = 3;
     private static final int MAX_PAGE_SIZE = 15;
     private static final int MAX_KAKAO_PAGE = 44;
-    private static final int MIN_EXACT_PREFERENCE_CANDIDATES = 3;
+    private static final int TARGET_PREFERENCE_CANDIDATES_PER_STOP = 5;
     private static final int FIVE_KILOMETER_RADIUS_METERS = 5_000;
     private static final int TEN_KILOMETER_RADIUS_METERS = 10_000;
     private static final int FIFTEEN_KILOMETER_RADIUS_METERS = 15_000;
@@ -49,6 +50,12 @@ public class CoursePlaceService {
             "cafe",
             "culture",
             "attraction"
+    );
+    private static final Map<String, String> RESTAURANT_PREFERENCE_SEARCH_QUERIES = Map.of(
+            "food:korean", "한식",
+            "food:chinese", "중식",
+            "food:japanese", "일식",
+            "food:western", "양식"
     );
 
     private final CourseRepository courses;
@@ -116,6 +123,11 @@ public class CoursePlaceService {
 
         List<CourseStop> tourismStops = tourismStops(course, stopId);
         Map<String, NearbyCandidate> merged = new LinkedHashMap<>();
+        List<PreferenceSearch> preferenceSearches = preferenceSearches(course, normalizedCategory);
+        Map<PreferenceBucket, Set<String>> preferenceMatches = initializePreferenceMatches(
+                tourismStops,
+                preferenceSearches
+        );
         List<Integer> searchRadii = automaticSearchRadii(localProperties.radiusMeters());
         int searchRadiusMeters = searchRadii.get(0);
         for (int radiusIndex = 0; radiusIndex < searchRadii.size(); radiusIndex++) {
@@ -129,9 +141,31 @@ public class CoursePlaceService {
                     currentRadiusMeters,
                     pageSize,
                     existingTourismNames,
-                    radiusIndex == 0 ? null : currentRadiusMeters
+                    radiusIndex == 0 ? null : currentRadiusMeters,
+                    course,
+                    preferenceSearches,
+                    preferenceMatches
             );
-            if (!shouldExpandSearch(course, normalizedCategory, merged)) {
+            collectPreferenceCandidates(
+                    merged,
+                    tourismStops,
+                    normalizedCategory,
+                    categoryCode,
+                    currentRadiusMeters,
+                    pageSize,
+                    existingTourismNames,
+                    radiusIndex == 0 ? null : currentRadiusMeters,
+                    course,
+                    preferenceSearches,
+                    preferenceMatches
+            );
+            if (!shouldExpandSearch(
+                    course,
+                    normalizedCategory,
+                    merged,
+                    preferenceSearches,
+                    preferenceMatches
+            )) {
                 break;
             }
         }
@@ -201,7 +235,10 @@ public class CoursePlaceService {
             int radiusMeters,
             int pageSize,
             Set<String> existingTourismNames,
-            Integer expansionRadiusMeters
+            Integer expansionRadiusMeters,
+            Course course,
+            List<PreferenceSearch> preferenceSearches,
+            Map<PreferenceBucket, Set<String>> preferenceMatches
     ) {
         for (CourseStop tourismStop : tourismStops) {
             for (int page = 0; page < MAX_KAKAO_PAGES; page++) {
@@ -213,32 +250,26 @@ public class CoursePlaceService {
                         page,
                         pageSize
                 );
+                recordPreferenceMatches(
+                        tourismStop,
+                        pageResults,
+                        normalizedCategory,
+                        existingTourismNames,
+                        course,
+                        preferenceSearches,
+                        preferenceMatches
+                );
                 for (KakaoLocalClient.NearbyPlace place : pageResults) {
                     if (isExistingTourismPlace(normalizedCategory, place, existingTourismNames)) {
                         continue;
                     }
-                    int distance = distanceMeters(
-                            tourismStop.getLatitude(),
-                            tourismStop.getLongitude(),
-                            place.latitude(),
-                            place.longitude()
-                    );
-                    NearbyCandidate candidate = new NearbyCandidate(
+                    mergeCandidate(
+                            merged,
                             place,
                             tourismStop,
-                            distance,
                             radiusMeters,
                             expansionRadiusMeters
                     );
-                    NearbyCandidate previous = merged.get(place.externalPlaceId());
-                    if (previous == null || candidate.distanceMeters() < previous.distanceMeters()) {
-                        merged.put(
-                                place.externalPlaceId(),
-                                previous == null
-                                        ? candidate
-                                        : candidate.withExpansionRadius(previous.expansionRadiusMeters())
-                        );
-                    }
                 }
                 if (pageResults.size() < pageSize) {
                     break;
@@ -247,10 +278,138 @@ public class CoursePlaceService {
         }
     }
 
+    private void collectPreferenceCandidates(
+            Map<String, NearbyCandidate> merged,
+            List<CourseStop> tourismStops,
+            String normalizedCategory,
+            String categoryCode,
+            int radiusMeters,
+            int pageSize,
+            Set<String> existingTourismNames,
+            Integer expansionRadiusMeters,
+            Course course,
+            List<PreferenceSearch> preferenceSearches,
+            Map<PreferenceBucket, Set<String>> preferenceMatches
+    ) {
+        if (preferenceSearches.isEmpty()) {
+            return;
+        }
+        for (CourseStop tourismStop : tourismStops) {
+            for (PreferenceSearch preferenceSearch : preferenceSearches) {
+                PreferenceBucket bucket = new PreferenceBucket(tourismStop, preferenceSearch.detailType());
+                Set<String> matchedIds = preferenceMatches.get(bucket);
+                if (matchedIds == null || matchedIds.size() >= TARGET_PREFERENCE_CANDIDATES_PER_STOP) {
+                    continue;
+                }
+                for (int page = 0; page < MAX_KAKAO_PAGES; page++) {
+                    List<KakaoLocalClient.NearbyPlace> pageResults = localClient.searchByKeyword(
+                            preferenceSearch.query(),
+                            tourismStop.getLongitude(),
+                            tourismStop.getLatitude(),
+                            radiusMeters,
+                            page,
+                            pageSize
+                    );
+                    for (KakaoLocalClient.NearbyPlace place : pageResults) {
+                        if (!categoryCode.equals(place.categoryCode())
+                                || isExistingTourismPlace(normalizedCategory, place, existingTourismNames)) {
+                            continue;
+                        }
+                        if (!recommendationScorer.hasExactDetailPreferenceMatch(
+                                place,
+                                normalizedCategory,
+                                course.getTravelTypes(),
+                                List.of(preferenceSearch.detailType())
+                        )) {
+                            continue;
+                        }
+                        if (matchedIds.add(place.externalPlaceId())) {
+                            mergeCandidate(
+                                    merged,
+                                    place,
+                                    tourismStop,
+                                    radiusMeters,
+                                    expansionRadiusMeters
+                            );
+                        }
+                        if (matchedIds.size() >= TARGET_PREFERENCE_CANDIDATES_PER_STOP) {
+                            break;
+                        }
+                    }
+                    if (matchedIds.size() >= TARGET_PREFERENCE_CANDIDATES_PER_STOP
+                            || pageResults.size() < pageSize) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private void recordPreferenceMatches(
+            CourseStop tourismStop,
+            List<KakaoLocalClient.NearbyPlace> places,
+            String normalizedCategory,
+            Set<String> existingTourismNames,
+            Course course,
+            List<PreferenceSearch> preferenceSearches,
+            Map<PreferenceBucket, Set<String>> preferenceMatches
+    ) {
+        for (KakaoLocalClient.NearbyPlace place : places) {
+            if (isExistingTourismPlace(normalizedCategory, place, existingTourismNames)) {
+                continue;
+            }
+            for (PreferenceSearch preferenceSearch : preferenceSearches) {
+                if (recommendationScorer.hasExactDetailPreferenceMatch(
+                        place,
+                        normalizedCategory,
+                        course.getTravelTypes(),
+                        List.of(preferenceSearch.detailType())
+                )) {
+                    preferenceMatches
+                            .get(new PreferenceBucket(tourismStop, preferenceSearch.detailType()))
+                            .add(place.externalPlaceId());
+                }
+            }
+        }
+    }
+
+    private static void mergeCandidate(
+            Map<String, NearbyCandidate> merged,
+            KakaoLocalClient.NearbyPlace place,
+            CourseStop tourismStop,
+            int radiusMeters,
+            Integer expansionRadiusMeters
+    ) {
+        int distance = distanceMeters(
+                tourismStop.getLatitude(),
+                tourismStop.getLongitude(),
+                place.latitude(),
+                place.longitude()
+        );
+        NearbyCandidate candidate = new NearbyCandidate(
+                place,
+                tourismStop,
+                distance,
+                radiusMeters,
+                expansionRadiusMeters
+        );
+        NearbyCandidate previous = merged.get(place.externalPlaceId());
+        if (previous == null || candidate.distanceMeters() < previous.distanceMeters()) {
+            merged.put(
+                    place.externalPlaceId(),
+                    previous == null
+                            ? candidate
+                            : candidate.withExpansionRadius(previous.expansionRadiusMeters())
+            );
+        }
+    }
+
     private boolean shouldExpandSearch(
             Course course,
             String normalizedCategory,
-            Map<String, NearbyCandidate> candidates
+            Map<String, NearbyCandidate> candidates,
+            List<PreferenceSearch> preferenceSearches,
+            Map<PreferenceBucket, Set<String>> preferenceMatches
     ) {
         if (!recommendationScorer.hasApplicableDetailPreference(
                 normalizedCategory,
@@ -258,6 +417,11 @@ public class CoursePlaceService {
                 course.getDetailTypes()
         )) {
             return false;
+        }
+        if (!preferenceSearches.isEmpty()) {
+            return !preferenceMatches.isEmpty()
+                    && preferenceMatches.values().stream()
+                    .anyMatch(ids -> ids.size() < TARGET_PREFERENCE_CANDIDATES_PER_STOP);
         }
         long exactCount = candidates.values().stream()
                 .filter(candidate -> recommendationScorer.hasExactDetailPreferenceMatch(
@@ -267,7 +431,41 @@ public class CoursePlaceService {
                         course.getDetailTypes()
                 ))
                 .count();
-        return exactCount < MIN_EXACT_PREFERENCE_CANDIDATES;
+        return exactCount < TARGET_PREFERENCE_CANDIDATES_PER_STOP;
+    }
+
+    private List<PreferenceSearch> preferenceSearches(Course course, String normalizedCategory) {
+        if (!"restaurant".equals(normalizedCategory)
+                || !recommendationScorer.hasApplicableDetailPreference(
+                normalizedCategory,
+                course.getTravelTypes(),
+                course.getDetailTypes()
+        )) {
+            return List.of();
+        }
+        return course.getDetailTypes().stream()
+                .map(type -> type == null ? "" : type.trim().toLowerCase(Locale.ROOT))
+                .distinct()
+                .map(type -> Map.entry(type, RESTAURANT_PREFERENCE_SEARCH_QUERIES.get(type)))
+                .filter(entry -> entry.getValue() != null)
+                .map(entry -> new PreferenceSearch(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    private static Map<PreferenceBucket, Set<String>> initializePreferenceMatches(
+            List<CourseStop> tourismStops,
+            List<PreferenceSearch> preferenceSearches
+    ) {
+        Map<PreferenceBucket, Set<String>> matches = new LinkedHashMap<>();
+        for (CourseStop tourismStop : tourismStops) {
+            for (PreferenceSearch preferenceSearch : preferenceSearches) {
+                matches.put(
+                        new PreferenceBucket(tourismStop, preferenceSearch.detailType()),
+                        new LinkedHashSet<>()
+                );
+            }
+        }
+        return matches;
     }
 
     private static List<String> recommendationReasons(ScoredNearbyCandidate candidate) {
@@ -697,5 +895,11 @@ public class CoursePlaceService {
             NearbyCandidate candidate,
             NearbyPlaceRecommendationScorer.Recommendation recommendation
     ) {
+    }
+
+    private record PreferenceSearch(String detailType, String query) {
+    }
+
+    private record PreferenceBucket(CourseStop stop, String detailType) {
     }
 }
