@@ -1,82 +1,143 @@
 # Work Log
 
-## 2026-08-30
+## 2026-09-08
 
-### 13:30 ~ 13:35 — 장소 검색 범위 문서와 현재 구현 정합성 수정
+### 22:25 ~ 22:34 — course-cuisine-preference-enrichment 브랜치 병합
 
-**시작 시간:** 2026-08-30 13:30 KST
-**완료 시간:** 2026-08-30 13:35 KST
-**Agent:** Codex
-**작업 유형:** Documentation Maintenance
+**Agent:** Codex  
+**작업 유형:** Merge / Verification
 
 ### 작업 내용
 
-- 현재 백엔드 코드, API 계약, 프론트 참고 브랜치를 대조했다.
-- 이전 계획 문서에 남아 있던 `attraction` 제외 내용을 현재 구현 기준인 `attraction(AT4)` 포함으로 수정했다.
-- `scope=all`의 빈 키워드 처리와 카테고리 목록을 현재 동작에 맞게 정리했다.
-- `scope=all`은 기준 좌표가 없어 `sort`를 검증만 하고 실제 결과 정렬에는 사용하지 않는다는 정책을 `PROJECT_STATUS.md`에 기록했다.
-- 프론트는 참고용으로 확인했으며 프론트 파일과 백엔드 코드는 수정하지 않았다.
+- `origin/feat/course-cuisine-preference-enrichment`를 현재 `codex-ai-composition-integration` 브랜치에 병합했다.
+- 기존 AI 합성 연동, Notion 프롬프트 장소 whitelist, 코스 시간 계산을 유지하면서 여행 세부 취향 기반 Kakao 주변 장소 추천을 통합했다.
+- KTO 관광지의 Kakao 장소 연결을 위한 `tourContentId` 기반 수기 CSV 매핑, 선택적 Kakao Local 자동 보완, 코스 응답의 Kakao URL 연결을 포함했다.
+- 병합 충돌이 발생한 문서와 Course DTO/서비스/Repository를 현재 브랜치 기능과 병합 브랜치 기능이 모두 유지되도록 해결했다.
 
 ### 주요 변경 파일
 
-- `docs/superpowers/plans/2026-08-28-course-place-scope.md`
-- `docs/superpowers/specs/2026-08-28-course-place-scope-design.md`
+- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMappingService.java`
+- `src/main/java/com/mirigangneung/place/service/KakaoPlaceEnrichmentService.java`
+- `src/main/resources/data/kakao-place-mappings.csv`
+- `src/main/java/com/mirigangneung/course/service/CoursePlaceService.java`
+- `src/main/java/com/mirigangneung/course/dto/CourseResponse.java`
 - `docs/PROJECT_STATUS.md`
-- `docs/WORK_LOG.md`
 
 ### 테스트 결과
 
-- 코드 변경 없음.
-- 기존 백엔드 검증: `./gradlew.bat --project-cache-dir C:\Users\chin0\AppData\Local\Temp\mirigangneung-pr-review-cache test` — `BUILD SUCCESSFUL`.
-- 문서 변경 후 `git diff --check` 통과.
+- `git diff --check` 통과
+- `./gradlew.bat test --no-daemon` 통과
+- `BUILD SUCCESSFUL`
 
 ### 발생한 문제와 해결 방법
 
-- 이전 계획 문서와 현재 코드/API 계약 사이에 `attraction` 지원 범위가 달랐다. 현재 코드·API 계약·프론트 타입에서 모두 `attraction`을 지원하므로 계획/상태 문서를 현재 구현에 맞췄다.
-- 계획 문서에 남아 있던 `scope=all` 카테고리 사각 검색 호출 표현과 과거 브랜치 기준도 현재 서비스 흐름 및 Git 확인 절차에 맞게 정정했다.
+- 현재 브랜치와 음식 취향 추천 브랜치의 문서·Course 응답·주변 장소 서비스·Repository가 충돌했다. 기존 AI/whitelist/시간 계산과 신규 선호도 추천/매핑을 병합해 해결했다.
 
 ### 관련 commit
 
-- 문서 수정 후 별도 commit 예정.
+- 병합 후 생성 예정: `merge: integrate course cuisine preference enrichment`
 
-## 2026-08-26 — KTO 동기화 후 고정 Kakao URL 매핑 자동 반영
+## 2026-09-08
 
-**시작 시간:** 시간 미기록
-**완료 시간:** 2026-08-26 22:18 KST
+### 00:29 ~ 01:19 — Backend-Agent 이미지 합성 Job 실제 연동
+
 **Agent:** Codex
-**작업 유형:** Backend Feature Implementation / Verification
+**작업 유형:** Implementation / Integration / Verification
 
 ### 작업 내용
 
-- 현재 화면 노출 카드 69개를 `tourContentId` 기준으로 관리하는 `src/main/resources/data/kakao-place-mappings.csv`를 추가했다.
-- KTO 동기화 후 기존 `places` 행을 한 번에 조회해 Kakao ID와 URL을 저장하는 매핑 서비스와 startup runner를 추가했다.
-- 매핑 파일의 빈 값은 명시적 억제값으로 처리해 `강릉 명주동 거리`의 Kakao ID·URL을 `NULL`로 유지한다.
-- KTO 동기화 runner에서 Kakao 보강을 분리했다. CSV 매핑만 적용할 때는 Kakao API를 호출하지 않으며, 자동 Kakao 보강은 `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`일 때만 실행된다.
-- 모든 매핑은 반복 실행에 안전하고, DB에 아직 없는 KTO 행은 `missing`으로 로그에 남긴다.
+- Agent 공식 계약에 맞춰 `AiGenerationClient`를 multipart 생성, 상태 조회, 결과 다운로드, 취소 인터페이스로 정리하고 `HttpAiGenerationClient`를 구현했다.
+- `CompositionService.create()`에서 사용자 사진과 Type1 관광지 원본을 Agent에 전달하고 `providerJobId` 및 provider metadata를 저장하도록 연결했다.
+- `CompositionPollingJob`을 추가해 Agent 상태를 MySQL Job에 반영하고 DONE 결과를 `TemporaryImageStorage`에 저장하도록 했다.
+- Agent 오류의 code/message/retryable과 safety 경고를 백엔드 DTO로 정규화하고, retry API가 실제로 새 Agent generation을 호출하도록 구현했다.
+- `PlaceImage.originalStorageKey`는 `PlaceImageStorage.open()`으로 읽고 누락 파일은 기존 `ImageAssetCacheService`로 복구한다. Type1이 아닌 이미지는 합성에 사용하지 않는다.
+- 현재 프론트 흐름의 `Place.id` UUID만 onePickId로 허용하고 `kto-award:*`, `kto-gallery:*` ID는 명시적으로 거부한다.
+- 기존 multipart 계약을 유지하면서 사용자가 고른 Type1 이미지를 정확히 전달할 수 있도록 선택적인 `backgroundImageUrl`을 추가했다.
+- 만료 정리 작업이 입력뿐 아니라 결과 이미지도 삭제하도록 보완했다.
+- API 계약, OpenAPI, AI·데이터 모델·이미지 저장 문서와 실행 환경변수를 현재 구현에 맞게 갱신했다.
 
 ### 주요 변경 파일
 
-- `src/main/resources/data/kakao-place-mappings.csv`
-- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMapping.java`
-- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMappingCatalog.java`
-- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMappingService.java`
-- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMappingRunner.java`
-- `src/main/java/com/mirigangneung/place/repository/PlaceRepository.java`
-- `src/main/java/com/mirigangneung/place/service/PlaceCatalogSyncRunner.java`
-- `src/main/java/com/mirigangneung/place/service/KakaoPlaceEnrichmentRunner.java`
+- `src/main/java/com/mirigangneung/infrastructure/ai/*`
+- `src/main/java/com/mirigangneung/composition/*`
+- `src/test/java/com/mirigangneung/infrastructure/ai/HttpAiGenerationClientTest.java`
+- `src/test/java/com/mirigangneung/composition/*`
+- `src/main/resources/application.yml`
+- `.env.example`, `docker-compose.yml`, `README.md`
+- `docs/API_CONTRACT.md`, `docs/openapi.yaml`, `docs/PROJECT_STATUS.md`
+- `docs/adr/2026-09-08-ai-composition-agent-integration.md`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/07_DATA_MODEL.md`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/09_AI_INTEGRATION.md`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/10_IMAGE_STORAGE.md`
 
 ### 테스트 결과
 
-- 관련 매핑·runner 테스트: `BUILD SUCCESSFUL`
-- 전체 테스트: `bash gradlew test` — `BUILD SUCCESSFUL`
+- 변경 영역 단위 테스트: `BUILD SUCCESSFUL`
+- 백엔드 일반 전체 테스트: 93개 중 opt-in E2E 1개 skip, 실패 0, 오류 0, `BUILD SUCCESSFUL`
+- `RUN_AI_MOCK_E2E=true` 전체 테스트: 93개 실행, 실패 0, 오류 0, `BUILD SUCCESSFUL`
+- `AI_PROVIDER=mock` 실제 Agent와 Spring Boot HTTP E2E: 생성 → polling → DONE → 결과 다운로드 성공(약 2.1초)
+- `git diff --check`: 통과
+
+### 발생한 문제와 해결 방법
+
+- multipart helper가 요청 타입을 넓게 반환해 body 메서드를 사용할 수 없던 컴파일 오류를 body request 전용 overload로 해결했다.
+- Agent 응답에 백엔드 내부 DTO에 없는 metadata 필드가 있어 Jackson 역직렬화가 실패했다. 외부 응답 DTO에 unknown-field 허용을 적용해 계약의 확장 가능성을 유지했다.
+- Docker Desktop Linux engine이 현재 환경에서 기동되지 않아 Docker E2E는 실행하지 못했다. Agent 의존성을 `%TEMP%`의 격리 Python 3.10 가상환경에 설치하고 mock Agent를 8100에 실행해 실제 HTTP 왕복을 검증했다. Agent repository 파일은 수정하지 않았다.
 
 ### 관련 commit
 
-- 위 작업은 `feat(course): add Kakao-backed place management`, `feat(place): backfill stored image thumbnails`, `feat(place): apply curated Kakao links after KTO sync` 커밋에 반영됨
+- 없음 (현재 작업 트리 변경)
+
+## 2026-08-26
+
+### 시간 미기록 ~ 20:30 — 코스 경로·일정 표시 문제 수정 및 Docker 재검증
+
+**Agent:** Codex
+**작업 유형:** Bug Fix / Verification
+
+### 작업 내용
+
+- 기존 Kakao 도보 Client의 404 원인이었던 `/v2/routing/walk`와 `start_x/start_y/end_x/end_y` 요청을 공식 Affiliate Walking endpoint와 `origin/destination/priority/summary` 계약으로 변경했다.
+- `CourseScheduleCalculator`를 추가해 코스 응답의 stop 도착시간을 09:00부터 체류시간과 확인된 도보시간 기준으로 계산했다. 경로가 unavailable이어도 모든 장소가 09:00으로 반복되지 않는다.
+- 프론트 코스 결과 카드 사이에 각 인접 장소의 도보시간·거리를 표시하고, 주변 장소 패널의 관광지 개수를 실제 코스 개수로 표시했다.
+- 카페·음식점은 기존 계약대로 자동 추천·자동 삽입하지 않고 Kakao Local 조회 후 사용자가 선택해 추가하는 흐름을 유지했다.
+- Windows 전체 테스트에서 파일 스트림이 닫히지 않아 발생한 이미지 저장소 테스트 잠금을 수정했다.
+
+### 주요 변경 파일
+
+- `src/main/java/com/mirigangneung/infrastructure/kakao/HttpKakaoRouteClient.java`
+- `src/main/java/com/mirigangneung/course/service/CourseScheduleCalculator.java`
+- `src/main/java/com/mirigangneung/course/dto/CourseResponse.java`
+- `src/main/java/com/mirigangneung/course/service/CourseService.java`
+- `src/main/java/com/mirigangneung/course/service/CoursePlaceService.java`
+- `src/test/java/com/mirigangneung/infrastructure/kakao/HttpKakaoRouteClientTest.java`
+- `src/test/java/com/mirigangneung/course/service/CourseScheduleCalculatorTest.java`
+- `src/test/java/com/mirigangneung/infrastructure/image/LocalPlaceImageStorageTest.java`
+- `..\\MiriGangNeung_FrontEnd\\src\\components\\organisms\\CourseResult.tsx`
+- `docs/API_CONTRACT.md`, `docs/PROJECT_STATUS.md`, `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`
+
+### 테스트 결과
+
+- 백엔드 `./gradlew.bat --project-cache-dir C:\\Users\\chin0\\AppData\\Local\\Temp\\mirigangneung-gradle-cache test`: 83개 통과
+- 프론트 `npm test -- --run`: 18개 파일 / 46개 테스트 통과
+- 프론트 `npm run build`: 성공
+- Docker app 이미지 재빌드 및 기동: 성공
+- 실제 Docker 호출: health `UP`, 장소 68개, 코스 도착시간 `09:00`·`10:00`·`11:00` 확인
+- 실제 Kakao Affiliate Walking 호출: HTTP 403. 도보 제휴/권한 승인 전까지 `routeStatus=UNAVAILABLE`로 유지됨
+
+### 발생한 문제와 해결 방법
+
+- 기존 도보 endpoint는 실제 호출에서 404였으므로 공식 Affiliate Walking 경로와 파라미터로 교체했다.
+- 전체 테스트의 이미지 저장소 재저장 단계는 Windows 파일 잠금으로 실패했다. 테스트가 `StoredAsset.input()`을 닫도록 수정해 재실행에서 해결했다.
+
+### 관련 commit
+
+- `63109cf` — `fix: repair course walking route and schedule display`
 
 ## 2026-08-25 — 코스 결과 주변 장소 관리 및 실제 코스 API 연동
 
-**Agent:** Codex
+**Agent:** Codex  
 **작업 유형:** Backend-centered Feature Implementation
 
 ### 결정·구현
@@ -372,6 +433,214 @@
 **관련 commit:**
 
 - 없음 (현재 작업 트리 변경)
+
+## 2026-09-08
+
+### 21:40 ~ 21:55 — Notion 프롬프트 장소 whitelist 적용
+
+**Agent:** Codex
+**작업 유형:** Implementation / Verification
+
+**작업 내용:**
+
+- Notion `미리강릉 포즈조사2` 페이지의 실제 프롬프트 제목 43개를 `PromptPlaceCatalog`로 등록했다.
+- `GET /api/v1/places`가 Type1 이미지와 배경 카테고리 조건뿐 아니라 해당 whitelist를 함께 적용하도록 Repository 조회 계약을 보완했다.
+- KTO 동기화에서도 whitelist 밖 장소를 저장하지 않도록 필터링했다.
+- `[해파랑길] 39코스(바우길 05구간)`, `[해파랑길] 40코스`, `[해파랑길] 41코스`처럼 KTO와 Notion의 표기가 다른 항목은 별칭으로 허용했다.
+- 기존 테스트 fixture의 임의 장소명을 실제 허용 장소명으로 교체해 새 정책을 검증하도록 했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/place/service/PromptPlaceCatalog.java`
+- `src/main/java/com/mirigangneung/place/repository/PlaceRepository.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceCatalogSyncService.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceService.java`
+- `src/test/java/com/mirigangneung/place/repository/PlaceRepositoryTest.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceCatalogSyncServiceTest.java`
+- `docs/PROJECT_STATUS.md`
+
+**검증 결과:**
+
+- 변경 전 실제 KTO 동기화/API 응답: 68개, Notion 프롬프트 목록과 일치하지 않는 장소 25개 포함
+- `./gradlew.bat test --no-daemon`: `BUILD SUCCESSFUL`
+- 테스트 통과: 전체 테스트 성공
+- 백엔드를 실제 실행해 KTO 동기화와 `GET /api/v1/places?page=0&size=100`을 재검증했다. `totalElements=43`, `contentCount=43`, `강릉 녹색도시체험센터=0`으로 확인했다.
+
+**발생한 문제와 해결 방법:**
+
+- 기존 테스트가 whitelist에 없는 임의 장소명을 사용해 실패했으며, 정책을 검증하는 실제 허용 장소명으로 fixture를 수정했다.
+
+**관련 commit:**
+
+- 작업 중 (미커밋)
+
+## 2026-09-08
+
+### 시간 미기록 ~ 08:15 — AI 합성 연동 최종 검증 및 안정성 보완
+
+**Agent:** Codex
+**작업 유형:** Security / Bugfix / Verification
+
+**작업 내용:**
+
+- Agent 결과 다운로드와 임시 저장이 성공한 뒤에만 Backend composition Job을 `DONE`으로 전환하도록 상태 순서를 보완했다.
+- retry 시 이전 provider metadata와 결과 상태를 초기화하고, polling/retry 동시 실행을 단일 인스턴스에서 직렬화했다.
+- 이전 provider 응답이 retry 이후 새 provider 작업을 덮어쓰지 않도록 stale response를 무시하게 했다.
+- 만료된 `QUEUED`/진행 중 Job의 입력 파일을 cleanup하지 않고, `DONE`/`FAILED` terminal Job만 정리하도록 변경했다.
+- Agent 결과의 Content-Type과 PNG/JPEG/WebP signature를 검증하고, 관련 실패·race·cleanup 테스트를 추가했다.
+- 실제 Agent의 얼굴 검출 모델에 의존하지 않는 자체 Mock Agent HTTP 계약 E2E로 생성→providerJobId→polling→결과 다운로드→로컬 저장→DONE→Backend download 흐름을 검증했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/composition/domain/CompositionJob.java`
+- `src/main/java/com/mirigangneung/composition/repository/CompositionJobRepository.java`
+- `src/main/java/com/mirigangneung/composition/service/CompositionCleanupJob.java`
+- `src/main/java/com/mirigangneung/composition/service/CompositionService.java`
+- `src/main/java/com/mirigangneung/infrastructure/ai/HttpAiGenerationClient.java`
+- 관련 composition/AI 테스트 파일
+- `docs/PROJECT_STATUS.md`
+
+**테스트 결과:**
+
+- `./gradlew test` — 98개 테스트, 실패 0, `BUILD SUCCESSFUL`
+- `RUN_AI_MOCK_E2E=true ./gradlew test` — 자체 Mock Agent HTTP E2E 포함 성공
+- `git diff --check` — 통과
+
+**발생한 문제와 해결 방법:**
+
+- 실제 Agent 프로세스 E2E의 기존 단색 테스트 이미지는 Agent의 정상적인 `NO_PERSON_DETECTED` 검증에 걸렸다. Agent 코드는 수정하지 않고, Backend 계약 검증 테스트를 자체 Mock Agent HTTP 서버로 분리해 환경·얼굴 모델 의존성을 제거했다.
+
+**관련 commit:**
+
+- 작업 완료 후 새 commit으로 기록
+
+### 08:15 ~ 08:25 — AI 합성 PR 전 최종 상태·문서 검토
+
+**Agent:** Codex
+**작업 유형:** Review / Documentation / Verification
+
+**작업 내용:**
+
+- `codex-ai-composition-integration`의 `db878ad`와 원격 동기화 상태, 변경 범위, secret·임시 파일 포함 여부를 확인했다.
+- 상태 전이, retry/polling, terminal cleanup, 결과 이미지 형식 검증, 기존 Composition API 계약을 재검토했다.
+- `PROJECT_STATUS.md`의 Mock Agent E2E와 실제 Agent 프로세스/Gemini 검증 상태가 혼동되지 않도록 현재 상태를 정정했다.
+
+**검증 결과:**
+
+- `RUN_AI_MOCK_E2E=true .\gradlew.bat clean test` — 98개 테스트, 실패 0, `BUILD SUCCESSFUL`
+- `git diff --check` — 통과
+- Frontend/Agent 저장소 — 변경 없음
+
+**발생한 문제와 해결 방법:**
+
+- 코드 결함은 새로 발견되지 않았다. 현재 문서의 실제 Agent E2E 성공 표현이 최신 검증 결과보다 강해 Mock Agent E2E 완료·실제 Agent/Gemini 미검증으로 구분했다.
+
+**관련 commit:**
+
+- 검토 문서 수정 후 새 commit으로 기록
+
+## 2026-08-26
+
+### 시간 미기록 ~ 18:05 — 코스 순서 변경 CORS 오류 수정
+
+**Agent:** Codex
+**작업 유형:** Bugfix / Verification
+
+**작업 내용:**
+
+- 프론트의 `PUT /api/v1/courses/{courseId}/stops/order` 요청이 브라우저 preflight에서 차단되는 원인을 확인했다.
+- 백엔드 CORS 허용 메서드에 `PUT`을 추가했다.
+- 기존 순서 변경 endpoint와 프론트 요청의 `stopIds` 계약은 유지했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/common/config/WebConfig.java`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- Gradle 전체 테스트 — `BUILD SUCCESSFUL`
+- Docker 재빌드 후 health — `UP`
+- 브라우저 CORS preflight `PUT` — HTTP `200`
+- 실제 `PUT /api/v1/courses/{courseId}/stops/order` 및 재조회 — 순서 저장 성공
+
+**발생한 문제와 해결 방법:**
+
+- 브라우저 preflight 응답이 `403`이었고 CORS `allowedMethods`에 `PUT`이 누락되어 있었다. `PUT`을 허용 메서드에 추가했다.
+
+**관련 commit:** `c966319` — `fix: allow course reorder CORS requests`
+
+### 시간 미기록 ~ 18:00 — Docker 및 코스 추천 실제 API 검증
+
+**Agent:** Codex
+**작업 유형:** Verification / Documentation
+
+**작업 내용:**
+
+- 현재 추천 코드로 Docker app 이미지를 재빌드하고 MySQL·Redis와 함께 기동했다.
+- `/actuator/health`가 `UP`인지 확인했다.
+- `/api/v1/places`를 실제 호출해 관광지 목록과 실제 Place ID를 확인했다.
+- `POST /api/v1/courses`로 `active`·`solo`·`day` 조건 및 `nature`·`couple`·`night1` 조건을 실제 검증했다.
+- 생성된 코스를 `GET /api/v1/courses/{courseId}`로 재조회해 저장·복원 상태를 확인했다.
+- Kakao 도보 API 직접 호출 결과 `404`를 확인했으며, 현재 코스 응답은 `routeStatus=UNAVAILABLE`이다.
+
+**주요 변경 파일:**
+
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- `./gradlew.bat --project-cache-dir C:\Users\chin0\AppData\Local\Temp\mirigangneung-gradle-cache test` — `BUILD SUCCESSFUL`
+- Docker health — `UP`
+- 관광지 조회 — 정상 응답
+- 코스 생성·조회 — 정상 응답
+- Kakao 도보 경로 — `UNAVAILABLE` (외부 endpoint `404`)
+
+**발생한 문제와 해결 방법:**
+
+- 기존 Docker 이미지가 현재 추천 코드를 포함하지 않아 `docker compose up -d --build app`로 재빌드했다.
+- Kakao 키는 컨테이너에 전달되었지만 현재 코드가 호출하는 도보 endpoint가 `404`를 반환하는 문제를 확인했다. 관련 코드 수정은 별도 작업으로 남겼다.
+
+**관련 commit:** 없음 (현재 작업 트리 변경)
+
+### 시간 미기록 ~ 17:16 — 코스 조건 기반 RuleBased 추천 고도화
+
+**Agent:** Codex
+**작업 유형:** Implementation / Test / Documentation
+
+**작업 내용:**
+
+- `types` 여행 유형과 `companion` 동행자 조건을 추천 점수에 반영하는 `CoursePreferenceScorer`를 추가했다.
+- 조건에 맞는 후보를 하드 필터링하지 않고 점수 내림차순, 거리순 fallback으로 정렬하도록 `RuleBasedCourseRecommendationEngine`을 수정했다.
+- 기존 원픽 우선 규칙과 `day`/`night1` 정거장 수 제한은 유지했다.
+- `CourseService`가 요청 조건을 추천 엔진으로 전달하는 테스트와 조건별 추천·fallback 테스트를 추가했다.
+- API 계약, 프로젝트 상태 문서에 현재 추천 정책과 P0 범위를 기록했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/course/recommendation/CoursePreferenceScorer.java`
+- `src/main/java/com/mirigangneung/course/recommendation/RuleBasedCourseRecommendationEngine.java`
+- `src/test/java/com/mirigangneung/course/recommendation/RuleBasedCourseRecommendationEngineTest.java`
+- `src/test/java/com/mirigangneung/course/service/CourseServiceTest.java`
+- `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`
+- `docs/API_CONTRACT.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- 추천 엔진 테스트: `BUILD SUCCESSFUL`
+- Course 패키지 테스트: `BUILD SUCCESSFUL`
+- 전체 테스트: `BUILD SUCCESSFUL`, 81 tests completed, 0 failed
+
+**발생한 문제와 해결 방법:**
+
+- 신규 `CourseServiceTest`에서 테스트용 Entity ID가 null이라 원픽 비교 시 NPE가 발생했다. 테스트 fixture에 UUID를 주입해 해결했다.
+- 기존 repository Gradle cache lock 권한 문제를 피하기 위해 별도 프로젝트 cache 경로를 사용했다.
+
+**관련 commit:** 없음 (현재 작업 트리 변경)
 
 ### 18:10 ~ 18:20 — 강릉 전체 장소 카탈로그 동기화
 
@@ -853,89 +1122,3 @@
 **관련 commit:**
 
 - 없음 (현재 작업 트리 변경)
-
-## 2026-08-27
-
-### 12:30 ~ 시간 미기록 — 이슈 #13 필터 기반 장소 맞춤 추천 및 추천순 정렬
-
-**Agent:** Codex
-**작업 유형:** Feature / API / Recommendation / Frontend
-
-**작업 내용:**
-
-- GitHub issue #13을 생성하고 backend `feat/issue-13-place-recommendation`, frontend `feat/issue-13-place-recommendation` 분리 브랜치에서 구현했다.
-- 코스 생성 시 선택한 여행 타입(최대 2개)과 동행 유형을 `Course`에 저장하고 코스 조회·공유 응답에서 복원하도록 확장했다.
-- Kakao Local 응답의 장소명·카테고리명·거리·주소·좌표·URL만 사용하는 `NearbyPlaceRecommendationScorer`를 추가했다. 거리 40점, 여행 타입 30점, 동행 유형 20점, 정보 완성도 10점으로 0~100점과 최대 3개 이유를 계산한다.
-- `GET /api/v1/courses/{courseId}/nearby-places`에 `sort=recommended|distance`를 추가했다. 추천순은 점수→거리→이름, 거리순은 거리→이름으로 정렬한다. 기존 3인자 service 호출 호환 오버로드와 선호값 없는 구 코스의 거리순 fallback을 유지했다.
-- 프론트 장소 추가 패널에 추천순/거리순 전환을 연결하고 카드에 추천 점수·추천 이유·거리를 표시했다. 추가 버튼을 누르기 전에는 코스에 저장하지 않는다.
-- API 계약과 OpenAPI, 프로젝트 상태 문서를 갱신했다.
-
-**검증 결과:**
-
-- backend `bash gradlew test` — `BUILD SUCCESSFUL`
-- frontend 추천 관련 `npm test -- --run src/lib/courseApi.test.ts src/components/organisms/NearbyPlaceCard.test.tsx src/components/organisms/CourseResult.test.tsx` — 3 files / 13 tests passed
-- frontend 전체 `npm test -- --run` — 30 files / 75 tests passed
-- frontend `npm run lint` — errors 0, existing warnings 4
-- frontend `npm run build` — Vite build success
-
-**주요 변경 파일:**
-
-- `src/main/java/com/mirigangneung/course/domain/Course.java`
-- `src/main/java/com/mirigangneung/course/recommendation/NearbyPlaceRecommendationScorer.java`
-- `src/main/java/com/mirigangneung/course/service/CoursePlaceService.java`
-- `src/main/java/com/mirigangneung/course/controller/CourseController.java`
-- 관련 backend/frontend 추천 API·컴포넌트 테스트
-
-**문제와 해결 방법:**
-
-- 기존 장소 추가 패널이 거리순만 제공하던 문제를 선호도 점수·추천 이유·추천순 정렬로 보완했다.
-- 사용자가 직접 추가하기 전에는 코스에 저장되지 않도록 snapshot 추가 흐름을 분리했다.
-
-**관련 commit:**
-
-- `d70551e` `feat(course): add preference-based nearby recommendations`
-
-**관련 issue:**
-
-- https://github.com/MiriGangNeung/MiriGangNeung_BackEnd/issues/13
-
-## 2026-08-29
-
-### 21:50 ~ 01:06 KST — 이슈 #13 추천 선호도·검색 범위·자동 반경 확장 고도화
-
-**Agent:** Codex
-**작업 유형:** Feature / API / Recommendation / Verification
-
-**작업 내용:**
-
-- 코스 생성·조회 응답에 여행 타입별 세부 취향을 유지하고, 세부 취향·동행 유형·장소명·카테고리 경로·주소를 조합한 규칙 기반 추천 점수를 적용했다.
-- 세부 취향은 정확 일치·연관 분류·주소 기반 일치·중립 후보로 단계화하고, 중식 등 선택 취향과 다른 음식점도 후보에서 제외하지 않도록 중립 점수로 유지했다.
-- 주변 추천은 2km에서 시작해 정확 일치 후보가 부족할 때 5km·10km·15km까지 자동 확장하며, 실제 적용 반경과 추천 이유를 응답에 포함했다.
-- 카페·음식점·문화시설·관광명소의 Kakao 카테고리 검색과 검색어 제출 전 외부 호출 차단을 지원하고, 기존 관광지와 이름이 겹치는 외부 장소를 중복 추가하지 않도록 정규화했다.
-- 세부 취향 입력 개수·문자열 길이와 Kakao 페이지 범위를 제한하고, 카탈로그/외부 snapshot의 Kakao ID 중복도 함께 차단했다.
-
-**주요 변경 파일:**
-
-- `src/main/java/com/mirigangneung/course/domain/Course.java`
-- `src/main/java/com/mirigangneung/course/dto/CreateCourseRequest.java`
-- `src/main/java/com/mirigangneung/course/recommendation/NearbyPlaceRecommendationScorer.java`
-- `src/main/java/com/mirigangneung/course/service/CoursePlaceService.java`
-- `src/main/java/com/mirigangneung/infrastructure/kakao/HttpKakaoLocalClient.java`
-- `docs/API_CONTRACT.md`, `docs/openapi.yaml`, `docs/RECOMMENDATION_ALGORITHM_EVALUATION_2026-08-29.md`
-- 관련 코스·Kakao·추천 테스트
-
-**문제와 해결 방법:**
-
-- 중식 선택 시 카테고리 경로의 상위 분류만 읽어 정확한 `중식 > 중국요리` 후보를 놓치던 문제를 전체 상세 경로와 장소명까지 정규화해 해결했다.
-- 일반 음식점이 세부 취향 일치 후보보다 과도하게 높은 점수를 받던 문제를 정확·연관·중립 점수 단계로 재조정했다.
-- 조건에 맞는 후보가 적어도 사용자가 볼 후보가 사라지지 않도록 자동 반경 확장과 적용 반경 안내를 추가했다.
-- 확장 결과를 합칠 때 최종 반경을 공통 거리 점수 기준으로 사용하고 최초 발견 단계 안내를 보존해 후보 간 점수와 안내가 흔들리지 않도록 했다.
-
-**검증 결과:**
-
-- `bash ./gradlew test` — `BUILD SUCCESSFUL`
-- `git diff --check origin/develop` — 통과
-
-**관련 commit:**
-
-- 이 PR의 최종 커밋 (추천 알고리즘·Kakao 검색 범위·자동 반경 확장)

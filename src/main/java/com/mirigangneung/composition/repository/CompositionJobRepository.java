@@ -1,1 +1,16 @@
-package com.mirigangneung.composition.repository; import com.mirigangneung.composition.domain.*; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*; public interface CompositionJobRepository extends JpaRepository<CompositionJob,UUID>{List<CompositionJob> findByExpiresAtBefore(java.time.OffsetDateTime now);}
+package com.mirigangneung.composition.repository;
+
+import com.mirigangneung.composition.domain.CompositionJob;
+import com.mirigangneung.composition.domain.CompositionStatus;
+import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface CompositionJobRepository extends JpaRepository<CompositionJob, UUID> {
+    List<CompositionJob> findByExpiresAtBeforeAndStatusIn(
+            OffsetDateTime now, Collection<CompositionStatus> statuses);
+
+    List<CompositionJob> findByStatusInAndProviderJobIdIsNotNull(Collection<CompositionStatus> statuses);
+}

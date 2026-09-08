@@ -59,7 +59,7 @@
 - Redis
 - Kakao Maps / Kakao REST API
 - 한국관광공사 OpenAPI
-- AI 서버: Provider 미정, Adapter/Client 인터페이스로 추상화
+- AI 서버: 별도 FastAPI Agent와 HTTP Job 계약으로 연결, 실제 Provider는 Agent 설정으로 선택
 - 이미지 저장: MVP 로컬 임시 저장 우선, object storage 교체 가능 구조
 
 Spring Boot의 정확한 minor/patch 버전은 저장소 초기화 시점의 팀 환경에 맞추며, 이미 존재하는 `build.gradle`/`gradle.properties`가 있다면 그것을 우선한다.

@@ -51,12 +51,22 @@ status
 stage
 progress
 inputStorageKey
+inputContentType
 resultStorageKey
+resultContentType
+providerJobId
+aspectRatio
+backgroundImageUrl
 provider
 modelVersion
 promptVersion
 safetyStatus
+safetyReasonCode
+warningCode
+warningMessage
 errorCode
+errorMessage
+errorRetryable
 retryCount
 createdAt
 startedAt
@@ -65,6 +75,8 @@ expiresAt
 ```
 
 원본 사용자 사진과 결과 파일은 임시 저장소에 있고, DB에는 storage key/metadata만 저장한다.
+관광지 배경 원본은 별도의 `PlaceImageStorage`에 있으며 CompositionJob에는 선택 원본 URL만 남긴다.
+현재 migration 도구는 없고 `spring.jpa.hibernate.ddl-auto=update`가 기존 schema 갱신 방식이다.
 
 ### Course
 
@@ -132,7 +144,7 @@ course:share:{tokenHash}
 ```text
 Place 1 ─ N PlaceImage
 
-Place 1 ─ N CompositionJob (onePick)
+Place 1 ─ N CompositionJob (onePickPlaceId 문자열의 논리 참조, 현재 DB FK 없음)
 
 Course 1 ─ N CourseStop
 CourseStop N ─ 1 Place
