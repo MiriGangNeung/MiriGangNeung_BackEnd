@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-25 18:45 KST
+Last Updated: 2026-08-30 13:35 KST
 Last Updated By: Codex
 
 기준일: 2026-08-08
@@ -24,8 +24,15 @@ Last Updated By: Codex
 - Composition: `CompositionJob`, 업로드, 상태 조회, retry/download API, `AiGenerationClient` 인터페이스, 로컬 임시 이미지 저장소, 만료 정리 Job
 - Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
 - Recommendation: `RuleBasedCourseRecommendationEngine`
+- Nearby recommendation: 코스에 저장된 여행 타입·동행 유형을 바탕으로 Kakao 주변 장소에 설명 가능한 0~100점과 추천 이유를 계산하고 추천순/거리순을 제공
 - Route: `KakaoRouteClient`와 REST adapter, normalized route response
 - Docker: MySQL/Redis/app을 위한 `Dockerfile`, `docker-compose.yml`, `.dockerignore`. MySQL 호스트 공개 포트는 `MYSQL_PORT`를 사용하며 미설정 시 3307, 컨테이너 내부 연결은 3306이다.
+
+## 2026-08-26 KTO 동기화 후 고정 Kakao URL 매핑
+
+- `src/main/resources/data/kakao-place-mappings.csv`에 현재 화면에 노출되는 69개 KTO 장소의 `tourContentId`별 Kakao ID·상세 URL을 저장했다. 68개는 URL을 지정하고 `강릉 명주동 거리`는 빈 매핑으로 명시해 `NULL`을 유지한다.
+- `TOUR_API_SYNC_ON_STARTUP=true`이면 KTO 장소 동기화 후 CSV 매핑 runner가 기존 `places` 행만 일괄 upsert한다. 매핑은 idempotent하며 새 카드를 생성하지 않고, DB에 아직 없는 행은 로그의 `missing`으로 남긴다.
+- 고정 매핑 적용에는 Kakao API 호출이 필요하지 않다. Kakao Local 자동 보강은 `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`일 때만 별도로 실행되고, CSV 매핑이 그 뒤에 적용되어 수동값이 최종 기준이 된다.
 
 ## 2026-08-25 코스 장소 관리 구현
 
@@ -36,6 +43,16 @@ Last Updated By: Codex
 - Course 생성/조회 응답의 mock 의존을 제거하고 프론트는 반환된 `courseId`를 sessionStorage에 보관한다. 새로고침 시 백엔드에서 코스를 복원한다.
 - 백엔드 API: `GET /api/v1/courses/{courseId}/nearby-places`, `POST /api/v1/courses/{courseId}/stops/external`, `DELETE /api/v1/courses/{courseId}/stops/{stopId}`, `PUT /api/v1/courses/{courseId}/stops/order`.
 - 설계 결정은 [`docs/adr/2026-08-25-kakao-course-place-snapshots.md`](./adr/2026-08-25-kakao-course-place-snapshots.md)에 기록했다.
+
+## 2026-08-27 이슈 #13 장소 맞춤 추천 구현
+
+- 코스 생성 시 여행 타입 최대 4개, 분야별 복수 세부 선호, 동행 유형을 `courses.travel_types`, `courses.detail_types`, `courses.companion`에 저장하고 Course 응답에도 반환한다. 기존 선호값이 없는 코스와 기존 요청은 빈 detailTypes로 호환된다.
+- 주변 장소 API는 `sort=recommended`를 기본으로 사용한다. 추천 점수는 세부 선호 매칭 점수에 거리 20점·동행 유형 10점·정보 완성도 10점을 합산하며, 선택한 세부 선호와 정확히 일치하면 55점, 세부 선호를 확인할 수 없거나 다른 음식 분류면 20점의 중립 점수를 사용한다. 주변 카페 추천의 대형 프랜차이즈는 8점 감점한다. 장소명·카테고리명·주소·좌표·Kakao URL만 사용한다.
+- 장소 추가 패널은 카테고리(카페·음식점·문화시설·관광명소)를 먼저 선택하고, 그 안에서 주변 추천·강릉 전체 검색·강릉 대표를 선택한다. 강릉 전체 검색은 사용자가 키워드를 제출하기 전까지 Kakao를 호출하지 않으며, 강릉 대표는 준비 중 상태다.
+- `recommendationScore`와 최대 3개의 `recommendationReasons`를 반환한다. 리뷰·별점·사진·인기도를 임의로 만들지 않으며, 장소는 사용자가 추가 버튼을 눌렀을 때만 코스 snapshot으로 저장한다.
+- `sort=distance`는 기존 거리순 동작을 유지한다. 프론트 장소 추가 패널은 추천순을 기본으로 보여주고 거리순으로 전환할 수 있다.
+- 현재 검토 기준 브랜치: backend `feat/course-preference-recommendation` (upstream `origin/feat/course-preference-recommendation`). 프론트 참고 브랜치는 `course-place-management`이다.
+- 장소 추가 검색의 현재 지원 카테고리는 카페(`CE7`), 음식점(`FD6`), 문화시설(`CT1`), 관광명소(`AT4`) 네 가지다. `scope=all`은 키워드가 비어 있으면 Kakao를 호출하지 않고 빈 결과를 반환하며, 기준 좌표가 없으므로 `sort`는 검증만 하고 실제 결과 정렬에는 사용하지 않는다.
 
 ## 현재 API Controller
 
@@ -56,7 +73,7 @@ Last Updated By: Codex
 
 ## 현재 검증 결과
 
-2026-08-24 기준 `bash gradlew test` 실행 결과는 `BUILD SUCCESSFUL`이다.
+2026-08-30 현재 백엔드 `./gradlew.bat --project-cache-dir C:\Users\chin0\AppData\Local\Temp\mirigangneung-pr-review-cache test`는 `BUILD SUCCESSFUL`이다. 이번 문서 정리에서는 코드와 테스트를 변경하지 않았다. 기존 프론트 검증 결과는 아래 과거 기록을 따른다.
 
 Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너가 실행 중이다. app은 `localhost:8080`, MySQL은 호스트 `3307`, Redis는 호스트 `6379`에 연결된다. `/actuator/health`는 `UP`이며 `/api/v1/places?page=0&size=2`에서 강릉 관광지 응답을 확인했다.
 
@@ -125,5 +142,7 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 - 관광사진 API는 명시적인 전체 장소 동기화 중에만 호출된다. 목록/상세 화면 요청은 Redis와 DB만 사용하므로 Redis 만료와 관광공사 데이터 갱신은 서로 연결되지 않는다.
 - 이미지 URL은 전체 동기화 시 HTTP 성공 응답과 `image/*` Content-Type을 확인한 뒤 원본·썸네일을 저장한다. 깨진 URL은 저장하지 않으며 유효 이미지가 없는 장소는 목록에서 제외한다. 캐시가 비활성화되면 기존 원본 URL 검증·저장 경로로 fallback한다.
 - 배경 합성 장소 목록은 `nature`, `culture`, `active` 카테고리만 노출한다. 음식점 데이터는 동기화 시 관련 코스 참조와 이미지를 먼저 정리한 뒤 장소 레코드를 삭제한다.
+- KTO 장소의 사진·기본정보는 유지하면서 Kakao Local 키워드 검색으로 정규화 이름을 매칭해 `kakaoPlaceId`·`kakaoPlaceUrl`을 저장한다. 코스 응답은 이 URL을 원본 관광지에도 전달하므로 프론트의 기존 Kakao iframe 리뷰 버튼을 재사용할 수 있다. `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`는 기존 DB를 한 번 보강하는 옵션이다.
+- KTO 장소의 Kakao URL은 고정 CSV 매핑(`tourContentId` 기준)을 동기화 후 적용한다. CSV에 없는 신규/미매핑 장소만 선택적 Kakao Local 자동 보강 대상으로 남기며, CSV의 빈 값은 의도적인 `NULL` 억제값이다.
 
 이 문서는 계획이 아니라 현재 코드 확인 결과를 기록한다. 변경 시 실제 코드와 테스트를 다시 확인해 갱신한다.

@@ -1,6 +1,7 @@
 package com.mirigangneung.course.domain;
 
 import org.junit.jupiter.api.Test;
+import com.mirigangneung.place.domain.Place;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,6 +33,18 @@ class CourseStopExternalPlaceTest {
         assertThat(stop.getCategory()).isEqualTo("cafe");
         assertThat(stop.getLatitude()).isEqualTo(37.772);
         assertThat(stop.getLongitude()).isEqualTo(128.948);
+        assertThat(stop.getPlaceUrl()).isEqualTo("https://place.map.kakao.com/12345");
+    }
+
+    @Test
+    void exposesTheEnrichedKakaoUrlForAnOriginalTourismStop() {
+        Course course = new Course("day", null, null);
+        Place place = new Place("kto-1", "경포해변", "강릉", "nature", "",
+                37.8, 128.9, "https://kto/image.jpg", "KTO");
+        place.linkKakaoPlace("12345", "https://place.map.kakao.com/12345");
+
+        CourseStop stop = new CourseStop(course, place, 1, true);
+
         assertThat(stop.getPlaceUrl()).isEqualTo("https://place.map.kakao.com/12345");
     }
 }

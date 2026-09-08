@@ -5,7 +5,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-final class PlaceNameNormalizer {
+public final class PlaceNameNormalizer {
     private static final Pattern PARENTHETICAL = Pattern.compile("\\([^)]*\\)");
     private static final Pattern REGION_PREFIX = Pattern.compile("^(?:강원특별자치도|강원도|강릉시)\\s*");
     private static final Pattern GANGNEUNG_PREFIX_WITH_SPACE = Pattern.compile("^강릉\\s+");
@@ -19,7 +19,7 @@ final class PlaceNameNormalizer {
     private PlaceNameNormalizer() {
     }
 
-    static String normalize(String value) {
+    public static String normalize(String value) {
         if (value == null || value.isBlank()) {
             return "";
         }

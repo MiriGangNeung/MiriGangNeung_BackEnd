@@ -243,7 +243,7 @@ public class PlaceCatalogSyncService {
                 firstSavedImage = placeImage;
             }
         }
-        if (cachingEnabled()) {
+        if (cachingEnabled() || (!hasText(place.getThumbnailUrl()) && firstSavedImage != null)) {
             place.updateThumbnailUrl(firstSavedImage == null
                     ? null
                     : imageUrlResolver.thumbnailUrl(firstSavedImage));

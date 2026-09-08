@@ -1,6 +1,7 @@
 package com.mirigangneung.place.repository;
 
 import com.mirigangneung.place.domain.Place;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
@@ -12,6 +13,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface PlaceRepository extends JpaRepository<Place, UUID> {
     Optional<Place> findByTourContentId(String id);
+
+    List<Place> findAllByTourContentIdIn(Collection<String> ids);
 
     List<Place> findByCategory(String category);
 

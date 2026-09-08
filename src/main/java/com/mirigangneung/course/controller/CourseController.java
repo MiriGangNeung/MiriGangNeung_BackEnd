@@ -63,9 +63,15 @@ public class CourseController {
     @GetMapping("/courses/{id}/nearby-places")
     public NearbyPlacesResponse nearby(
             @PathVariable String id,
-            @RequestParam String category
+            @RequestParam String category,
+            @RequestParam(required = false) String stopId,
+            @RequestParam(defaultValue = "nearby") String scope,
+            @RequestParam(defaultValue = "recommended") String sort,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size
     ) {
-        return coursePlaceService.nearby(id, category);
+        return coursePlaceService.search(id, scope, category, stopId, sort, keyword, page, size);
     }
 
     @PostMapping("/courses/{id}/stops/external")

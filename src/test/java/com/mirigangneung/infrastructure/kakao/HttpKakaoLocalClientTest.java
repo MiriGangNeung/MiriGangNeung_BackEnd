@@ -9,6 +9,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -69,6 +71,85 @@ class HttpKakaoLocalClientTest {
             assertThat(place.latitude()).isEqualTo(37.772);
             assertThat(place.longitude()).isEqualTo(128.948);
             assertThat(place.distanceMeters()).isEqualTo(450);
+        });
+        fixture.server.verify();
+    }
+
+    @Test
+    void requestsCategoryResultsInsideGangneungRectangleAndPreservesPageMetadata() {
+        Fixture fixture = fixture("secret");
+        fixture.server.expect(once(), request -> {
+            assertThat(request.getMethod()).isEqualTo(GET);
+            assertThat(request.getURI().getPath()).isEqualTo("/v2/local/search/category.json");
+            var query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
+            assertThat(query.getFirst("category_group_code")).isEqualTo("CE7");
+            assertThat(query.getFirst("rect")).isEqualTo("128.70,37.95,129.05,37.65");
+            assertThat(query.getFirst("page")).isEqualTo("2");
+            assertThat(query.getFirst("size")).isEqualTo("15");
+            assertThat(query.getFirst("sort")).isEqualTo("accuracy");
+        }).andExpect(header("Authorization", "KakaoAK secret"))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+
+        KakaoLocalClient.SearchPage result = fixture.client.searchByCategoryInRect(
+                "128.70,37.95,129.05,37.65", "CE7", 1, 15);
+
+        assertThat(result.page()).isEqualTo(1);
+        assertThat(result.isEnd()).isTrue();
+        assertThat(result.places()).singleElement().satisfies(place ->
+                assertThat(place.distanceMeters()).isEqualTo(450));
+        fixture.server.verify();
+    }
+
+    @Test
+    void requestsKeywordResultsInsideGangneungRectangle() {
+        Fixture fixture = fixture("secret");
+        fixture.server.expect(once(), request -> {
+            assertThat(request.getMethod()).isEqualTo(GET);
+            assertThat(request.getURI().getPath()).isEqualTo("/v2/local/search/keyword.json");
+            var query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
+            assertThat(URLDecoder.decode(query.getFirst("query"), StandardCharsets.UTF_8))
+                    .isEqualTo("테라로사");
+            assertThat(query.getFirst("category_group_code")).isEqualTo("CE7");
+            assertThat(query.getFirst("rect")).isEqualTo("128.70,37.95,129.05,37.65");
+            assertThat(query.getFirst("page")).isEqualTo("1");
+            assertThat(query.getFirst("size")).isEqualTo("15");
+            assertThat(query.getFirst("sort")).isEqualTo("accuracy");
+        }).andExpect(header("Authorization", "KakaoAK secret"))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+
+        KakaoLocalClient.SearchPage result = fixture.client.searchByKeywordInRect(
+                "테라로사", "128.70,37.95,129.05,37.65", "CE7", 0, 15);
+
+        assertThat(result.page()).isZero();
+        assertThat(result.places()).hasSize(1);
+        fixture.server.verify();
+    }
+
+    @Test
+    void requestsKeywordResultsForKakaoPlaceEnrichment() {
+        Fixture fixture = fixture("secret");
+        fixture.server.expect(once(), request -> {
+            assertThat(request.getMethod()).isEqualTo(GET);
+            assertThat(request.getURI().getPath()).isEqualTo("/v2/local/search/keyword.json");
+            var query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
+            assertThat(URLDecoder.decode(query.getFirst("query"), StandardCharsets.UTF_8))
+                    .isEqualTo("강릉 선교장");
+            assertThat(query.getFirst("x")).isEqualTo("128.948");
+            assertThat(query.getFirst("y")).isEqualTo("37.772");
+            assertThat(query.getFirst("radius")).isEqualTo("2000");
+            assertThat(query.getFirst("page")).isEqualTo("1");
+            assertThat(query.getFirst("size")).isEqualTo("15");
+            assertThat(query.getFirst("sort")).isEqualTo("distance");
+        }).andExpect(header("Authorization", "KakaoAK secret"))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+
+        List<KakaoLocalClient.NearbyPlace> result = fixture.client.searchByKeyword(
+                "강릉 선교장", 128.948, 37.772, 2_000, 0, 15);
+
+        assertThat(result).singleElement().satisfies(place -> {
+            assertThat(place.externalPlaceId()).isEqualTo("123");
+            assertThat(place.name()).isEqualTo("카페 예시");
+            assertThat(place.placeUrl()).isEqualTo("https://place.map.kakao.com/123");
         });
         fixture.server.verify();
     }

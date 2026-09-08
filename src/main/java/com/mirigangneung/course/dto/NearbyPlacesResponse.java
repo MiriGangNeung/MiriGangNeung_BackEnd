@@ -2,7 +2,20 @@ package com.mirigangneung.course.dto;
 
 import java.util.List;
 
-public record NearbyPlacesResponse(String category, List<NearbyPlaceResponse> places) {
+public record NearbyPlacesResponse(
+        String scope,
+        String category,
+        int page,
+        int size,
+        boolean isEnd,
+        Integer searchRadiusMeters,
+        List<NearbyPlaceResponse> places
+) {
+    /** Compatibility constructor for callers that only need the old nearby list shape. */
+    public NearbyPlacesResponse(String category, List<NearbyPlaceResponse> places) {
+        this("nearby", category, 0, places == null ? 0 : places.size(), true, null, places);
+    }
+
     public NearbyPlacesResponse {
         places = places == null ? List.of() : List.copyOf(places);
     }

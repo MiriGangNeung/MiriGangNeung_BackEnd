@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -14,6 +15,7 @@ public class PlaceCatalogSyncRunner implements ApplicationRunner {
 
     private final PlaceCatalogSyncService syncService;
 
+    @Autowired
     public PlaceCatalogSyncRunner(PlaceCatalogSyncService syncService) {
         this.syncService = syncService;
     }
@@ -23,7 +25,8 @@ public class PlaceCatalogSyncRunner implements ApplicationRunner {
         PlaceCatalogSyncService.SyncResult result = syncService.synchronizeAll();
         log.info(
                 "Gangneung place catalog synchronized: fetched={}, categoryExcluded={}, foodDeleted={}, "
-                        + "galleryOnlyDeleted={}, saved={}, withImages={}, brokenImagesExcluded={}",
+                        + "galleryOnlyDeleted={}, saved={}, withImages={}, brokenImagesExcluded={}, "
+                        + "kakaoEnrichment=separate-startup-runner",
                 result.fetchedPlaces(),
                 result.excludedByCategory(),
                 result.deletedFoodPlaces(),
