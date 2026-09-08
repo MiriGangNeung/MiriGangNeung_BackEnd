@@ -66,9 +66,9 @@ class PlaceCatalogSyncServiceTest {
         TourApiClient.TourPlace first = tourPlace("1", "안목해변", List.of());
         TourApiClient.TourPlace second = tourPlace(
                 "2",
-                "경포해변",
+                "경포해수욕장",
                 List.of(new TourApiClient.TourImage("https://kto/2.jpg", "대표", "Type1", 0)));
-        TourApiClient.TourPlace third = tourPlace("3", "강릉선교장", List.of());
+        TourApiClient.TourPlace third = tourPlace("3", "강릉항", List.of());
 
         when(tourApiClient.searchSummaries(null, null, 0, 2)).thenReturn(List.of(first, second));
         when(tourApiClient.searchSummaries(null, null, 1, 2)).thenReturn(List.of(third));
@@ -139,7 +139,7 @@ class PlaceCatalogSyncServiceTest {
                 2);
         TourApiClient.TourPlace place = tourPlace(
                 "cached-place",
-                "경포해변",
+                "경포해수욕장",
                 List.of(new TourApiClient.TourImage(
                         "https://kto/cached.jpg", "대표", "Type1", 0)));
         when(tourApiClient.searchSummaries(null, null, 0, 2)).thenReturn(List.of(place));

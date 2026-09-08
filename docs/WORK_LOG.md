@@ -399,6 +399,46 @@
 
 ## 2026-09-08
 
+### 21:40 ~ 21:55 — Notion 프롬프트 장소 whitelist 적용
+
+**Agent:** Codex
+**작업 유형:** Implementation / Verification
+
+**작업 내용:**
+
+- Notion `미리강릉 포즈조사2` 페이지의 실제 프롬프트 제목 43개를 `PromptPlaceCatalog`로 등록했다.
+- `GET /api/v1/places`가 Type1 이미지와 배경 카테고리 조건뿐 아니라 해당 whitelist를 함께 적용하도록 Repository 조회 계약을 보완했다.
+- KTO 동기화에서도 whitelist 밖 장소를 저장하지 않도록 필터링했다.
+- `[해파랑길] 39코스(바우길 05구간)`, `[해파랑길] 40코스`, `[해파랑길] 41코스`처럼 KTO와 Notion의 표기가 다른 항목은 별칭으로 허용했다.
+- 기존 테스트 fixture의 임의 장소명을 실제 허용 장소명으로 교체해 새 정책을 검증하도록 했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/place/service/PromptPlaceCatalog.java`
+- `src/main/java/com/mirigangneung/place/repository/PlaceRepository.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceCatalogSyncService.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceService.java`
+- `src/test/java/com/mirigangneung/place/repository/PlaceRepositoryTest.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceCatalogSyncServiceTest.java`
+- `docs/PROJECT_STATUS.md`
+
+**검증 결과:**
+
+- 변경 전 실제 KTO 동기화/API 응답: 68개, Notion 프롬프트 목록과 일치하지 않는 장소 25개 포함
+- `./gradlew.bat test --no-daemon`: `BUILD SUCCESSFUL`
+- 테스트 통과: 전체 테스트 성공
+- 백엔드를 실제 실행해 KTO 동기화와 `GET /api/v1/places?page=0&size=100`을 재검증했다. `totalElements=43`, `contentCount=43`, `강릉 녹색도시체험센터=0`으로 확인했다.
+
+**발생한 문제와 해결 방법:**
+
+- 기존 테스트가 whitelist에 없는 임의 장소명을 사용해 실패했으며, 정책을 검증하는 실제 허용 장소명으로 fixture를 수정했다.
+
+**관련 commit:**
+
+- 작업 중 (미커밋)
+
+## 2026-09-08
+
 ### 시간 미기록 ~ 08:15 — AI 합성 연동 최종 검증 및 안정성 보완
 
 **Agent:** Codex

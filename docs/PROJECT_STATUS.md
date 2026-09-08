@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-09-08 08:15 KST
+Last Updated: 2026-09-08 21:56 KST
 Last Updated By: Codex
 
 기준일: 2026-09-08
@@ -44,6 +44,7 @@ Last Updated By: Codex
 구현된 Controller 경로는 다음과 같다.
 
 - `/api/v1/places` (KorService2 장소 카드와 저장된 보충 이미지 조회)
+- 최초 장소 선택 API는 Notion `미리강릉 포즈조사2` 페이지에 실제 프롬프트가 작성된 43개 장소만 허용한다. KTO 표기 차이가 있는 해파랑길 39·40·41코스는 명시적 별칭으로 매핑한다.
 - `/media/images/{storageKey}` (CDN으로 교체 가능한 이미지 origin endpoint)
 - `/api/v1/compositions`
 - `/api/v1/courses`
@@ -152,6 +153,7 @@ Agent의 정상적인 `NO_PERSON_DETECTED` 검증이 발생했으며, Backend �
 - 관광사진 API는 명시적인 전체 장소 동기화 중에만 호출된다. 목록/상세 화면 요청은 Redis와 DB만 사용하므로 Redis 만료와 관광공사 데이터 갱신은 서로 연결되지 않는다.
 - 이미지 URL은 전체 동기화 시 HTTP 성공 응답과 `image/*` Content-Type을 확인한 뒤 원본·썸네일을 저장한다. 깨진 URL은 저장하지 않으며 유효 이미지가 없는 장소는 목록에서 제외한다. 캐시가 비활성화되면 기존 원본 URL 검증·저장 경로로 fallback한다.
 - 배경 합성 장소 목록은 `nature`, `culture`, `active` 카테고리만 노출한다. 음식점 데이터는 동기화 시 관련 코스 참조와 이미지를 먼저 정리한 뒤 장소 레코드를 삭제한다.
+- KTO 동기화 결과 중 Notion 프롬프트 목록에 없는 장소는 초기 장소 선택 API에서 제외한다. 이 목록은 `PromptPlaceCatalog`에서 관리하며, KTO 데이터가 갱신되어도 프론트에는 허용된 장소만 반환한다.
 - 코스 추천은 현재 선택된 `placeIds` 후보 안에서만 수행한다. 여행 유형·동행자 점수는 Place의 category/name/description 기반이며 운영시간·휴무일과 다일 일정은 아직 반영하지 않는다.
 - 2026-08-26 추천 조건 고도화 브랜치에서 여행 유형·동행자 점수, 거리 fallback, CourseService 조건 전달 테스트를 추가했다. `day`와 `night1`의 기존 정거장 수 제한은 유지한다.
 - 2026-08-26 Docker 앱을 현재 브랜치 코드로 재빌드하고 `/actuator/health`, `/api/v1/places`, 코스 생성·조회 API를 실제 호출했다. 관광지 조회와 코스 추천은 정상이고 코스 도착시간은 `09:00`, `10:00`, `11:00`으로 계산된다. Kakao 도보 endpoint는 HTTP 403으로 확인되어 현재 `UNAVAILABLE`이다.
