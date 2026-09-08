@@ -18,6 +18,10 @@ AWS S3를 MVP 필수로 사용하지 않는다.
 
 DB에는 파일 binary가 아니라 key/path와 metadata만 저장한다.
 
+관광지 배경은 사용자 업로드 저장소와 분리된 `PlaceImageStorage`에 있다. 합성 시
+`PlaceImage.originalStorageKey`를 `PlaceImageStorage.open()`으로 읽으며, `TemporaryImageStorage`로
+열려고 가정하지 않는다. 사용자 업로드와 Agent 결과만 `TemporaryImageStorage`에 저장한다.
+
 ## TTL
 
 파일에는 `expiresAt`을 둔다.

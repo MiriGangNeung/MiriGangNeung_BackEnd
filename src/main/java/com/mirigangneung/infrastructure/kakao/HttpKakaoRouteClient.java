@@ -46,13 +46,14 @@ public class HttpKakaoRouteClient implements KakaoRouteClient {
         try {
             String body = client.get()
                     .uri(uriBuilder -> uriBuilder
-                            .path("/v2/routing/walk")
-                            .queryParam("start_x", originLongitude)
-                            .queryParam("start_y", originLatitude)
-                            .queryParam("end_x", destinationLongitude)
-                            .queryParam("end_y", destinationLatitude)
+                            .path("/affiliate/walking/v1/directions")
+                            .queryParam("origin", originLongitude + "," + originLatitude)
+                            .queryParam("destination", destinationLongitude + "," + destinationLatitude)
+                            .queryParam("priority", "DISTANCE")
+                            .queryParam("summary", "false")
                             .build())
                     .header("Authorization", "KakaoAK " + properties.key())
+                    .header("Content-Type", "application/json")
                     .retrieve()
                     .body(String.class);
             return parse(body);

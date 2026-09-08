@@ -25,7 +25,7 @@ class PlaceRepositoryTest {
 
     @Test
     void listsOnlyPlacesThatHaveAtLeastOneType1Image() {
-        Place visible = savePlace("visible", "경포해변", "nature");
+        Place visible = savePlace("visible", "경포해수욕장", "nature");
         Place forbidden = savePlace("forbidden", "Type3 장소", "nature");
         Place food = savePlace("food", "배경과 무관한 음식점", "food");
         savePlace("no-image", "사진 없는 장소", "nature");
@@ -46,13 +46,13 @@ class PlaceRepositoryTest {
     @Test
     void appliesCategoryAndKeywordToPlacesWithType1Images() {
         Place beach = savePlace("beach", "안목해변", "nature");
-        Place museum = savePlace("museum", "안목미술관", "culture");
+        Place museum = savePlace("museum", "강릉아트센터", "culture");
         placeImageRepository.saveAll(List.of(
                 new PlaceImage(beach, "https://img.test/beach.jpg", "대표", "KTO", 0, "Type1"),
                 new PlaceImage(museum, "https://img.test/museum.jpg", "대표", "KTO", 0, "Type1")));
 
         var result = placeRepository.findVisibleByCategoryAndName(
-                "culture", "안목", PageRequest.of(0, 20));
+                "culture", "강릉", PageRequest.of(0, 20));
 
         assertThat(result.getTotalElements()).isEqualTo(1);
         assertThat(result.getContent()).extracting(Place::getTourContentId).containsExactly("museum");

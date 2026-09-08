@@ -53,13 +53,14 @@ class HttpKakaoRouteClientTest {
         Fixture fixture = fixture("secret");
         fixture.server.expect(once(), request -> {
             assertThat(request.getMethod()).isEqualTo(GET);
-            assertThat(request.getURI().getPath()).isEqualTo("/v2/routing/walk");
+            assertThat(request.getURI().getPath()).isEqualTo("/affiliate/walking/v1/directions");
             var query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
-            assertThat(query.getFirst("start_x")).isEqualTo("128.948");
-            assertThat(query.getFirst("start_y")).isEqualTo("37.772");
-            assertThat(query.getFirst("end_x")).isEqualTo("128.949");
-            assertThat(query.getFirst("end_y")).isEqualTo("37.773");
+            assertThat(query.getFirst("origin")).isEqualTo("128.948,37.772");
+            assertThat(query.getFirst("destination")).isEqualTo("128.949,37.773");
+            assertThat(query.getFirst("priority")).isEqualTo("DISTANCE");
+            assertThat(query.getFirst("summary")).isEqualTo("false");
         }).andExpect(header("Authorization", "KakaoAK secret"))
+                .andExpect(header("Content-Type", "application/json"))
                 .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
 
         KakaoRouteClient.RouteResult result = fixture.client.walking(37.772, 128.948, 37.773, 128.949);
@@ -74,7 +75,7 @@ class HttpKakaoRouteClientTest {
     @Test
     void parsesCurrentKakaoWalkingRouteShape() {
         Fixture fixture = fixture("secret");
-        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/v2/routing/walk")))
+        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/affiliate/walking/v1/directions")))
                 .andRespond(withSuccess(CURRENT_RESPONSE, MediaType.APPLICATION_JSON));
 
         KakaoRouteClient.RouteResult result = fixture.client.walking(37.772, 128.948, 37.774, 128.946);
@@ -103,7 +104,7 @@ class HttpKakaoRouteClientTest {
     @Test
     void mapsUpstreamFailureToApiError() {
         Fixture fixture = fixture("secret");
-        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/v2/routing/walk")))
+        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/affiliate/walking/v1/directions")))
                 .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
 
         assertThatThrownBy(() -> fixture.client.walking(37.772, 128.948, 37.773, 128.949))

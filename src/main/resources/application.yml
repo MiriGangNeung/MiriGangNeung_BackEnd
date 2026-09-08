@@ -61,5 +61,8 @@ image:
 ai:
   base-url: ${AI_BASE_URL:}
   api-key: ${AI_API_KEY:}
+  connect-timeout: ${AI_CONNECT_TIMEOUT:5s}
+  read-timeout: ${AI_READ_TIMEOUT:30s}
+  poll-delay: ${AI_POLL_DELAY:2s}
 app:
   cors-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:5173}

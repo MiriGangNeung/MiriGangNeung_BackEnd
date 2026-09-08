@@ -40,9 +40,8 @@ Kakao API 원문 응답은 backend DTO로 normalize한다.
 
 ## 3. AI
 
-Provider 미정.
-
-`AiGenerationClient`를 통해서만 접근한다.
+백엔드는 별도 FastAPI Agent를 `AiGenerationClient`/`HttpAiGenerationClient`를 통해서만 호출한다.
+실제 Provider와 모델은 Agent의 `AI_PROVIDER` 설정에서 선택하며 백엔드가 하드코딩하지 않는다.
 
 ## API Key
 
@@ -52,9 +51,11 @@ Provider 미정.
 TOUR_API_KEY
 KAKAO_API_KEY
 AI_API_KEY
+AI_BASE_URL
 ```
 
-실제 이름은 provider 계약에 맞게 확정하되 `.env`, secrets manager, deployment secret 등으로 관리한다.
+`AI_API_KEY`는 백엔드와 Agent 사이의 선택적 공유 인증값이며 두 서비스에 동일하게 설정한다.
+모든 실제 값은 `.env`, secrets manager, deployment secret 등으로 관리한다.
 
 절대 Git commit 금지.
 

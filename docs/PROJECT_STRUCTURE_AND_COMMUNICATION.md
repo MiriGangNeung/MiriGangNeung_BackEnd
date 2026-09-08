@@ -23,7 +23,7 @@ Backend Controller
   -> Tour API, Kakao, AI Provider
 ```
 
-현재 실제 동작은 이 목표 구조의 일부만 연결되어 있다. Places와 Course의 기본 흐름, 이미지 임시 저장, Kakao route adapter의 뼈대는 백엔드에 있고, AI Provider 실행과 프론트의 실 API 호출은 아직 완성되지 않았다.
+현재 백엔드는 Places, Course, 이미지 저장, Kakao adapter와 별도 FastAPI Agent의 비동기 이미지 합성 Job 흐름까지 연결되어 있다. 프론트의 실제 합성 API 호출 전환은 프론트 저장소의 별도 작업이다.
 
 ## 2. Repository 구성과 역할
 
@@ -90,25 +90,23 @@ flowchart TD
 
 ### 3.2 Composition 흐름
 
-설계 목표는 다음과 같다.
+현재 구현 흐름은 다음과 같다.
 
 ```text
 POST /api/v1/compositions
   -> 즉시 jobId와 QUEUED 반환
-  -> AI Provider 요청/상태 polling
+  -> Type1 PlaceImage 원본 resolve
+  -> FastAPI Agent generation 요청/providerJobId 저장
+  -> 백엔드 scheduler 상태 polling
   -> ANALYZING -> COMPOSITING -> QUALITY_CHECK -> DONE 또는 FAILED
   -> GET /api/v1/compositions/{jobId}
   -> GET /api/v1/compositions/{jobId}/download
 ```
 
-현재 코드는 업로드 파일을 `TemporaryImageStorage`에 저장하고 `CompositionJob`을 `QUEUED`로 DB에 저장한다. `AiGenerationClient` 인터페이스는 존재하지만 구현체/실행 worker가 없어, 실제 Provider 호출과 DONE 결과 생성은 아직 없다. 따라서 프론트의 현재 합성 진행 화면을 실제 polling으로 교체하려면 AI 담당자와 아래 계약을 먼저 확정해야 한다.
-
-- `providerJobId`
-- Provider 상태와 백엔드 상태의 매핑
-- 결과 이미지 reference 형식
-- safety status/reason code
-- timeout/retry 가능 조건
-- `promptVersion`, `modelVersion` 기록 방식
+`HttpAiGenerationClient`가 Agent 계약을 구현한다. 사용자 사진은 `TemporaryImageStorage`, 관광지 원본은
+`PlaceImageStorage`에서 읽어 multipart로 전달한다. Agent status를 CompositionStatus에 반영하고 DONE
+결과를 다시 `TemporaryImageStorage`에 저장한다. 오류의 code/message/retryable과 safety warning도
+백엔드 상태 응답으로 정규화한다.
 
 ### 3.3 Course 흐름
 
@@ -179,7 +177,7 @@ com.mirigangneung
 │   └── dto          # 목록/상세 응답
 ├── composition
 │   ├── controller   # multipart 생성, 조회, retry, download
-│   ├── service      # 파일 저장과 Job 상태 관리
+│   ├── service      # 배경 resolve, Agent 생성/polling, 파일과 Job 상태 관리
 │   ├── domain       # CompositionJob, CompositionStatus
 │   ├── repository
 │   └── dto
@@ -197,7 +195,7 @@ com.mirigangneung
 ├── infrastructure
 │   ├── tourapi      # TourApiClient, KoreanTourApiClient
 │   ├── kakao        # KakaoRouteClient, REST 구현
-│   ├── ai           # AiGenerationClient 계약만 현재 존재
+│   ├── ai           # AiGenerationClient, HttpAiGenerationClient, Agent 설정/오류 정규화
 │   └── storage      # TemporaryImageStorage, local 구현
 └── MiriGangNeungApplication
 ```
@@ -289,7 +287,7 @@ Base path는 `/api/v1`이다.
 | Course 영속 데이터 | MySQL/JPA | Course/CourseStop 저장, 삭제, share token hash | response를 화면 model로 mapping |
 | Cache/단기 상태 | Redis | 관광공사 cache, Job 상태, TTL data. 영속 데이터 대체 금지 | Redis를 직접 호출하지 않음 |
 | 입력/결과 이미지 | 임시 파일 저장소 | UUID key, TTL, 다운로드, cleanup | 원본 path를 직접 만들거나 장기 저장하지 않음 |
-| 이미지 합성 | AI Provider | `AiGenerationClient` 계약, 상태/안전성/재시도 | Job polling과 사용자 상태 표시 |
+| 이미지 합성 | FastAPI Agent와 Agent가 선택한 Provider | multipart forwarding, 상태/안전성/재시도, 결과 임시 저장 | 백엔드 Job polling과 사용자 상태 표시 |
 | 지도 표시 | Kakao Maps JS SDK | 프론트에 필요한 좌표/정규화 결과 제공 | marker/polyline/선택 상태 UI |
 | 경로 계산 | Kakao REST API | 백엔드 또는 server proxy 중 하나의 공식 owner | 선택된 경로를 지도에 표시 |
 
@@ -305,10 +303,10 @@ Repository에 Slack/Discord/이슈 트래커의 채널명이나 담당자 목록
 | --- | --- | --- |
 | Frontend | 화면 입력, loading/error/empty state, 실제 소비할 response shape, 지도 상호작용 | API endpoint/method, request field, response field, 상태 enum, 오류 처리 |
 | Backend | `/api/v1` 계약, validation, domain/DB, 외부 API adapter, 보안/TTL | 프론트가 호출 가능한 안정된 contract와 smoke 결과 |
-| AI 담당 | Provider/model, 생성/상태/safety 계약, 비용/timeout | `AiGenerationClient`로 매핑 가능한 provider contract |
+| AI 담당 | Agent 내부 Provider/model, 생성/상태/safety 계약, 비용/timeout | 합의된 `/v1/generations` HTTP contract |
 | Agent/문서 담당 | 작업 범위와 인수인계 문서 | 결정사항, 변경 파일, 검증 결과, 남은 blocker |
 
-AI Provider와 같은 미정 영역은 백엔드가 임의로 업체나 모델을 정하지 않는다. 중요한 API 계약/외부 API/데이터 모델 변경도 결정권자 확인 없이 확정하지 않는다.
+AI Provider와 모델은 Agent 설정의 책임이며 백엔드가 임의로 업체나 모델을 정하지 않는다. 중요한 API 계약/외부 API/데이터 모델 변경도 결정권자 확인 없이 확정하지 않는다.
 
 ### 8.2 작업 요청을 받을 때 확인할 항목
 
@@ -370,7 +368,7 @@ API를 바꾸는 경우 다음 순서를 사용한다.
 - Backend `./gradlew.bat test` 기준 단위 테스트 2개가 통과한 상태가 문서에 기록되어 있다.
 - Docker health와 `GET /api/v1/places`의 강릉 관광지 smoke 결과가 기록되어 있다.
 - Backend에는 P0 controller 경로의 뼈대가 있다.
-- AI Provider 구현체, 비동기 polling, Controller integration test, MySQL/Redis integration test는 아직 없다.
+- Backend-Agent HTTP adapter, 비동기 polling과 mock Agent Controller E2E가 구현되어 있다. MySQL/Redis를 포함한 배포환경 E2E는 아직 없다.
 - Redis helper는 있지만 Place cache 흐름에 연결되지 않았다.
 - Course route 거리/시간은 현재 0이고, 추천은 단순 좌표 거리 기반이다.
 - Frontend의 장소/합성/코스는 현재 Mock이고, Course place addition은 세션 local state만 수정한다.
@@ -380,7 +378,7 @@ API를 바꾸는 경우 다음 순서를 사용한다.
 
 1. **계약 하나 정하기:** `/api/v1`를 공통 base로 삼을지, 프론트 serverless proxy를 둘지 결정하고 endpoint/response/status 표를 확정한다.
 2. **Places 연결:** `usePlacesQuery`를 실제 API로 교체하고 `content`와 프론트 `Place`를 mapping한다. 사진/설명/좌표 null 정책도 정한다.
-3. **Composition 연결:** AI 담당자로부터 provider contract를 받아 `AiGenerationClient` 구현, Job 상태 polling, result/download/expired/error 흐름을 end-to-end로 검증한다.
+3. **Composition 프론트 연결:** timer mock을 백엔드 multipart 생성, Job polling, DONE download, FAILED/retry 흐름으로 교체한다.
 4. **Course 연결:** 프론트 조건을 `CreateCourseRequest`로 보내고, `CourseResponse.stops`의 field/enum을 화면 model에 mapping한다.
 5. **Route ownership 결정:** Backend `POST /api/v1/routes/walking`로 통일할지, 현재 프론트 proxy를 유지할지 결정한다. 다중 stop과 polyline이 필요한 경우 명시한다.
 6. **운영 hardening:** Redis cache/status, rate limit, cleanup scheduling, CORS production origin, metrics, integration test를 보완한다.

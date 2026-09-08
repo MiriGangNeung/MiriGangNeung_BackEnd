@@ -107,10 +107,13 @@ public class PlaceCatalogSyncService {
         List<TourApiClient.TourPlace> catalog = loadAllSummaries();
         int deletedFoodPlaces = cleanupService.deleteFoodPlaces();
         int deletedGalleryOnlyCards = cleanupService.deleteGalleryOnlyPlaces();
-        List<TourApiClient.TourPlace> backgroundCatalog = catalog.stream()
+        List<TourApiClient.TourPlace> categoryCatalog = catalog.stream()
                 .filter(PlaceCatalogSyncService::isBackgroundPlace)
                 .toList();
-        int excludedByCategory = catalog.size() - backgroundCatalog.size();
+        int excludedByCategory = catalog.size() - categoryCatalog.size();
+        List<TourApiClient.TourPlace> backgroundCatalog = categoryCatalog.stream()
+                .filter(PromptPlaceCatalog::contains)
+                .toList();
         List<SyncedPlace> synced = backgroundCatalog.stream()
                 .map(this::upsertPlace)
                 .filter(Objects::nonNull)

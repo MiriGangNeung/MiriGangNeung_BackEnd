@@ -1,9 +1,9 @@
 # Project Status
 
-Last Updated: 2026-08-30 13:35 KST
+Last Updated: 2026-09-08 22:34 KST
 Last Updated By: Codex
 
-기준일: 2026-08-08
+기준일: 2026-09-08
 
 ## Repository
 
@@ -21,18 +21,13 @@ Last Updated By: Codex
 - 관광공사: `TourApiClient`, Korean API adapter와 JSON/XML 응답 정규화
 - 관광지 이미지: KorService2 대표/상세 이미지와 관광사진 정보 GW의 장소명 일치 이미지를 합쳐 장소별 최대 5장 노출. KorService2는 `cpyrhtDivCd=Type1`만 허용하고, 제1유형 전용인 관광사진 정보 GW는 별도 저작권 코드 필터 없이 사용
 - 이미지 전달: 동기화 시 원본을 로컬 저장소에 한 번 저장하고 카드용 JPEG 썸네일과 합성용 원본 storage key를 `place_images`에 보존. 목록·상세 요청은 저장된 URL만 반환하며 Redis에는 JSON만 저장
-- Composition: `CompositionJob`, 업로드, 상태 조회, retry/download API, `AiGenerationClient` 인터페이스, 로컬 임시 이미지 저장소, 만료 정리 Job
+- Composition: 업로드, Type1 배경 원본 resolve, FastAPI Agent generation 생성, providerJobId 저장, 상태 polling, DONE 결과 임시 저장·다운로드, 오류·retry 처리
 - Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
-- Recommendation: `RuleBasedCourseRecommendationEngine`
-- Nearby recommendation: 코스에 저장된 여행 타입·동행 유형을 바탕으로 Kakao 주변 장소에 설명 가능한 0~100점과 추천 이유를 계산하고 추천순/거리순을 제공
+- Course preference: 여행 타입·세부 취향 저장과 Kakao 주변 장소 추천 점수/반경 확장
+- KTO-Kakao binding: `tourContentId` 기준 수기 CSV 매핑과 선택적 Kakao Local 자동 보완으로 관광지 Kakao 장소 URL을 연결
+- Recommendation: `RuleBasedCourseRecommendationEngine` + `CoursePreferenceScorer`로 `types`·`companion` 조건 점수와 거리 fallback을 적용
 - Route: `KakaoRouteClient`와 REST adapter, normalized route response
 - Docker: MySQL/Redis/app을 위한 `Dockerfile`, `docker-compose.yml`, `.dockerignore`. MySQL 호스트 공개 포트는 `MYSQL_PORT`를 사용하며 미설정 시 3307, 컨테이너 내부 연결은 3306이다.
-
-## 2026-08-26 KTO 동기화 후 고정 Kakao URL 매핑
-
-- `src/main/resources/data/kakao-place-mappings.csv`에 현재 화면에 노출되는 69개 KTO 장소의 `tourContentId`별 Kakao ID·상세 URL을 저장했다. 68개는 URL을 지정하고 `강릉 명주동 거리`는 빈 매핑으로 명시해 `NULL`을 유지한다.
-- `TOUR_API_SYNC_ON_STARTUP=true`이면 KTO 장소 동기화 후 CSV 매핑 runner가 기존 `places` 행만 일괄 upsert한다. 매핑은 idempotent하며 새 카드를 생성하지 않고, DB에 아직 없는 행은 로그의 `missing`으로 남긴다.
-- 고정 매핑 적용에는 Kakao API 호출이 필요하지 않다. Kakao Local 자동 보강은 `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`일 때만 별도로 실행되고, CSV 매핑이 그 뒤에 적용되어 수동값이 최종 기준이 된다.
 
 ## 2026-08-25 코스 장소 관리 구현
 
@@ -43,22 +38,16 @@ Last Updated By: Codex
 - Course 생성/조회 응답의 mock 의존을 제거하고 프론트는 반환된 `courseId`를 sessionStorage에 보관한다. 새로고침 시 백엔드에서 코스를 복원한다.
 - 백엔드 API: `GET /api/v1/courses/{courseId}/nearby-places`, `POST /api/v1/courses/{courseId}/stops/external`, `DELETE /api/v1/courses/{courseId}/stops/{stopId}`, `PUT /api/v1/courses/{courseId}/stops/order`.
 - 설계 결정은 [`docs/adr/2026-08-25-kakao-course-place-snapshots.md`](./adr/2026-08-25-kakao-course-place-snapshots.md)에 기록했다.
-
-## 2026-08-27 이슈 #13 장소 맞춤 추천 구현
-
-- 코스 생성 시 여행 타입 최대 4개, 분야별 복수 세부 선호, 동행 유형을 `courses.travel_types`, `courses.detail_types`, `courses.companion`에 저장하고 Course 응답에도 반환한다. 기존 선호값이 없는 코스와 기존 요청은 빈 detailTypes로 호환된다.
-- 주변 장소 API는 `sort=recommended`를 기본으로 사용한다. 추천 점수는 세부 선호 매칭 점수에 거리 20점·동행 유형 10점·정보 완성도 10점을 합산하며, 선택한 세부 선호와 정확히 일치하면 55점, 세부 선호를 확인할 수 없거나 다른 음식 분류면 20점의 중립 점수를 사용한다. 주변 카페 추천의 대형 프랜차이즈는 8점 감점한다. 장소명·카테고리명·주소·좌표·Kakao URL만 사용한다.
-- 장소 추가 패널은 카테고리(카페·음식점·문화시설·관광명소)를 먼저 선택하고, 그 안에서 주변 추천·강릉 전체 검색·강릉 대표를 선택한다. 강릉 전체 검색은 사용자가 키워드를 제출하기 전까지 Kakao를 호출하지 않으며, 강릉 대표는 준비 중 상태다.
-- `recommendationScore`와 최대 3개의 `recommendationReasons`를 반환한다. 리뷰·별점·사진·인기도를 임의로 만들지 않으며, 장소는 사용자가 추가 버튼을 눌렀을 때만 코스 snapshot으로 저장한다.
-- `sort=distance`는 기존 거리순 동작을 유지한다. 프론트 장소 추가 패널은 추천순을 기본으로 보여주고 거리순으로 전환할 수 있다.
-- 현재 검토 기준 브랜치: backend `feat/course-preference-recommendation` (upstream `origin/feat/course-preference-recommendation`). 프론트 참고 브랜치는 `course-place-management`이다.
-- 장소 추가 검색의 현재 지원 카테고리는 카페(`CE7`), 음식점(`FD6`), 문화시설(`CT1`), 관광명소(`AT4`) 네 가지다. `scope=all`은 키워드가 비어 있으면 Kakao를 호출하지 않고 빈 결과를 반환하며, 기준 좌표가 없으므로 `sort`는 검증만 하고 실제 결과 정렬에는 사용하지 않는다.
+- 코스 응답의 `arrivalTime`은 현재 stop 순서 기준으로 09:00부터 체류시간과 확인된 도보 구간 시간을 누적해 계산한다. 경로가 unavailable이어도 모든 stop이 같은 09:00으로 반환되지 않는다.
+- Kakao 도보 Client는 공식 Affiliate Walking endpoint(`/affiliate/walking/v1/directions`)의 `origin`, `destination`, `priority`, `summary` 계약을 사용한다. 현재 등록 키로 실제 호출한 결과는 HTTP 403이며, 코드가 아닌 Kakao 도보 API 제휴/권한 승인 문제로 `routeStatus=UNAVAILABLE`이 유지된다.
 
 ## 현재 API Controller
 
 구현된 Controller 경로는 다음과 같다.
 
 - `/api/v1/places` (KorService2 장소 카드와 저장된 보충 이미지 조회)
+- 최초 장소 선택 API는 Notion `미리강릉 포즈조사2` 페이지에 실제 프롬프트가 작성된 43개 장소만 허용한다. KTO 표기 차이가 있는 해파랑길 39·40·41코스는 명시적 별칭으로 매핑한다.
+- KTO 관광지의 Kakao 장소 연결은 `src/main/resources/data/kakao-place-mappings.csv`를 최종 기준으로 사용한다. `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`인 경우에만 이름·좌표 기반 자동 보완을 수행하며, 최종 CSV 매핑이 우선한다.
 - `/media/images/{storageKey}` (CDN으로 교체 가능한 이미지 origin endpoint)
 - `/api/v1/compositions`
 - `/api/v1/courses`
@@ -71,11 +60,31 @@ Last Updated By: Codex
 
 세부 request/response 계약은 `MiriGangNeung_BackEnd_Codex_MD_Set/docs/06_API_SPECIFICATION.md`를 기준으로 한다.
 
+## 2026-09-08 AI 이미지 합성 Agent 연동
+
+- `HttpAiGenerationClient`가 Agent의 `POST /v1/generations`, 상태 조회, 결과 다운로드, 취소 계약을 구현한다.
+- `CompositionService.create()`는 사용자 사진을 `TemporaryImageStorage`에 저장하고 Agent Job을 생성한 뒤 `providerJobId`와 provider/model/prompt metadata를 MySQL에 저장한다.
+- `CompositionPollingJob`은 기본 2초 간격으로 활성 Job을 조회한다. Agent가 DONE이면 결과 이미지 바이트를 백엔드 `TemporaryImageStorage`에 저장한 뒤 `downloadUrl`을 노출한다.
+- Agent의 `error.code`, `message`, `retryable`과 `safety.status`, `reasonCode`, 경고를 백엔드 상태 응답에 정규화한다. 현재 DB에는 첫 번째 safety warning을 저장한다.
+- retry API는 `FAILED && error.retryable=true`인 Job에서 기존 사용자 원본으로 새 Agent generation을 만들고 새 `providerJobId`를 저장한다.
+- 배경은 `PlaceImage.copyrightCode=Type1`만 허용한다. `originalStorageKey`는 사용자 업로드 저장소가 아니라 `PlaceImageStorage.open()`으로 읽으며, 로컬 파일이 사라졌을 때 기존 `ImageAssetCacheService`로 같은 원본 URL을 복구한다.
+- 현재 코스 선택 프론트 흐름의 `onePickId`는 `Place.id` UUID다. `kto-award:*`, `kto-gallery:*` 같은 표시용 ID는 UUID로 변환하지 않고 `INVALID_ONE_PICK_ID`로 거부한다.
+- 선택적인 `backgroundImageUrl` multipart 필드를 추가했다. 생략하면 첫 Type1 이미지를 사용하므로 기존 요청 필드는 유지된다.
+- 실제 AI Provider 선택은 Agent의 `AI_PROVIDER` 설정 책임이며 백엔드는 Provider나 모델을 하드코딩하지 않는다.
+
 ## 현재 검증 결과
 
-2026-08-30 현재 백엔드 `./gradlew.bat --project-cache-dir C:\Users\chin0\AppData\Local\Temp\mirigangneung-pr-review-cache test`는 `BUILD SUCCESSFUL`이다. 이번 문서 정리에서는 코드와 테스트를 변경하지 않았다. 기존 프론트 검증 결과는 아래 과거 기록을 따른다.
+2026-09-08 기준 `RUN_AI_MOCK_E2E=true`로 전체 98개 테스트를 실행해 실패 0, 오류 0으로
+`BUILD SUCCESSFUL`이다. `AiCompositionMockE2ETest`는 테스트 내부의 자체 HTTP Mock Agent를 사용해
+Backend의 Agent 계약 왕복을 검증한다.
 
-Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너가 실행 중이다. app은 `localhost:8080`, MySQL은 호스트 `3307`, Redis는 호스트 `6379`에 연결된다. `/actuator/health`는 `UP`이며 `/api/v1/places?page=0&size=2`에서 강릉 관광지 응답을 확인했다.
+현재 Mock Agent E2E는 `POST /api/v1/compositions` → providerJobId 저장 → 상태 polling → Agent
+`DONE` → 결과 이미지 다운로드·백엔드 저장 → 상태 조회 → 백엔드 결과 다운로드까지 검증한다.
+실제 Agent 프로세스 E2E는 별도 검증 대상이다. 기존 단색 테스트 이미지로 실제 Agent를 재실행했을 때
+Agent의 정상적인 `NO_PERSON_DETECTED` 검증이 발생했으며, Backend 결함으로 분류하지 않았다.
+실제 Gemini Provider 호출과 Docker 기반 전체 왕복은 아직 검증하지 않았다.
+
+이전 로컬 Docker 검증에서는 app이 `localhost:8080`, MySQL이 호스트 `3307`, Redis가 호스트 `6379`에 연결되었고 `/actuator/health`와 장소 API 응답을 확인했다. 이번 최종 검토에서는 Docker 전체 왕복을 재실행하지 않았다.
 
 관광사진 정보 GW의 `강릉` 검색 결과는 동기화 때만 내부 호출한다. KorService2 장소명과 매칭되는 사진만 기존 장소 카드에 보충하고, 매칭되지 않는 사진은 별도 카드로 만들지 않는다.
 
@@ -118,7 +127,11 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 | `TOUR_API_KEY` | 한국관광공사 OpenAPI 인증키 | 루트 `.env`에 등록됨. `.gitignore`로 Git 제외 |
 | `TOUR_PHOTO_GALLERY_API_KEY` | 한국관광공사 관광사진갤러리 API 인증키 | 미등록 시 `TOUR_API_KEY` fallback |
 | `KAKAO_API_KEY` | Kakao REST API 인증키 | 미등록 |
-| `AI_API_KEY` | 선택된 AI Provider 인증키 | Provider 미정 및 미등록 |
+| `AI_BASE_URL` | 백엔드가 호출할 Agent base URL | 루트 `.env` 미등록 |
+| `AI_API_KEY` | 백엔드와 Agent가 공유하는 선택적 API 인증값 | 루트 `.env` 미등록 |
+| `AI_CONNECT_TIMEOUT` | Agent 연결 제한 시간 | 기본 `5s` |
+| `AI_READ_TIMEOUT` | Agent HTTP 응답 제한 시간 | 기본 `30s` |
+| `AI_POLL_DELAY` | 백엔드의 Agent 상태 polling 간격 | 기본 `2s` |
 | `IMAGE_CACHE_ENABLED` | 동기화 시 원본·썸네일 저장 사용 여부 | 기본 `true` |
 | `IMAGE_STORAGE_DIR` | 이미지 저장 디렉터리 | Docker에서는 `/var/lib/mirigangneung/images` |
 | `IMAGE_PUBLIC_BASE_URL` | 저장 이미지 공개 base URL | 기본 `http://localhost:8080/media/images`, CDN 도메인으로 교체 가능 |
@@ -127,10 +140,11 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 
 ## 확인된 미완성/제한
 
-- 실제 AI Provider 구현체와 비동기 Provider polling은 없다. `AiGenerationClient` 인터페이스만 존재한다.
-- Composition Job은 Provider가 연결되지 않은 현재 코드에서 실제 DONE 결과를 생성하지 않는다.
+- 루트 `.env`의 `AI_BASE_URL`이 비어 있으면 Composition 생성은 `503 AI_NOT_CONFIGURED`를 반환한다. 실제 실행 전 Agent 주소를 등록해야 한다.
+- `kto-award:*`, `kto-gallery:*` 사진 소스는 `Place.id` UUID와 Type1 저작권 근거가 없어 현재 Composition API에서 지원하지 않는다.
+- 현재 schema migration 도구는 없고 기존 `JPA_DDL_AUTO=update` 방식으로 CompositionJob의 Agent 연동 컬럼을 추가한다. 운영 배포에서 명시적 migration 도구를 도입하면 해당 컬럼 migration이 필요하다.
 - Place 목록/상세 응답은 Redis에 서로 다른 TTL로 캐시된다. 캐시가 없거나 만료되면 DB에서만 다시 읽어 Redis에 저장하며, 화면 요청으로 관광공사 API를 호출하지 않는다.
-- Kakao REST 키가 없거나 도보 경로 호출이 실패하면 `CourseResponse.routeStatus=UNAVAILABLE`, 거리·시간 0으로 반환한다. 장소 CRUD는 계속 가능하다.
+- Kakao REST 키가 없거나 도보 경로 호출이 실패하면 `CourseResponse.routeStatus=UNAVAILABLE`, 거리·시간 0으로 반환한다. 장소 CRUD는 계속 가능하다. 이때 응답 도착시간은 기본 시작 09:00과 장소별 체류 60분을 기준으로 순차 계산한다.
 - Controller 통합 테스트와 MySQL/Redis 통합 테스트는 없다.
 - rate limit, 상세 metrics, Swagger/OpenAPI 문서는 아직 없다.
 - Gradle test는 로컬 Gradle 실행 파일로 재실행해 통과했다. Gradle Wrapper는 배포본 재다운로드가 필요한 환경에서 네트워크 권한 문제가 발생할 수 있다.
@@ -142,7 +156,11 @@ Docker Desktop을 실행한 현재 환경에서 app, MySQL, Redis 컨테이너�
 - 관광사진 API는 명시적인 전체 장소 동기화 중에만 호출된다. 목록/상세 화면 요청은 Redis와 DB만 사용하므로 Redis 만료와 관광공사 데이터 갱신은 서로 연결되지 않는다.
 - 이미지 URL은 전체 동기화 시 HTTP 성공 응답과 `image/*` Content-Type을 확인한 뒤 원본·썸네일을 저장한다. 깨진 URL은 저장하지 않으며 유효 이미지가 없는 장소는 목록에서 제외한다. 캐시가 비활성화되면 기존 원본 URL 검증·저장 경로로 fallback한다.
 - 배경 합성 장소 목록은 `nature`, `culture`, `active` 카테고리만 노출한다. 음식점 데이터는 동기화 시 관련 코스 참조와 이미지를 먼저 정리한 뒤 장소 레코드를 삭제한다.
-- KTO 장소의 사진·기본정보는 유지하면서 Kakao Local 키워드 검색으로 정규화 이름을 매칭해 `kakaoPlaceId`·`kakaoPlaceUrl`을 저장한다. 코스 응답은 이 URL을 원본 관광지에도 전달하므로 프론트의 기존 Kakao iframe 리뷰 버튼을 재사용할 수 있다. `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`는 기존 DB를 한 번 보강하는 옵션이다.
-- KTO 장소의 Kakao URL은 고정 CSV 매핑(`tourContentId` 기준)을 동기화 후 적용한다. CSV에 없는 신규/미매핑 장소만 선택적 Kakao Local 자동 보강 대상으로 남기며, CSV의 빈 값은 의도적인 `NULL` 억제값이다.
+- KTO 동기화 결과 중 Notion 프롬프트 목록에 없는 장소는 초기 장소 선택 API에서 제외한다. 이 목록은 `PromptPlaceCatalog`에서 관리하며, KTO 데이터가 갱신되어도 프론트에는 허용된 장소만 반환한다.
+- 코스 추천은 현재 선택된 `placeIds` 후보 안에서만 수행한다. 여행 유형·동행자 점수는 Place의 category/name/description 기반이며 운영시간·휴무일과 다일 일정은 아직 반영하지 않는다.
+- 2026-08-26 추천 조건 고도화 브랜치에서 여행 유형·동행자 점수, 거리 fallback, CourseService 조건 전달 테스트를 추가했다. `day`와 `night1`의 기존 정거장 수 제한은 유지한다.
+- 2026-08-26 Docker 앱을 현재 브랜치 코드로 재빌드하고 `/actuator/health`, `/api/v1/places`, 코스 생성·조회 API를 실제 호출했다. 관광지 조회와 코스 추천은 정상이고 코스 도착시간은 `09:00`, `10:00`, `11:00`으로 계산된다. Kakao 도보 endpoint는 HTTP 403으로 확인되어 현재 `UNAVAILABLE`이다.
+- 코스 정거장 순서 변경 브라우저 요청을 위해 CORS 허용 메서드에 `PUT`을 추가했다.
+- 2026-08-26 백엔드 전체 테스트 83개가 통과했다. 프론트 테스트 46개와 production build도 통과했다. Windows 전체 테스트에서 발생하던 이미지 저장소 파일 잠금은 테스트가 반환된 InputStream을 닫지 않던 문제를 수정해 해결했다.
 
 이 문서는 계획이 아니라 현재 코드 확인 결과를 기록한다. 변경 시 실제 코드와 테스트를 다시 확인해 갱신한다.
