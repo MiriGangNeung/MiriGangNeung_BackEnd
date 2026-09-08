@@ -2,6 +2,43 @@
 
 ## 2026-09-08
 
+### 22:25 ~ 22:34 — course-cuisine-preference-enrichment 브랜치 병합
+
+**Agent:** Codex  
+**작업 유형:** Merge / Verification
+
+### 작업 내용
+
+- `origin/feat/course-cuisine-preference-enrichment`를 현재 `codex-ai-composition-integration` 브랜치에 병합했다.
+- 기존 AI 합성 연동, Notion 프롬프트 장소 whitelist, 코스 시간 계산을 유지하면서 여행 세부 취향 기반 Kakao 주변 장소 추천을 통합했다.
+- KTO 관광지의 Kakao 장소 연결을 위한 `tourContentId` 기반 수기 CSV 매핑, 선택적 Kakao Local 자동 보완, 코스 응답의 Kakao URL 연결을 포함했다.
+- 병합 충돌이 발생한 문서와 Course DTO/서비스/Repository를 현재 브랜치 기능과 병합 브랜치 기능이 모두 유지되도록 해결했다.
+
+### 주요 변경 파일
+
+- `src/main/java/com/mirigangneung/place/service/KakaoPlaceMappingService.java`
+- `src/main/java/com/mirigangneung/place/service/KakaoPlaceEnrichmentService.java`
+- `src/main/resources/data/kakao-place-mappings.csv`
+- `src/main/java/com/mirigangneung/course/service/CoursePlaceService.java`
+- `src/main/java/com/mirigangneung/course/dto/CourseResponse.java`
+- `docs/PROJECT_STATUS.md`
+
+### 테스트 결과
+
+- `git diff --check` 통과
+- `./gradlew.bat test --no-daemon` 통과
+- `BUILD SUCCESSFUL`
+
+### 발생한 문제와 해결 방법
+
+- 현재 브랜치와 음식 취향 추천 브랜치의 문서·Course 응답·주변 장소 서비스·Repository가 충돌했다. 기존 AI/whitelist/시간 계산과 신규 선호도 추천/매핑을 병합해 해결했다.
+
+### 관련 commit
+
+- 병합 후 생성 예정: `merge: integrate course cuisine preference enrichment`
+
+## 2026-09-08
+
 ### 00:29 ~ 01:19 — Backend-Agent 이미지 합성 Job 실제 연동
 
 **Agent:** Codex

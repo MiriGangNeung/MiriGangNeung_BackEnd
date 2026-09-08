@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-09-08 21:56 KST
+Last Updated: 2026-09-08 22:34 KST
 Last Updated By: Codex
 
 기준일: 2026-09-08
@@ -23,6 +23,8 @@ Last Updated By: Codex
 - 이미지 전달: 동기화 시 원본을 로컬 저장소에 한 번 저장하고 카드용 JPEG 썸네일과 합성용 원본 storage key를 `place_images`에 보존. 목록·상세 요청은 저장된 URL만 반환하며 Redis에는 JSON만 저장
 - Composition: 업로드, Type1 배경 원본 resolve, FastAPI Agent generation 생성, providerJobId 저장, 상태 polling, DONE 결과 임시 저장·다운로드, 오류·retry 처리
 - Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
+- Course preference: 여행 타입·세부 취향 저장과 Kakao 주변 장소 추천 점수/반경 확장
+- KTO-Kakao binding: `tourContentId` 기준 수기 CSV 매핑과 선택적 Kakao Local 자동 보완으로 관광지 Kakao 장소 URL을 연결
 - Recommendation: `RuleBasedCourseRecommendationEngine` + `CoursePreferenceScorer`로 `types`·`companion` 조건 점수와 거리 fallback을 적용
 - Route: `KakaoRouteClient`와 REST adapter, normalized route response
 - Docker: MySQL/Redis/app을 위한 `Dockerfile`, `docker-compose.yml`, `.dockerignore`. MySQL 호스트 공개 포트는 `MYSQL_PORT`를 사용하며 미설정 시 3307, 컨테이너 내부 연결은 3306이다.
@@ -45,6 +47,7 @@ Last Updated By: Codex
 
 - `/api/v1/places` (KorService2 장소 카드와 저장된 보충 이미지 조회)
 - 최초 장소 선택 API는 Notion `미리강릉 포즈조사2` 페이지에 실제 프롬프트가 작성된 43개 장소만 허용한다. KTO 표기 차이가 있는 해파랑길 39·40·41코스는 명시적 별칭으로 매핑한다.
+- KTO 관광지의 Kakao 장소 연결은 `src/main/resources/data/kakao-place-mappings.csv`를 최종 기준으로 사용한다. `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`인 경우에만 이름·좌표 기반 자동 보완을 수행하며, 최종 CSV 매핑이 우선한다.
 - `/media/images/{storageKey}` (CDN으로 교체 가능한 이미지 origin endpoint)
 - `/api/v1/compositions`
 - `/api/v1/courses`

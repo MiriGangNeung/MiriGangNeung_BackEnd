@@ -45,6 +45,8 @@ kakao:
     timeout: ${KAKAO_LOCAL_API_TIMEOUT:5s}
     radius-meters: ${KAKAO_LOCAL_RADIUS_METERS:2000}
     page-size: ${KAKAO_LOCAL_PAGE_SIZE:15}
+    all-search-rect: ${KAKAO_LOCAL_ALL_SEARCH_RECT:}
+    enrichment-on-startup: ${KAKAO_PLACE_ENRICHMENT_ON_STARTUP:false}
 image:
   temp-dir: ${IMAGE_TEMP_DIR:${java.io.tmpdir}/mirigangneung}
   ttl: ${IMAGE_TTL_SECONDS:86400}

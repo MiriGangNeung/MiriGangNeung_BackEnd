@@ -102,6 +102,10 @@ public class CourseStop {
         return externalPlace == null ? null : externalPlace.getExternalPlaceId();
     }
 
+    public String getKakaoPlaceId() {
+        return place == null ? null : place.getKakaoPlaceId();
+    }
+
     public String getDisplayName() {
         return place != null ? place.getName() : externalPlace.getName();
     }
@@ -132,6 +136,9 @@ public class CourseStop {
     }
 
     public String getPlaceUrl() {
+        if (place != null) {
+            return place.getKakaoPlaceUrl();
+        }
         return externalPlace == null ? null : externalPlace.getPlaceUrl();
     }
 

@@ -110,10 +110,11 @@ POST /api/v1/compositions
 
 ### 3.3 Course 흐름
 
-프론트는 `placeIds`, `onePickId`, `types`, `companion`, `duration`을 보낸다. 백엔드는 다음을 검증한다.
+프론트는 `placeIds`, `onePickId`, `types`, `detailTypes`, `companion`, `duration`을 보낸다. 백엔드는 다음을 검증한다.
 
 - `placeIds`가 비어 있지 않음
-- `types`가 최대 2개
+- `types`가 최소 1개, 최대 4개
+- `detailTypes`가 선택한 여행 타입에 속하는 유효한 값이며 분야별 복수 선택 가능
 - `duration=custom`이면 시작일/종료일이 있고 종료일이 시작일보다 빠르지 않음
 - `onePickId`가 선택 장소에 포함됨
 
@@ -247,7 +248,7 @@ Base path는 `/api/v1`이다.
 /course-result     CourseResultPage
 ```
 
-- Zustand: `picks`, `onePick`, `types`, `companion`, `duration`, `startDate`, `endDate`
+- Zustand: `picks`, `onePick`, `types`, `detailTypes`, `companion`, `duration`, `startDate`, `endDate`
 - 페이지 local state: 동의 checkbox, 합성 진행 UI, 활성 stop, 장소 추가 패널
 - TanStack Query: `usePlacesQuery`, `useCourseStopsQuery` 경계는 만들어져 있으나 현재 `Promise.resolve(정적 데이터)`를 반환한다.
 - Kakao Maps: `CourseMap`이 SDK, marker, 선택 동기화, 도보 route overlay를 담당한다.

@@ -1,28 +1,22 @@
 package com.mirigangneung.course.service;
 
-import com.mirigangneung.course.domain.Course;
-import com.mirigangneung.course.dto.CourseResponse;
-import com.mirigangneung.course.dto.CreateCourseRequest;
+import com.mirigangneung.common.error.ApiException;
 import com.mirigangneung.course.recommendation.CourseRecommendationEngine;
 import com.mirigangneung.course.repository.CourseRepository;
 import com.mirigangneung.course.repository.CourseStopRepository;
-import com.mirigangneung.place.domain.Place;
+import com.mirigangneung.course.dto.CreateCourseRequest;
 import com.mirigangneung.place.service.PlaceService;
-import org.junit.jupiter.api.BeforeEach;
+import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class CourseServiceTest {
@@ -37,50 +31,95 @@ class CourseServiceTest {
     @Mock
     private CourseRouteCalculator routeCalculator;
 
-    private CourseService service;
-
-    @BeforeEach
-    void setUp() {
-        service = new CourseService(courses, stops, places, engine, routeCalculator);
-        when(courses.save(any(Course.class))).thenAnswer(invocation -> {
-            Course course = invocation.getArgument(0);
-            ReflectionTestUtils.setField(course, "id", UUID.randomUUID());
-            return course;
-        });
-        when(stops.findByCourseOrderBySequenceAsc(any(Course.class))).thenReturn(List.of());
-        when(routeCalculator.calculate(any())).thenReturn(
-                new CourseRouteCalculator.Result("READY", 0, 0, List.of()));
-    }
-
     @Test
-    void forwardsCoursePreferencesToRecommendationEngine() {
-        Place onePick = place("one");
-        Place second = place("two");
-        when(places.find("one")).thenReturn(onePick);
-        when(places.find("two")).thenReturn(second);
-        when(engine.recommend(any(), any(), any(), any(), any())).thenReturn(List.of(onePick, second));
-
+    void rejectsDetailedPreferenceThatDoesNotBelongToSelectedTravelType() {
+        CourseService service = new CourseService(courses, stops, places, engine, routeCalculator);
         CreateCourseRequest request = new CreateCourseRequest(
-                List.of("one", "two"),
-                "one",
-                List.of("food", "rest"),
+                List.of("place-id"),
+                "place-id",
+                List.of("food"),
+                List.of("culture:museum"),
                 "couple",
                 "day",
                 null,
                 null
         );
 
-        CourseResponse response = service.create(request);
-
-        assertThat(response.duration()).isEqualTo("day");
-        ArgumentCaptor<List<String>> types = ArgumentCaptor.forClass(List.class);
-        verify(engine).recommend(any(), any(), types.capture(), any(), any());
-        assertThat(types.getValue()).containsExactly("food", "rest");
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOfSatisfying(ApiException.class, exception -> {
+                    org.assertj.core.api.Assertions.assertThat(exception.getCode())
+                            .isEqualTo("INVALID_PREFERENCE");
+                    org.assertj.core.api.Assertions.assertThat(exception.getStatus())
+                            .isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+                });
+        verifyNoInteractions(courses, stops, places, engine, routeCalculator);
     }
 
-    private static Place place(String id) {
-        Place place = new Place(id, id, "강릉시", "nature", "", 37.0, 128.0, null, "test");
-        ReflectionTestUtils.setField(place, "id", UUID.randomUUID());
-        return place;
+    @Test
+    void acceptsAllTravelTypesAndCuisineDetails() {
+        CreateCourseRequest request = new CreateCourseRequest(
+                List.of("place-id"),
+                "place-id",
+                List.of("food", "rest", "culture", "nature"),
+                List.of("food:korean", "food:chinese", "food:japanese", "food:western"),
+                "couple",
+                "day",
+                null,
+                null
+        );
+
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            assertThat(factory.getValidator().validate(request)).isEmpty();
+        }
+    }
+
+    @Test
+    void rejectsAnOversizedDetailPreferenceListAtRequestValidation() {
+        CreateCourseRequest request = new CreateCourseRequest(
+                List.of("place-id"),
+                "place-id",
+                List.of("food", "rest", "culture", "nature"),
+                List.of(
+                        "food:korean",
+                        "food:chinese",
+                        "food:japanese",
+                        "food:western",
+                        "rest:coffee",
+                        "rest:dessert",
+                        "culture:art",
+                        "culture:exhibition",
+                        "culture:museum",
+                        "food:korean"
+                ),
+                "couple",
+                "day",
+                null,
+                null
+        );
+
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            assertThat(factory.getValidator().validate(request))
+                    .anyMatch(violation -> violation.getPropertyPath().toString().equals("detailTypes"));
+        }
+    }
+
+    @Test
+    void rejectsAnUnknownDetailPreferenceWhenItsBroadTypeIsSelected() {
+        CourseService service = new CourseService(courses, stops, places, engine, routeCalculator);
+        CreateCourseRequest request = new CreateCourseRequest(
+                List.of("place-id"),
+                "place-id",
+                List.of("food"),
+                List.of("food:unknown"),
+                "couple",
+                "day",
+                null,
+                null
+        );
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOfSatisfying(ApiException.class, exception ->
+                        assertThat(exception.getCode()).isEqualTo("INVALID_PREFERENCE"));
+        verifyNoInteractions(courses, stops, places, engine, routeCalculator);
     }
 }
