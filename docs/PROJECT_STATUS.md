@@ -46,6 +46,7 @@ Last Updated By: Codex
 구현된 Controller 경로는 다음과 같다.
 
 - `/api/v1/places` (KorService2 장소 카드와 저장된 보충 이미지 조회)
+- AI 합성 요청에 `sessionId`(프론트의 익명 브라우저 세션 ID)를 함께 전달한다. 없으면 AI 서비스가 호출자 IP로 대체하는데, 그 IP는 이 서버 하나뿐이라 전 사용자가 시간당 생성 한도를 공유하게 된다. `CompositionJob`에 저장해 재시도에도 같은 값을 쓴다.
 - 최초 장소 선택 API는 AI 에이전트의 배경 사진 VLM 판정을 통과한 **23개 장소**만 허용한다. 목록은 에이전트 산출물 사본인 `src/main/resources/data/viable-places.json`에서 읽는다(직접 편집 금지). 장소별 사진도 판정을 통과한 것만 노출한다.
 - KTO 관광지의 Kakao 장소 연결은 `src/main/resources/data/kakao-place-mappings.csv`를 최종 기준으로 사용한다. `KAKAO_PLACE_ENRICHMENT_ON_STARTUP=true`인 경우에만 이름·좌표 기반 자동 보완을 수행하며, 최종 CSV 매핑이 우선한다.
 - `/media/images/{storageKey}` (CDN으로 교체 가능한 이미지 origin endpoint)

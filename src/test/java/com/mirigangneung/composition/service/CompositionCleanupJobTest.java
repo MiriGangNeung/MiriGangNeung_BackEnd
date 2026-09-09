@@ -22,7 +22,7 @@ class CompositionCleanupJobTest {
         CompositionJobRepository jobs = mock(CompositionJobRepository.class);
         TemporaryImageStorage storage = mock(TemporaryImageStorage.class);
         CompositionJob failed = new CompositionJob(
-                "place-id", "input.jpg", "image/jpeg", "4:5", null,
+                "place-id", "input.jpg", "image/jpeg", "4:5", null, "session-1",
                 OffsetDateTime.now().minusMinutes(1));
         failed.fail("FAILED", "failed", false);
         when(jobs.findByExpiresAtBeforeAndStatusIn(any(), any())).thenReturn(List.of(failed));

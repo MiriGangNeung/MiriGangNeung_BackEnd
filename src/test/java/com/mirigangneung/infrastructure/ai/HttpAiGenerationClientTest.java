@@ -36,6 +36,9 @@ class HttpAiGenerationClientTest {
                     assertThat(body).contains("name=\"onePickPlaceId\"", "place-id");
                     assertThat(body).contains("name=\"backgroundImageUrl\"", "https://img.test/bg.png");
                     assertThat(body).contains("name=\"idempotencyKey\"", "job:0");
+                    // 빠지면 AI 서비스가 호출자 IP로 대체하는데, 그 IP는 이 서버 하나뿐이라
+                    // 모든 사용자가 시간당 생성 한도를 공유하게 된다.
+                    assertThat(body).contains("name=\"sessionId\"", "session-1");
                 })
                 .andExpect(header("X-API-Key", "secret"))
                 .andRespond(withSuccess(queuedResponse(), MediaType.APPLICATION_JSON));
@@ -126,7 +129,8 @@ class HttpAiGenerationClientTest {
                 "안목해변",
                 "강릉시",
                 "바다",
-                "job:0");
+                "job:0",
+                "session-1");
     }
 
     private String queuedResponse() {

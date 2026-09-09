@@ -35,6 +35,13 @@ public class CompositionJob {
     @Column(length = 2000)
     private String backgroundImageUrl;
 
+    /**
+     * 비로그인 사용자를 구분하는 익명 브라우저 세션 ID. AI 서비스가 이 값을 키로
+     * 시간당 생성 횟수를 센다. 재시도할 때도 같은 값을 보내야 카운터가 갈라지지
+     * 않으므로 Job에 저장한다.
+     */
+    private String sessionId;
+
     private String provider;
     private String modelVersion;
     private String promptVersion;
@@ -66,12 +73,14 @@ public class CompositionJob {
             String inputContentType,
             String aspectRatio,
             String backgroundImageUrl,
+            String sessionId,
             OffsetDateTime expiresAt) {
         this.onePickPlaceId = onePickPlaceId;
         this.inputStorageKey = inputStorageKey;
         this.inputContentType = inputContentType;
         this.aspectRatio = aspectRatio;
         this.backgroundImageUrl = backgroundImageUrl;
+        this.sessionId = sessionId;
         this.status = CompositionStatus.QUEUED;
         this.stage = "QUEUED";
         this.progress = 0;
@@ -202,6 +211,10 @@ public class CompositionJob {
 
     public String getBackgroundImageUrl() {
         return backgroundImageUrl;
+    }
+
+    public String getSessionId() {
+        return sessionId;
     }
 
     public String getErrorCode() {
