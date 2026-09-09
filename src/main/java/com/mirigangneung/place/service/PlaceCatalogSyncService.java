@@ -17,11 +17,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PlaceCatalogSyncService {
+    private static final Logger log = LoggerFactory.getLogger(PlaceCatalogSyncService.class);
     private static final int DEFAULT_PAGE_SIZE = 1_000;
     private static final int MAX_PAGES = 100;
     private static final int MAX_IMAGES_PER_PLACE = 5;
@@ -195,6 +198,31 @@ public class PlaceCatalogSyncService {
         return new SyncedPlace(placeRepository.save(place), summaryImages);
     }
 
+    /**
+     * AI 에이전트가 "인물이 설 자리가 있고 배경으로 쓸 만하다"고 판정한 사진만 남긴다
+     * (노션 '배경 사진 VLM 사전 분석 리포트'의 노출 규칙 1).
+     *
+     * <p>한 장도 일치하지 않으면 아무것도 지우지 않고 경고만 남긴다. 판정 데이터는
+     * 특정 시점의 KorService2 이미지 URL로 찍혀 있어서, 관광공사가 사진을 교체하면
+     * 전부 어긋난다. 그때 전량을 지우면 장소가 이미지 0장이 되어 통째로 사라지는데,
+     * 이는 "부적합 사진을 감춘다"보다 훨씬 나쁜 결과다.
+     */
+    private void retainPortraitViableImages(Place place, Map<String, ImageData> byUrl) {
+        Set<String> usable = PromptPlaceCatalog.usableImageUrls(place.getName());
+        if (usable.isEmpty() || byUrl.isEmpty()) {
+            return;
+        }
+        List<String> excluded = byUrl.keySet().stream()
+                .filter(url -> !usable.contains(url))
+                .toList();
+        if (excluded.size() == byUrl.size()) {
+            log.warn("판정된 배경 사진과 일치하는 URL이 없어 사진 필터를 건너뜁니다: place={}, 후보={}",
+                    place.getName(), byUrl.size());
+            return;
+        }
+        excluded.forEach(byUrl::remove);
+    }
+
     private ImageReplacementResult replaceImages(SyncedPlace syncedPlace, List<String> galleryUrls) {
         Place place = syncedPlace.place();
         Map<String, ImageData> byUrl = new LinkedHashMap<>();
@@ -206,6 +234,7 @@ public class PlaceCatalogSyncService {
                 image.imageUrl(), image.title(), "KTO", image.copyrightCode())));
         galleryUrls.forEach(url -> addImage(byUrl, new ImageData(
                 url, place.getName(), "KTO_PHOTO_GALLERY", ALLOWED_COPYRIGHT_CODE)));
+        retainPortraitViableImages(place, byUrl);
 
         List<CachedImage> usableImages;
         if (cachingEnabled()) {
