@@ -45,8 +45,11 @@ class PlaceRepositoryTest {
 
     @Test
     void appliesCategoryAndKeywordToPlacesWithType1Images() {
+        // 두 이름 모두 노출 카탈로그(/data/viable-places.json)에 있어야 한다. 카탈로그에
+        // 없는 장소는 category/keyword 이전 단계에서 걸러져, 이 테스트가 검증하려는
+        // category+keyword 필터까지 도달하지 못한다.
         Place beach = savePlace("beach", "안목해변", "nature");
-        Place museum = savePlace("museum", "강릉아트센터", "culture");
+        Place museum = savePlace("museum", "강릉 경포대", "culture");
         placeImageRepository.saveAll(List.of(
                 new PlaceImage(beach, "https://img.test/beach.jpg", "대표", "KTO", 0, "Type1"),
                 new PlaceImage(museum, "https://img.test/museum.jpg", "대표", "KTO", 0, "Type1")));

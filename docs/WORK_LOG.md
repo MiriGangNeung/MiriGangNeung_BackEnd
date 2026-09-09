@@ -1,5 +1,48 @@
 # Work Log
 
+## 2026-09-09
+
+### 장소 노출 whitelist를 AI 판정 결과 단일 출처로 교체
+
+**Agent:** Claude (Opus 5)
+**작업 유형:** Fix / Integration
+
+### 작업 내용
+
+- `PromptPlaceCatalog`가 하드코딩하던 43곳 whitelist를 제거하고, AI 에이전트가 생성한
+  `/data/viable-places.json`(23곳)을 클래스패스에서 읽도록 바꿨다.
+- 기존 목록의 주석은 "Notion **pose guide**"였다 — 즉 배경 사진 VLM 판정 결과가 아니라
+  팀 포즈 조사 문서를 손으로 옮겨 적은 것이었다. 대조 결과 두 리스트의 교집합은 15곳뿐이고,
+  판정에서 "설 자리 없음"으로 제외된 헌화로·소돌아들바위공원이 그대로 노출되고 있었다.
+- `PlaceCatalogSyncService.retainPortraitViableImages()`를 추가해 사진 단위로도 필터링한다
+  (노션 리포트의 노출 규칙 1: `portraitViability == low`는 노출하지 않는다).
+  한 장도 일치하지 않으면 아무것도 지우지 않고 경고만 남긴다 — 관광공사가 사진을 교체하면
+  URL이 전부 어긋나는데, 그때 전량을 지우면 장소가 이미지 0장이 되어 통째로 사라진다.
+- `src/test/resources/application.properties`를 추가해 테스트가 개발자 로컬 `.env`에
+  오염되지 않도록 데이터소스를 인메모리로 고정했다. 메인 `application.yml`이
+  `spring.config.import: optional:file:.env`로 `.env`를 읽는데 이 설정이 테스트 JVM에도
+  적용되어, 로컬 E2E용 `.env`가 있으면 dialect를 결정하지 못하고 3개 테스트가 깨졌다.
+- `gradlew`에 실행 권한이 없어 빌드가 되지 않던 것을 100644 → 100755로 고쳤다.
+
+### 검증
+
+- `./gradlew build` 성공 (161 테스트 통과).
+- 실제 TourAPI 재동기화 후 노출 장소 43곳 → **23곳**, 장소별 사진 수가 AI 판정 결과와
+  정확히 일치(강문해변 5, 경포대·경포해수욕장·안목해변·향호해변·허난설헌 4 …).
+- 프론트 → 백엔드 → AI 에이전트 전체 왕복을 실제 Gemini로 확인 (안목해변, 결과 921×1152).
+
+### 다음 담당자에게
+
+- `/data/viable-places.json`은 **AI 에이전트 레포의 산출물 사본**이다. 직접 고치지 말고
+  에이전트에서 `scripts/export_place_filter.py`를 돌려 교체한다. 근거는 에이전트 레포의
+  `docs/adr/0007-place-exposure-single-source.md`.
+- AI 에이전트의 `promptVersion`이 **v5 → v6**으로 올랐다. API 필드는 바뀌지 않는다.
+- `CompositionService`가 `sessionId`를 에이전트로 보내지 않는다. 에이전트는 없으면 클라이언트
+  IP로 폴백하는데 유일한 클라이언트가 백엔드 서버라, 세션당 rate limit이 사실상
+  "서비스 전체 10회/시간"으로 동작한다. 이번 범위에서 다루지 않았다.
+
+---
+
 ## 2026-09-08
 
 ### 22:25 ~ 22:34 — course-cuisine-preference-enrichment 브랜치 병합
