@@ -28,8 +28,9 @@ public class CompositionController {
             @RequestPart(name = "photo") MultipartFile photo,
             @RequestPart(name = "onePickId") String onePickId,
             @RequestPart(name = "aspectRatio", required = false) String aspectRatio,
-            @RequestPart(name = "backgroundImageUrl", required = false) String backgroundImageUrl) {
-        return service.create(photo, onePickId, aspectRatio, backgroundImageUrl);
+            @RequestPart(name = "backgroundImageUrl", required = false) String backgroundImageUrl,
+            @RequestPart(name = "sessionId", required = false) String sessionId) {
+        return service.create(photo, onePickId, aspectRatio, backgroundImageUrl, sessionId);
     }
 
     @GetMapping("/{id}")

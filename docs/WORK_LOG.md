@@ -1,5 +1,40 @@
 # Work Log
 
+## 2026-09-09 (2)
+
+### sessionId 전달 — AI 시간당 생성 한도를 사용자 단위로 복구
+
+**Agent:** Claude (Opus 5)
+**작업 유형:** Fix
+
+### 작업 내용
+
+AI 에이전트는 `sessionId`를 키로 시간당 생성 횟수를 세고, 값이 없으면 호출자 IP로
+대체한다. 그런데 백엔드가 이 필드를 보내지 않았고 에이전트를 호출하는 것은 이 서버
+하나뿐이라, **모든 사용자가 카운터 하나를 공유**하고 있었다. 의도한 "사용자당 10회/시간"이
+사실상 "서비스 전체 10회/시간"으로 동작했다.
+
+비로그인 개발 단계이므로 프론트가 만든 익명 브라우저 세션 ID를 그대로 전달한다.
+
+- `CompositionController.create()`가 `sessionId` 폼 필드를 받는다(선택).
+- `CompositionJob`에 `sessionId`를 저장한다. 재시도할 때도 같은 값을 보내야 카운터가
+  갈라지지 않는다.
+- `AiGenerationClient.AiGenerationRequest`에 필드를 추가하고 `HttpAiGenerationClient`가
+  multipart에 실어 보낸다.
+
+프론트는 `sessionStorage`에 UUID를 만들어 두고 합성 요청마다 붙인다(프론트 레포).
+신원 확인용이 아니라 "같은 사람의 요청인가"만 구분하는 값이다.
+
+### 검증
+
+- `./gradlew build` 성공 (162 테스트). `HttpAiGenerationClientTest`에 multipart 본문의
+  `sessionId` 어서션을 추가했다.
+- 실제 요청으로 확인: `sessionId=browser-session-TEST-123`을 보내면 Redis에
+  `mirigangneung:ai:rate:browser-session-TEST-123:2026090910` 카운터가 생긴다.
+  이전에는 IP 기준 키 하나만 생겼다.
+
+---
+
 ## 2026-09-09
 
 ### 장소 노출 whitelist를 AI 판정 결과 단일 출처로 교체

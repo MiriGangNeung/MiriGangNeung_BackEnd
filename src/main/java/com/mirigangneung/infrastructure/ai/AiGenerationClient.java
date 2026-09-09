@@ -25,7 +25,8 @@ public interface AiGenerationClient {
             String placeName,
             String placeRegion,
             String placeDescription,
-            String idempotencyKey) {
+            String idempotencyKey,
+            String sessionId) {
     }
 
     record AiGenerationResponse(

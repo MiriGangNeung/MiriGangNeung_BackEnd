@@ -64,7 +64,8 @@ public class CompositionService {
             MultipartFile photo,
             String onePickId,
             String aspectRatio,
-            String backgroundImageUrl) {
+            String backgroundImageUrl,
+            String sessionId) {
         validatePhoto(photo);
         String normalizedAspectRatio = normalizeAspectRatio(aspectRatio);
         requireAiConfigured();
@@ -79,6 +80,7 @@ public class CompositionService {
                 photo.getContentType(),
                 normalizedAspectRatio,
                 background.sourceImageUrl(),
+                sessionId,
                 expiresAt));
         startGeneration(job, background);
         jobs.save(job);
@@ -176,7 +178,8 @@ public class CompositionService {
                     place.getName(),
                     place.getRegion(),
                     place.getDescription(),
-                    job.getId() + ":" + job.getRetryCount()));
+                    job.getId() + ":" + job.getRetryCount(),
+                    job.getSessionId()));
             applyProviderResponse(job, response);
         } catch (AiGenerationClientException exception) {
             job.fail(exception.getCode(), exception.getMessage(), exception.isRetryable());

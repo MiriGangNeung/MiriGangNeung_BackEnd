@@ -68,7 +68,7 @@ class CompositionServiceTest {
     void createsProviderGenerationAndStoresProviderJobId() {
         when(ai.create(any())).thenReturn(response("QUEUED", null));
 
-        var result = service.create(photo(), place.getId().toString(), null, null);
+        var result = service.create(photo(), place.getId().toString(), null, null, "session-1");
 
         assertThat(result.status()).isEqualTo("QUEUED");
         assertThat(result.resultAvailable()).isFalse();
@@ -83,7 +83,7 @@ class CompositionServiceTest {
     @Test
     void pollingDoneDownloadsAndStoresResult() {
         when(ai.create(any())).thenReturn(response("QUEUED", null));
-        var created = service.create(photo(), place.getId().toString(), "1:1", null);
+        var created = service.create(photo(), place.getId().toString(), "1:1", null, "session-1");
         CompositionJob job = capturedSavedJob();
         when(jobs.findByStatusInAndProviderJobIdIsNotNull(any())).thenReturn(List.of(job));
         when(ai.getStatus("provider-1")).thenReturn(response("DONE", null));
@@ -102,7 +102,7 @@ class CompositionServiceTest {
     @Test
     void resultDownloadFailureNeverLeavesLocalJobDone() {
         when(ai.create(any())).thenReturn(response("provider-1", "QUEUED", null));
-        var created = service.create(photo(), place.getId().toString(), "1:1", null);
+        var created = service.create(photo(), place.getId().toString(), "1:1", null, "session-1");
         CompositionJob job = capturedSavedJob();
         when(jobs.findByStatusInAndProviderJobIdIsNotNull(any())).thenReturn(List.of(job));
         when(ai.getStatus("provider-1")).thenReturn(response("provider-1", "DONE", null));
@@ -124,7 +124,7 @@ class CompositionServiceTest {
                 .thenReturn(response("provider-1", "FAILED", new GenerationError("PROVIDER_TIMEOUT", "시간 초과", true)))
                 .thenReturn(response("provider-2", "QUEUED", null));
 
-        var failed = service.create(photo(), place.getId().toString(), "4:5", null);
+        var failed = service.create(photo(), place.getId().toString(), "4:5", null, "session-1");
         CompositionJob job = capturedSavedJob();
         when(jobs.findById(job.getId())).thenReturn(java.util.Optional.of(job));
         when(storage.exists("input.jpg")).thenReturn(true);
@@ -144,7 +144,7 @@ class CompositionServiceTest {
         when(ai.create(any()))
                 .thenReturn(response("provider-1", "FAILED", new GenerationError("PROVIDER_TIMEOUT", "시간 초과", true)))
                 .thenReturn(response("provider-2", "QUEUED", null));
-        var failed = service.create(photo(), place.getId().toString(), "4:5", null);
+        var failed = service.create(photo(), place.getId().toString(), "4:5", null, "session-1");
         CompositionJob job = capturedSavedJob();
         when(storage.exists("input.jpg")).thenReturn(true);
         service.retry(failed.jobId());

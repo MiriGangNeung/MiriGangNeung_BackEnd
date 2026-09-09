@@ -57,6 +57,9 @@ public class HttpAiGenerationClient implements AiGenerationClient {
         addText(body, "placeRegion", request.placeRegion());
         addText(body, "placeDescription", request.placeDescription());
         addText(body, "idempotencyKey", request.idempotencyKey());
+        // 없으면 AI 서비스가 호출자 IP로 대체하는데, 그 IP는 이 서버 하나뿐이라
+        // 모든 사용자가 시간당 생성 한도를 공유하게 된다.
+        addText(body, "sessionId", request.sessionId());
 
         try {
             String responseBody = withApiKey(client.post()
