@@ -512,6 +512,48 @@ AI 에이전트는 `sessionId`를 키로 시간당 생성 횟수를 세고, 값�
 
 - 없음 (현재 작업 트리 변경)
 
+### 시간 미기록 ~ 2026-09-10 13:54 — 장소 shortDescription API 연동
+
+**Agent:** Codex
+**작업 유형:** Implementation / Verification
+
+**작업 내용:**
+
+- 장소 선택 후 모든 장소에 주문진 문구가 표시되던 프론트 mock을 제거했다.
+- 백엔드의 23개 큐레이션 장소 소개 문구를 `PlaceShortDescriptionCatalog`에서 exact-name으로 관리하고, `PlaceResponse.shortDescription`으로 `/api/v1/places`에 추가했다.
+- 실제 데이터 명칭 차이인 `임당동 성당` ↔ `강릉 임당동성당`만 명시적 alias로 처리했다. 알 수 없는 장소는 추측하지 않고 null을 반환한다.
+- 새 필드가 포함되지 않은 기존 목록 캐시가 남지 않도록 장소 목록 캐시 버전을 v8에서 v9로 올렸다.
+- 프론트 `Place` 타입과 `/places` 응답 매핑에 `shortDescription`을 연결하고, 결과 화면에서 해당 값을 표시하도록 변경했다. 값이 없는 예외 상황에는 일반 fallback만 사용한다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/place/service/PlaceShortDescriptionCatalog.java`
+- `src/main/java/com/mirigangneung/place/dto/PlaceResponse.java`
+- `src/main/java/com/mirigangneung/place/service/PlaceService.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceShortDescriptionCatalogTest.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceServiceTest.java`
+- `MiriGangNeung_FrontEnd/src/types/domain.ts`
+- `MiriGangNeung_FrontEnd/src/lib/placesApi.ts`
+- `MiriGangNeung_FrontEnd/src/lib/placesApi.test.ts`
+- `MiriGangNeung_FrontEnd/src/components/organisms/CompositeResult.tsx`
+
+**테스트 결과:**
+
+- `./gradlew.bat test --no-daemon` — `BUILD SUCCESSFUL`
+- `npm test -- --run` — 50개 파일, 145개 테스트 통과
+- `npm run lint -- --quiet` — 오류 0, 기존 `CourseMap.tsx` hook dependency warning 1개
+- `npm run build` — 성공
+- `git diff --check` — 통과
+- 고정 주문진 문구 검색 — 소스에서 미검출
+
+**발생한 문제와 해결 방법:**
+
+- 캐시 키를 v9로 변경한 뒤 기존 테스트가 v8을 기대해 1회 실패했다. 테스트 기대값을 v9로 수정하고 전체 테스트를 재실행해 통과시켰다.
+
+**관련 commit:**
+
+- 없음 (사용자 검토 전 작업 트리 변경)
+
 ## 2026-09-08
 
 ### 21:40 ~ 21:55 — Notion 프롬프트 장소 whitelist 적용

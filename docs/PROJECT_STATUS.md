@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-09-08 22:34 KST
+Last Updated: 2026-09-10 13:54 KST
 Last Updated By: Codex
 
 기준일: 2026-09-08
@@ -15,6 +15,8 @@ Last Updated By: Codex
 - 최신 AI 에이전트 인수인계 문서 커밋은 `0b6090f` (`docs: improve AI agent onboarding`)이다.
 
 ## 현재 코드에 존재하는 영역
+
+- `/api/v1/places` 응답에 백엔드 관리 `shortDescription`을 추가했다. Agent가 분석한 합성 가능 장소와 별개로, 현재 큐레이션 대상 23개 장소의 소개 문구를 exact-name 카탈로그에서 제공한다.
 
 - 공통: CORS, RedisTemplate, 전역 예외 응답
 - Place: `Place`, `PlaceImage`, Repository, Service, DTO, Controller

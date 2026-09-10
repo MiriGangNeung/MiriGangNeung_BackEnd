@@ -11,6 +11,7 @@ import java.util.Objects;
 public record PlaceResponse(
         String id,
         String name,
+        String shortDescription,
         String region,
         String category,
         List<String> tags,
@@ -24,12 +25,12 @@ public record PlaceResponse(
 
     public PlaceResponse(String id, String name, String region, String category, List<String> tags,
                          String thumbnailUrl, Double latitude, Double longitude) {
-        this(id, name, region, category, tags, thumbnailUrl, latitude, longitude, List.of(), List.of());
+        this(id, name, null, region, category, tags, thumbnailUrl, latitude, longitude, List.of(), List.of());
     }
 
     public PlaceResponse(String id, String name, String region, String category, List<String> tags,
                          String thumbnailUrl, Double latitude, Double longitude, List<String> imageUrls) {
-        this(id, name, region, category, tags, thumbnailUrl, latitude, longitude, imageUrls, imageUrls);
+        this(id, name, null, region, category, tags, thumbnailUrl, latitude, longitude, imageUrls, imageUrls);
     }
 
     public PlaceResponse {
@@ -59,6 +60,7 @@ public record PlaceResponse(
         return new PlaceResponse(
                 place.getId().toString(),
                 place.getName(),
+                com.mirigangneung.place.service.PlaceShortDescriptionCatalog.get(place.getName()),
                 place.getRegion(),
                 place.getCategory(),
                 List.of(),

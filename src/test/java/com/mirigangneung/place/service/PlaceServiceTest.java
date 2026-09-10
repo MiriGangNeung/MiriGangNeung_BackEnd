@@ -251,7 +251,7 @@ class PlaceServiceTest {
         when(images.findByPlaceOrderBySortOrderAsc(place)).thenReturn(List.of());
         cachedService.detail(place.getId().toString());
 
-        verify(cache).put(startsWith("place:list:v8:"), anyString(), eq(listTtl));
+        verify(cache).put(startsWith("place:list:v9:"), anyString(), eq(listTtl));
         verify(cache).put(startsWith("place:detail:v4:"), anyString(), eq(detailTtl));
         verifyNoInteractions(tour);
     }
