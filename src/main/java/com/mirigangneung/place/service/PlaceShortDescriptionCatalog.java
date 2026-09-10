@@ -33,7 +33,8 @@ public final class PlaceShortDescriptionCatalog {
     );
 
     private static final Map<String, String> ALIASES = Map.of(
-            "임당동 성당", DESCRIPTIONS.get("강릉 임당동성당")
+            "임당동 성당", DESCRIPTIONS.get("강릉 임당동성당"),
+            "강릉 솔향수목원", DESCRIPTIONS.get("강릉솔향수목원")
     );
 
     private PlaceShortDescriptionCatalog() {

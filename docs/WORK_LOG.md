@@ -512,6 +512,43 @@ AI 에이전트는 `sessionId`를 키로 시간당 생성 횟수를 세고, 값�
 
 - 없음 (현재 작업 트리 변경)
 
+### 2026-09-10 14:29 ~ 14:31 — 관광지 shortDescription 최종 검증 및 명칭 alias 보완
+
+**Agent:** Codex
+**작업 유형:** Bugfix / Verification
+
+**작업 내용:**
+
+- 최신 Backend/Frontend `main`을 확인하고 기존 23개 관광지 짧은 설명 연동의 실제 데이터 흐름을 검증했다.
+- 실제 `/api/v1/places` 응답에서 `강릉 솔향수목원`의 명칭 표기와 카탈로그 키가 달라 설명이 비어 있는 문제를 발견했다.
+- 부분 문자열 매칭 없이 명시적 alias를 추가해 `강릉 솔향수목원`과 `강릉솔향수목원`을 동일 설명으로 연결했다.
+- 관광공사 동기화 로직은 `Place.description`만 갱신하고 `shortDescription`은 응답 시 카탈로그에서 계산하므로 큐레이션 문구가 동기화로 덮어쓰이지 않음을 확인했다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/place/service/PlaceShortDescriptionCatalog.java`
+- `src/test/java/com/mirigangneung/place/service/PlaceShortDescriptionCatalogTest.java`
+- `docs/PROJECT_STATUS.md`
+- `docs/WORK_LOG.md`
+
+**테스트 결과:**
+
+- `./gradlew.bat test --no-daemon` — `BUILD SUCCESSFUL`
+- 실제 `GET /api/v1/places?page=0&size=100` — 23개 응답, `shortDescription` 공백 0개
+- Frontend `npm test -- --run` — 50개 파일 / 148개 테스트 통과
+- Frontend `npm run build` — 성공
+- Frontend `npm run lint -- --quiet` — 오류 없음
+- Backend/Frontend `git diff --check` — 통과
+
+**발생한 문제와 해결 방법:**
+
+- 문제: 실제 DB의 `강릉 솔향수목원`이 카탈로그의 `강릉솔향수목원` exact key와 불일치했다.
+- 해결: 허용된 명시적 alias만 추가하고 alias 매핑 테스트를 보강했다.
+
+**관련 commit:**
+
+- 미커밋 (검증 후 별도 commit 예정)
+
 ### 시간 미기록 ~ 2026-09-10 13:54 — 장소 shortDescription API 연동
 
 **Agent:** Codex

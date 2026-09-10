@@ -17,6 +17,8 @@ class PlaceShortDescriptionCatalogTest {
                 .isNotEqualTo(PlaceShortDescriptionCatalog.get("정동진해변"));
         assertThat(PlaceShortDescriptionCatalog.get("임당동 성당"))
                 .isEqualTo(PlaceShortDescriptionCatalog.get("강릉 임당동성당"));
+        assertThat(PlaceShortDescriptionCatalog.get("강릉 솔향수목원"))
+                .isEqualTo(PlaceShortDescriptionCatalog.get("강릉솔향수목원"));
     }
 
     @Test
