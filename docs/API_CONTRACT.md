@@ -224,6 +224,19 @@ GET /api/v1/share/courses/{shareToken}
 
 ## 6. 사진 합성 Job API
 
+### 기본 AI 모델 목록
+
+```http
+GET /api/v1/composition-models
+```
+
+응답에는 백엔드가 실제 합성 입력으로 사용할 수 있는 preset만 포함된다. 현재는 `default-female-01` 1개를 제공한다.
+`imageUrl`은 모델 미리보기용 이미지 API다.
+
+```http
+GET /api/v1/composition-models/{modelPresetId}/image
+```
+
 ```http
 POST /api/v1/compositions
 Content-Type: multipart/form-data
@@ -232,13 +245,16 @@ Content-Type: multipart/form-data
 multipart 필드:
 
 ```text
-photo: 이미지 파일 (필수, JPEG/PNG/WEBP, 최대 10MB)
+photo: 이미지 파일 (photo 방식에서 필수, JPEG/PNG/WEBP, 최대 10MB)
+modelPresetId: 기본 AI 모델 ID (preset 방식에서 필수, photo와 동시에 사용 불가)
 onePickId: GET /api/v1/places에서 받은 Place.id UUID (필수)
 aspectRatio: 1:1 | 4:5 | 9:16 (선택, 기본 4:5)
 backgroundImageUrl: 사용자가 선택한 해당 Place의 Type1 이미지 URL (선택, originalImageUrls 권장)
 ```
 
 `onePickId`는 `kto-award:*`, `kto-gallery:*` 표시용 ID가 아니라 백엔드 `Place.id` UUID여야 한다.
+`photo` 또는 `modelPresetId` 중 정확히 하나만 전송해야 한다. `modelPresetId` 방식은 백엔드 preset asset을
+기존 Agent 입력 사진으로 사용하므로 나머지 Job/polling/result 계약은 동일하다.
 백엔드는 해당 Place의 `copyrightCode=Type1` 이미지 원본을 `PlaceImageStorage`에서 읽어 Agent에
 `background` 파일로 전달한다. `backgroundImageUrl`을 생략하면 정렬 순서가 가장 앞선 Type1 이미지를
 사용한다. 지정한 URL이 해당 Place의 Type1 이미지가 아니거나 원본을 준비할 수 없으면 Job을 만들지

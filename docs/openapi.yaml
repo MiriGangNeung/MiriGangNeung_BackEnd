@@ -99,9 +99,13 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [photo, onePickId]
+              required: [onePickId]
               properties:
                 photo: {type: string, format: binary}
+                modelPresetId:
+                  type: string
+                  description: 기본 AI 모델 ID. photo와 정확히 하나만 전송한다.
+                  example: default-female-01
                 onePickId: {type: string, format: uuid}
                 aspectRatio: {type: string, enum: ['1:1', '4:5', '9:16'], default: '4:5'}
                 backgroundImageUrl:
@@ -120,6 +124,36 @@ paths:
         '422': {description: 합성 가능한 Type1 배경 없음}
         '502': {description: 배경 원본 또는 Agent 호출 실패}
         '503': {description: AI_BASE_URL 미설정}
+  /api/v1/composition-models:
+    get:
+      tags: [Compositions]
+      summary: 기본 AI 모델 목록 조회
+      responses:
+        '200':
+          description: 사용 가능한 기본 AI 모델
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompositionModelResponse'
+  /api/v1/composition-models/{modelPresetId}/image:
+    get:
+      tags: [Compositions]
+      summary: 기본 AI 모델 이미지 조회
+      parameters:
+        - name: modelPresetId
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: 모델 이미지
+          content:
+            image/png:
+              schema: {type: string, format: binary}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '503': {description: 모델 asset을 사용할 수 없음}
   /api/v1/compositions/{jobId}:
     get:
       tags: [Compositions]
@@ -362,6 +396,7 @@ components:
       properties:
         id: {type: string}
         name: {type: string}
+        shortDescription: {type: string, nullable: true, description: 백엔드 큐레이션 장소 소개}
         region: {type: string}
         category: {type: string}
         tags: {type: array, items: {type: string}}
@@ -514,6 +549,14 @@ components:
         shareToken: {type: string}
         shareUrl: {type: string}
         expiresAt: {type: string, format: date-time}
+    CompositionModelResponse:
+      type: object
+      required: [id, name, imageUrl]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        imageUrl: {type: string}
+        description: {type: string, nullable: true}
     CompositionStatusResponse:
       type: object
       required: [jobId, status, progress, stage, resultAvailable]

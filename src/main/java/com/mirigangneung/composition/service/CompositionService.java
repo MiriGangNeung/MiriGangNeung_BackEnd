@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,7 @@ public class CompositionService {
     private final TemporaryImageStorage storage;
     private final AiGenerationClient ai;
     private final CompositionBackgroundResolver backgroundResolver;
+    private final CompositionModelCatalog modelCatalog;
     private final long imageTtlSeconds;
 
     public CompositionService(
@@ -53,10 +55,22 @@ public class CompositionService {
             AiGenerationClient ai,
             CompositionBackgroundResolver backgroundResolver,
             @Value("${image.ttl:86400}") long imageTtlSeconds) {
+        this(jobs, storage, ai, backgroundResolver, new CompositionModelCatalog(), imageTtlSeconds);
+    }
+
+    @Autowired
+    public CompositionService(
+            CompositionJobRepository jobs,
+            TemporaryImageStorage storage,
+            AiGenerationClient ai,
+            CompositionBackgroundResolver backgroundResolver,
+            CompositionModelCatalog modelCatalog,
+            @Value("${image.ttl:86400}") long imageTtlSeconds) {
         this.jobs = jobs;
         this.storage = storage;
         this.ai = ai;
         this.backgroundResolver = backgroundResolver;
+        this.modelCatalog = modelCatalog;
         this.imageTtlSeconds = imageTtlSeconds > 0 ? imageTtlSeconds : 86_400;
     }
 
@@ -66,18 +80,28 @@ public class CompositionService {
             String aspectRatio,
             String backgroundImageUrl,
             String sessionId) {
-        validatePhoto(photo);
+        return create(photo, null, onePickId, aspectRatio, backgroundImageUrl, sessionId);
+    }
+
+    public CompositionStatusResponse create(
+            MultipartFile photo,
+            String modelPresetId,
+            String onePickId,
+            String aspectRatio,
+            String backgroundImageUrl,
+            String sessionId) {
+        InputImage input = resolveInput(photo, modelPresetId);
         String normalizedAspectRatio = normalizeAspectRatio(aspectRatio);
         requireAiConfigured();
         CompositionBackgroundResolver.ResolvedBackground background =
                 backgroundResolver.resolve(onePickId, backgroundImageUrl);
 
         OffsetDateTime expiresAt = OffsetDateTime.now().plusSeconds(imageTtlSeconds);
-        String inputStorageKey = saveInput(photo, expiresAt);
+        String inputStorageKey = saveInput(input, expiresAt);
         CompositionJob job = jobs.save(new CompositionJob(
                 onePickId,
                 inputStorageKey,
-                photo.getContentType(),
+                input.contentType(),
                 normalizedAspectRatio,
                 background.sourceImageUrl(),
                 sessionId,
@@ -277,16 +301,45 @@ public class CompositionService {
         }
     }
 
-    private String saveInput(MultipartFile photo, OffsetDateTime expiresAt) {
+    private String saveInput(InputImage input, OffsetDateTime expiresAt) {
         try {
             return storage.save(
-                    photo.getInputStream(),
-                    photo.getContentType(),
-                    photo.getSize(),
+                    new java.io.ByteArrayInputStream(input.bytes()),
+                    input.contentType(),
+                    input.bytes().length,
                     expiresAt.toInstant());
         } catch (IOException exception) {
             throw new ApiException(
                     "INTERNAL_ERROR", HttpStatus.INTERNAL_SERVER_ERROR, "이미지를 저장할 수 없습니다.");
+        }
+    }
+
+    private InputImage resolveInput(MultipartFile photo, String modelPresetId) {
+        boolean hasPhoto = photo != null && !photo.isEmpty();
+        boolean hasPreset = modelPresetId != null && !modelPresetId.isBlank();
+        if (hasPhoto == hasPreset) {
+            throw new ApiException(
+                    "INVALID_COMPOSITION_INPUT",
+                    HttpStatus.BAD_REQUEST,
+                    "photo 또는 modelPresetId 중 하나만 입력해야 합니다.");
+        }
+        if (hasPhoto) {
+            validatePhoto(photo);
+            try {
+                return new InputImage(photo.getBytes(), photo.getContentType());
+            } catch (IOException exception) {
+                throw new ApiException(
+                        "INVALID_COMPOSITION_INPUT", HttpStatus.BAD_REQUEST, "업로드한 사진을 읽을 수 없습니다.");
+            }
+        }
+        CompositionModelCatalog.Asset asset = modelCatalog.load(modelPresetId.trim());
+        try (InputStream input = asset.input()) {
+            return new InputImage(input.readAllBytes(), asset.contentType());
+        } catch (IOException exception) {
+            throw new ApiException(
+                    "COMPOSITION_MODEL_UNAVAILABLE",
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "기본 AI 모델 이미지를 준비할 수 없습니다.");
         }
     }
 
@@ -344,6 +397,9 @@ public class CompositionService {
             return ".webp";
         }
         return ".png";
+    }
+
+    private record InputImage(byte[] bytes, String contentType) {
     }
 
     public record CompositionDownload(InputStream input, String contentType, String filename) {

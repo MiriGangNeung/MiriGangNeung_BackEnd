@@ -25,12 +25,13 @@ public class CompositionController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CompositionStatusResponse create(
-            @RequestPart(name = "photo") MultipartFile photo,
+            @RequestPart(name = "photo", required = false) MultipartFile photo,
             @RequestPart(name = "onePickId") String onePickId,
             @RequestPart(name = "aspectRatio", required = false) String aspectRatio,
             @RequestPart(name = "backgroundImageUrl", required = false) String backgroundImageUrl,
-            @RequestPart(name = "sessionId", required = false) String sessionId) {
-        return service.create(photo, onePickId, aspectRatio, backgroundImageUrl, sessionId);
+            @RequestPart(name = "sessionId", required = false) String sessionId,
+            @RequestPart(name = "modelPresetId", required = false) String modelPresetId) {
+        return service.create(photo, modelPresetId, onePickId, aspectRatio, backgroundImageUrl, sessionId);
     }
 
     @GetMapping("/{id}")

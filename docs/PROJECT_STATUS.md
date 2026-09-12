@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-09-10 14:31 KST
+Last Updated: 2026-09-12 11:27 KST
 Last Updated By: Codex
 
 기준일: 2026-09-08
@@ -24,6 +24,7 @@ Last Updated By: Codex
 - 관광지 이미지: KorService2 대표/상세 이미지와 관광사진 정보 GW의 장소명 일치 이미지를 합쳐 장소별 최대 5장 노출. KorService2는 `cpyrhtDivCd=Type1`만 허용하고, 제1유형 전용인 관광사진 정보 GW는 별도 저작권 코드 필터 없이 사용
 - 이미지 전달: 동기화 시 원본을 로컬 저장소에 한 번 저장하고 카드용 JPEG 썸네일과 합성용 원본 storage key를 `place_images`에 보존. 목록·상세 요청은 저장된 URL만 반환하며 Redis에는 JSON만 저장
 - Composition: 업로드, Type1 배경 원본 resolve, FastAPI Agent generation 생성, providerJobId 저장, 상태 polling, DONE 결과 임시 저장·다운로드, 오류·retry 처리
+- Composition preset: `GET /api/v1/composition-models`와 `/image`로 기본 여성 AI 모델을 제공하고, `modelPresetId`를 기존 composition 입력 대체 경로로 지원
 - Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
 - Course preference: 여행 타입·세부 취향 저장과 Kakao 주변 장소 추천 점수/반경 확장
 - KTO-Kakao binding: `tourContentId` 기준 수기 CSV 매핑과 선택적 Kakao Local 자동 보완으로 관광지 Kakao 장소 URL을 연결

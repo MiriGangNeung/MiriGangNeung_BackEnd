@@ -549,6 +549,41 @@ AI 에이전트는 `sessionId`를 키로 시간당 생성 횟수를 세고, 값�
 
 - 미커밋 (검증 후 별도 commit 예정)
 
+### 2026-09-12 11:20 ~ 11:27 — 기본 AI 모델 preset 합성 경로 구현
+
+**Agent:** Codex
+**작업 유형:** Implementation
+
+**작업 내용:**
+
+- 기존 사용자 사진 업로드 흐름을 유지하면서 기본 여성 모델 1개를 선택해 합성할 수 있는 Backend/Frontend 경로를 추가했다.
+- Backend preset 목록/이미지 API와 `modelPresetId` 입력 검증을 추가하고, preset asset을 기존 Agent generation 입력으로 재사용한다.
+- 제공된 모델 이미지를 `src/main/resources/composition-models/default-female-01.png`에 배치했다.
+- API Contract와 OpenAPI에 preset 계약을 반영했다.
+
+**주요 변경 파일:**
+
+- Backend `composition/controller`, `composition/service`, `composition/dto`
+- Backend `src/main/resources/composition-models/default-female-01.png`
+- Frontend `PhotoUpload.tsx`, `PhotoUploadPage.tsx`, `compositionApi.ts`, `compositionModelsApi.ts`, `useAppStore.ts`
+- `docs/API_CONTRACT.md`, `docs/openapi.yaml`, `docs/PROJECT_STATUS.md`
+
+**테스트 결과:**
+
+- Backend `./gradlew.bat test --no-daemon` — `BUILD SUCCESSFUL`
+- Frontend `npm test -- --run` — 51개 파일 / 150개 통과
+- Frontend `npm run build` — 성공
+- Frontend `npm run lint -- --quiet` — 오류 없음, 기존 `CourseMap.tsx` 경고 1건
+- `git diff --check` — 통과
+
+**발생한 문제와 해결 방법:**
+
+- Spring Context에서 오버로드된 `CompositionService` 생성자 선택 오류가 발생해 실제 주입 생성자에 `@Autowired`와 `image.ttl` 설정 주입을 명시했다.
+
+**관련 commit:**
+
+- 미커밋 (사용자 검토 후 commit/push 예정)
+
 ### 시간 미기록 ~ 2026-09-10 13:54 — 장소 shortDescription API 연동
 
 **Agent:** Codex

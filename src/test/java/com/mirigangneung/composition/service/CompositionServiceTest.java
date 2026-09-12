@@ -20,9 +20,12 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -78,6 +81,49 @@ class CompositionServiceTest {
                         && request.photo().bytes().length == 3
                         && request.background().bytes().length == 3
                         && request.backgroundImageUrl().equals("https://img.test/background.jpg")));
+    }
+
+    @Test
+    void createsWithPresetModelUsingTheExistingGenerationPipeline() throws Exception {
+        when(ai.create(any())).thenReturn(response("QUEUED", null));
+
+        var result = service.create(
+                null, "default-female-01", place.getId().toString(), null, null, "session-1");
+
+        assertThat(result.status()).isEqualTo("QUEUED");
+        verify(storage).save(any(), eq("image/png"), longThat(size -> size > 100_000), any());
+        verify(ai).create(any());
+    }
+
+    @Test
+    void rejectsMissingOrConflictingCompositionInput() {
+        assertThatThrownBy(() -> service.create(
+                null, null, place.getId().toString(), null, null, "session-1"))
+                .hasMessage("photo 또는 modelPresetId 중 하나만 입력해야 합니다.");
+        assertThatThrownBy(() -> service.create(
+                photo(), "default-female-01", place.getId().toString(), null, null, "session-1"))
+                .hasMessage("photo 또는 modelPresetId 중 하나만 입력해야 합니다.");
+        assertThatThrownBy(() -> service.create(
+                null, "unknown", place.getId().toString(), null, null, "session-1"))
+                .hasMessage("유효하지 않은 AI 모델입니다.");
+    }
+
+    @Test
+    void presetJobCanRetryWithTheStoredPresetInput() {
+        when(ai.create(any()))
+                .thenReturn(response("provider-1", "FAILED",
+                        new GenerationError("PROVIDER_TIMEOUT", "시간 초과", true)))
+                .thenReturn(response("provider-2", "QUEUED", null));
+        var failed = service.create(
+                null, "default-female-01", place.getId().toString(), null, null, "session-1");
+        CompositionJob job = capturedSavedJob();
+        when(storage.exists("input.jpg")).thenReturn(true);
+
+        var retried = service.retry(failed.jobId());
+
+        assertThat(retried.status()).isEqualTo("QUEUED");
+        assertThat(job.getProviderJobId()).isEqualTo("provider-2");
+        verify(ai, org.mockito.Mockito.times(2)).create(any());
     }
 
     @Test
