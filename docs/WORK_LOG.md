@@ -549,7 +549,7 @@ AI 에이전트는 `sessionId`를 키로 시간당 생성 횟수를 세고, 값�
 
 - 미커밋 (검증 후 별도 commit 예정)
 
-### 2026-09-12 11:20 ~ 11:27 — 기본 AI 모델 preset 합성 경로 구현
+### 2026-09-12 11:20 ~ 11:32 — 기본 AI 모델 preset 합성 경로 구현
 
 **Agent:** Codex
 **작업 유형:** Implementation
@@ -582,7 +582,8 @@ AI 에이전트는 `sessionId`를 키로 시간당 생성 횟수를 세고, 값�
 
 **관련 commit:**
 
-- 미커밋 (사용자 검토 후 commit/push 예정)
+- Backend `bb4c552` — `feat: add default AI model preset for compositions`
+- Frontend `2d17095` — `feat: add default AI model composition option`
 
 ### 시간 미기록 ~ 2026-09-10 13:54 — 장소 shortDescription API 연동
 
