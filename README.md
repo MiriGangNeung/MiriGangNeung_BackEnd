@@ -16,6 +16,8 @@ Java 17 이상과 Gradle을 사용한다.
 
 주요 환경변수: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, `TOUR_API_BASE_URL`, `TOUR_API_KEY`, `KAKAO_API_BASE_URL`, `KAKAO_API_KEY`, `AI_BASE_URL`, `AI_API_KEY`, `AI_CONNECT_TIMEOUT`, `AI_READ_TIMEOUT`, `AI_POLL_DELAY`, `IMAGE_TEMP_DIR`, `IMAGE_TTL_SECONDS`.
 
+코스 도보 경로는 Kakao Developers REST API의 `GET https://dapi.kakao.com/v2/routing/walk`를 사용한다. 주변 카페·식당 검색은 같은 호스트의 Kakao Local API를 별도 설정인 `KAKAO_LOCAL_API_BASE_URL=https://dapi.kakao.com`으로 사용한다. 두 기능 모두 `KAKAO_API_KEY`의 REST 키로 인증한다.
+
 API base path는 `/api/v1`이다. 상세 계약은 [문서 세트](MiriGangNeung_BackEnd_Codex_MD_Set/docs/CODEX_START_HERE.md)를 기준으로 한다. clone 직후에는 [루트 시작 문서](docs/CODEX_START_HERE.md)와 [AGENTS.md](AGENTS.md)를 먼저 읽는다.
 
 처음 실행할 때는 `.env.example`을 `.env`로 복사한다. 실제 인증키는 `.env`에만 입력하며, `.env`는 Git에 커밋하지 않는다.

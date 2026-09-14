@@ -67,6 +67,7 @@ public class CoursePlaceService {
     private final CourseExternalPlaceRepository externalPlaces;
     private final KakaoLocalClient localClient;
     private final CourseRouteCalculator routeCalculator;
+    private final CourseRouteOrderOptimizer routeOrderOptimizer = new CourseRouteOrderOptimizer();
     private final KakaoLocalProperties localProperties;
     private final CourseScheduleCalculator scheduleCalculator = new CourseScheduleCalculator();
     private final NearbyPlaceRecommendationScorer recommendationScorer;
@@ -870,6 +871,35 @@ public class CoursePlaceService {
         return response(course);
     }
 
+    @Transactional
+    public CourseResponse optimizeStops(String courseId) {
+        Course course = findCourse(courseId);
+        List<CourseStop> currentStops = stops.findByCourseOrderBySequenceAsc(course);
+        CourseRouteCalculator.Result currentRoute = routeCalculator.calculate(currentStops);
+        if (currentRoute.status().equals("UNAVAILABLE")) {
+            return response(course, currentStops, currentRoute);
+        }
+
+        List<CourseStop> bestOrder = currentStops;
+        CourseRouteCalculator.Result bestRoute = currentRoute;
+        for (List<CourseStop> candidateOrder : routeOrderOptimizer.candidateOrders(currentStops)) {
+            CourseRouteCalculator.Result candidateRoute = routeCalculator.calculate(candidateOrder);
+            if (candidateRoute.status().equals("READY")
+                    && candidateRoute.totalDistanceMeters() < bestRoute.totalDistanceMeters()) {
+                bestOrder = candidateOrder;
+                bestRoute = candidateRoute;
+            }
+        }
+
+        if (bestOrder != currentStops) {
+            for (int index = 0; index < bestOrder.size(); index++) {
+                bestOrder.get(index).changeSequence(index + 1);
+            }
+            stops.saveAll(bestOrder);
+        }
+        return response(course, bestOrder, bestRoute);
+    }
+
     private void compactSequences(Course course) {
         List<CourseStop> remaining = stops.findByCourseOrderBySequenceAsc(course);
         for (int index = 0; index < remaining.size(); index++) {
@@ -881,6 +911,14 @@ public class CoursePlaceService {
     private CourseResponse response(Course course) {
         List<CourseStop> courseStops = stops.findByCourseOrderBySequenceAsc(course);
         CourseRouteCalculator.Result route = routeCalculator.calculate(courseStops);
+        return response(course, courseStops, route);
+    }
+
+    private CourseResponse response(
+            Course course,
+            List<CourseStop> courseStops,
+            CourseRouteCalculator.Result route
+    ) {
         return CourseResponse.from(
                 course,
                 courseStops,

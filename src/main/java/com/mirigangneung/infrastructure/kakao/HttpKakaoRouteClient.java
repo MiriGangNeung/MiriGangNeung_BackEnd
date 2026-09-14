@@ -3,16 +3,22 @@ package com.mirigangneung.infrastructure.kakao;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mirigangneung.common.error.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Component
 public class HttpKakaoRouteClient implements KakaoRouteClient {
+    private static final Logger log = LoggerFactory.getLogger(HttpKakaoRouteClient.class);
+    private static final int MAX_LOGGED_RESPONSE_LENGTH = 500;
+
     private final KakaoRouteProperties properties;
     private final RestClient client;
     private final ObjectMapper objectMapper;
@@ -46,20 +52,31 @@ public class HttpKakaoRouteClient implements KakaoRouteClient {
         try {
             String body = client.get()
                     .uri(uriBuilder -> uriBuilder
-                            .path("/affiliate/walking/v1/directions")
-                            .queryParam("origin", originLongitude + "," + originLatitude)
-                            .queryParam("destination", destinationLongitude + "," + destinationLatitude)
-                            .queryParam("priority", "DISTANCE")
-                            .queryParam("summary", "false")
+                            .path("/v2/routing/walk")
+                            .queryParam("start_x", originLongitude)
+                            .queryParam("start_y", originLatitude)
+                            .queryParam("end_x", destinationLongitude)
+                            .queryParam("end_y", destinationLatitude)
+                            .queryParam("route_mode", "SHORTEST")
+                            .queryParam("input_coord", "WGS84")
+                            .queryParam("output_coord", "WGS84")
                             .build())
                     .header("Authorization", "KakaoAK " + properties.key())
-                    .header("Content-Type", "application/json")
                     .retrieve()
                     .body(String.class);
             return parse(body);
         } catch (ApiException exception) {
             throw exception;
+        } catch (RestClientResponseException exception) {
+            log.warn("Kakao walking route API returned HTTP {}: {}",
+                    exception.getStatusCode().value(), sanitizeForLog(exception.getResponseBodyAsString()));
+            throw new ApiException(
+                    "KAKAO_API_ERROR",
+                    HttpStatus.BAD_GATEWAY,
+                    "Kakao 도보 경로 API를 사용할 수 없습니다."
+            );
         } catch (Exception exception) {
+            log.warn("Kakao walking route API request failed: failureType={}", exception.getClass().getSimpleName());
             throw new ApiException(
                     "KAKAO_API_ERROR",
                     HttpStatus.BAD_GATEWAY,
@@ -73,7 +90,10 @@ public class HttpKakaoRouteClient implements KakaoRouteClient {
             JsonNode root = objectMapper.readTree(body);
             JsonNode currentRoute = root.path("route");
             if (!currentRoute.isMissingNode() && !currentRoute.isNull()) {
-                if (root.has("status") && !"OK".equalsIgnoreCase(root.path("status").asText())) {
+                String status = root.path("status").asText("");
+                if (!status.isBlank() && !"OK".equalsIgnoreCase(status)) {
+                    log.warn("Kakao walking route API rejected request: status={}, message={}",
+                            sanitizeForLog(status), sanitizeForLog(root.path("message").asText("")));
                     throw routeNotFound();
                 }
                 return new RouteResult(
@@ -85,6 +105,9 @@ public class HttpKakaoRouteClient implements KakaoRouteClient {
 
             JsonNode legacyRoute = root.path("routes").path(0);
             if (legacyRoute.isMissingNode() || legacyRoute.path("result_code").asInt(-1) != 0) {
+                log.warn("Kakao walking route API response has no usable route: status={}, message={}",
+                        sanitizeForLog(root.path("status").asText("")),
+                        sanitizeForLog(root.path("message").asText("")));
                 throw routeNotFound();
             }
 
@@ -159,5 +182,21 @@ public class HttpKakaoRouteClient implements KakaoRouteClient {
         if (points.isEmpty() || !points.get(points.size() - 1).equals(point)) {
             points.add(point);
         }
+    }
+
+    private String sanitizeForLog(String message) {
+        if (message == null || message.isBlank()) {
+            return "<empty>";
+        }
+
+        String sanitized = message;
+        if (properties.key() != null && !properties.key().isBlank()) {
+            sanitized = sanitized.replace(properties.key(), "[REDACTED]");
+        }
+        sanitized = sanitized.replaceAll("[\\r\\n\\t]+", " ").trim();
+        if (sanitized.length() > MAX_LOGGED_RESPONSE_LENGTH) {
+            return sanitized.substring(0, MAX_LOGGED_RESPONSE_LENGTH) + "...";
+        }
+        return sanitized;
     }
 }

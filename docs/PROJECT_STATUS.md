@@ -1,9 +1,9 @@
 # Project Status
 
-Last Updated: 2026-09-12 11:32 KST
+Last Updated: 2026-09-14 20:40 KST
 Last Updated By: Codex
 
-기준일: 2026-09-08
+기준일: 2026-09-14
 
 ## Repository
 
@@ -25,11 +25,11 @@ Last Updated By: Codex
 - 이미지 전달: 동기화 시 원본을 로컬 저장소에 한 번 저장하고 카드용 JPEG 썸네일과 합성용 원본 storage key를 `place_images`에 보존. 목록·상세 요청은 저장된 URL만 반환하며 Redis에는 JSON만 저장
 - Composition: 업로드, Type1 배경 원본 resolve, FastAPI Agent generation 생성, providerJobId 저장, 상태 polling, DONE 결과 임시 저장·다운로드, 오류·retry 처리
 - Composition preset: `GET /api/v1/composition-models`와 `/image`로 기본 여성 AI 모델을 제공하고, `modelPresetId`를 기존 composition 입력 대체 경로로 지원
-- Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API
+- Course: `Course`, `CourseStop`, 저장/조회/삭제/공유 API, 주변 장소 추가·순서 변경 및 도보 경로 최적화
 - Course preference: 여행 타입·세부 취향 저장과 Kakao 주변 장소 추천 점수/반경 확장
 - KTO-Kakao binding: `tourContentId` 기준 수기 CSV 매핑과 선택적 Kakao Local 자동 보완으로 관광지 Kakao 장소 URL을 연결
 - Recommendation: `RuleBasedCourseRecommendationEngine` + `CoursePreferenceScorer`로 `types`·`companion` 조건 점수와 거리 fallback을 적용
-- Route: `KakaoRouteClient`와 REST adapter, normalized route response
+- Route: `KakaoRouteClient`와 REST adapter, normalized route response. 경로 최적화는 직선거리 휴리스틱으로 최대 3개 후보를 만든 뒤 Kakao 실제 도보거리로 비교하며, 관광지와 추가 장소의 전체 순서를 재배치할 수 있고 실제 거리가 감소하는 경우에만 저장한다.
 - Docker: MySQL/Redis/app을 위한 `Dockerfile`, `docker-compose.yml`, `.dockerignore`. MySQL 호스트 공개 포트는 `MYSQL_PORT`를 사용하며 미설정 시 3307, 컨테이너 내부 연결은 3306이다.
 
 ## 2026-08-25 코스 장소 관리 구현
@@ -42,7 +42,7 @@ Last Updated By: Codex
 - 백엔드 API: `GET /api/v1/courses/{courseId}/nearby-places`, `POST /api/v1/courses/{courseId}/stops/external`, `DELETE /api/v1/courses/{courseId}/stops/{stopId}`, `PUT /api/v1/courses/{courseId}/stops/order`.
 - 설계 결정은 [`docs/adr/2026-08-25-kakao-course-place-snapshots.md`](./adr/2026-08-25-kakao-course-place-snapshots.md)에 기록했다.
 - 코스 응답의 `arrivalTime`은 현재 stop 순서 기준으로 09:00부터 체류시간과 확인된 도보 구간 시간을 누적해 계산한다. 경로가 unavailable이어도 모든 stop이 같은 09:00으로 반환되지 않는다.
-- Kakao 도보 Client는 공식 Affiliate Walking endpoint(`/affiliate/walking/v1/directions`)의 `origin`, `destination`, `priority`, `summary` 계약을 사용한다. 현재 등록 키로 실제 호출한 결과는 HTTP 403이며, 코드가 아닌 Kakao 도보 API 제휴/권한 승인 문제로 `routeStatus=UNAVAILABLE`이 유지된다.
+- Kakao 도보 Client는 Kakao Developers REST API의 `GET https://dapi.kakao.com/v2/routing/walk`를 호출한다. `start_x/start_y/end_x/end_y`, `route_mode=SHORTEST`, WGS84 좌표계를 전달하고 `route.legs[].steps[].path.points`를 `[longitude, latitude]` polyline으로 반환한다. HTTP 오류 로그에는 상태와 키를 마스킹한 응답 메시지만 남긴다. 주변 장소 검색도 같은 호스트의 Kakao Local API를 사용한다.
 
 ## 현재 API Controller
 
@@ -59,6 +59,7 @@ Last Updated By: Codex
 - `/api/v1/courses/{courseId}/stops/external`
 - `/api/v1/courses/{courseId}/stops/{stopId}`
 - `/api/v1/courses/{courseId}/stops/order`
+- `/api/v1/courses/{courseId}/stops/optimize`
 - `/api/v1/share/courses`
 - `/api/v1/routes/walking`
 
@@ -149,6 +150,7 @@ Agent의 정상적인 `NO_PERSON_DETECTED` 검증이 발생했으며, Backend �
 - 현재 schema migration 도구는 없고 기존 `JPA_DDL_AUTO=update` 방식으로 CompositionJob의 Agent 연동 컬럼을 추가한다. 운영 배포에서 명시적 migration 도구를 도입하면 해당 컬럼 migration이 필요하다.
 - Place 목록/상세 응답은 Redis에 서로 다른 TTL로 캐시된다. 캐시가 없거나 만료되면 DB에서만 다시 읽어 Redis에 저장하며, 화면 요청으로 관광공사 API를 호출하지 않는다.
 - Kakao REST 키가 없거나 도보 경로 호출이 실패하면 `CourseResponse.routeStatus=UNAVAILABLE`, 거리·시간 0으로 반환한다. 장소 CRUD는 계속 가능하다. 이때 응답 도착시간은 기본 시작 09:00과 장소별 체류 60분을 기준으로 순차 계산한다.
+- 도보 API 기본 호스트는 애플리케이션·Docker Compose·`.env.example` 모두 `https://dapi.kakao.com`이다. 장소 추가·삭제·순서 변경 및 코스 조회 응답은 현재 장소 순서로 route segments, 총 거리·시간을 매번 다시 계산한다.
 - Controller 통합 테스트와 MySQL/Redis 통합 테스트는 없다.
 - rate limit, 상세 metrics, Swagger/OpenAPI 문서는 아직 없다.
 - Gradle test는 로컬 Gradle 실행 파일로 재실행해 통과했다. Gradle Wrapper는 배포본 재다운로드가 필요한 환경에서 네트워크 권한 문제가 발생할 수 있다.
@@ -163,7 +165,7 @@ Agent의 정상적인 `NO_PERSON_DETECTED` 검증이 발생했으며, Backend �
 - KTO 동기화 결과 중 판정 목록에 없는 장소는 초기 장소 선택 API에서 제외한다. `PromptPlaceCatalog`가 `/data/viable-places.json`을 읽어 관리하며, KTO 데이터가 갱신되어도 프론트에는 허용된 장소만 반환한다. 사진 단위 필터는 `PlaceCatalogSyncService.retainPortraitViableImages()`가 담당하고, 판정된 URL과 한 장도 일치하지 않으면(관광공사가 사진을 교체한 경우) 필터를 건너뛰고 경고만 남긴다.
 - 코스 추천은 현재 선택된 `placeIds` 후보 안에서만 수행한다. 여행 유형·동행자 점수는 Place의 category/name/description 기반이며 운영시간·휴무일과 다일 일정은 아직 반영하지 않는다.
 - 2026-08-26 추천 조건 고도화 브랜치에서 여행 유형·동행자 점수, 거리 fallback, CourseService 조건 전달 테스트를 추가했다. `day`와 `night1`의 기존 정거장 수 제한은 유지한다.
-- 2026-08-26 Docker 앱을 현재 브랜치 코드로 재빌드하고 `/actuator/health`, `/api/v1/places`, 코스 생성·조회 API를 실제 호출했다. 관광지 조회와 코스 추천은 정상이고 코스 도착시간은 `09:00`, `10:00`, `11:00`으로 계산된다. Kakao 도보 endpoint는 HTTP 403으로 확인되어 현재 `UNAVAILABLE`이다.
+- 2026-08-26 Docker 앱을 현재 브랜치 코드로 재빌드하고 `/actuator/health`, `/api/v1/places`, 코스 생성·조회 API를 실제 호출했다. 관광지 조회와 코스 추천은 정상이고 코스 도착시간은 `09:00`, `10:00`, `11:00`으로 계산된다. 당시의 Kakao 도보 호출은 HTTP 403으로 확인됐다. 현재 설정의 도보 API 호스트는 공식 호스트로 정정했으며, 제휴 권한은 별도 검증이 필요하다.
 - 코스 정거장 순서 변경 브라우저 요청을 위해 CORS 허용 메서드에 `PUT`을 추가했다.
 - 2026-08-26 백엔드 전체 테스트 83개가 통과했다. 프론트 테스트 46개와 production build도 통과했다. Windows 전체 테스트에서 발생하던 이미지 저장소 파일 잠금은 테스트가 반환된 InputStream을 닫지 않던 문제를 수정해 해결했다.
 

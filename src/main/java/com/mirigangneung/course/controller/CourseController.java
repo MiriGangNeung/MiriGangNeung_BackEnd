@@ -94,4 +94,9 @@ public class CourseController {
     ) {
         return coursePlaceService.reorderStops(id, request);
     }
+
+    @PostMapping("/courses/{id}/stops/optimize")
+    public CourseResponse optimizeStops(@PathVariable String id) {
+        return coursePlaceService.optimizeStops(id);
+    }
 }

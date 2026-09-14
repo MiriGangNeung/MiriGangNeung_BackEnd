@@ -2,8 +2,10 @@ package com.mirigangneung.course.service;
 
 import com.mirigangneung.common.error.ApiException;
 import com.mirigangneung.course.domain.Course;
+import com.mirigangneung.course.domain.CourseExternalPlace;
 import com.mirigangneung.course.domain.CourseStop;
 import com.mirigangneung.course.dto.AddExternalStopRequest;
+import com.mirigangneung.course.dto.CourseResponse;
 import com.mirigangneung.course.dto.NearbyPlaceResponse;
 import com.mirigangneung.course.repository.CourseExternalPlaceRepository;
 import com.mirigangneung.course.repository.CourseRepository;
@@ -17,10 +19,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,6 +51,77 @@ class CoursePlaceServiceTest {
     private KakaoLocalClient localClient;
     @Mock
     private CourseRouteCalculator routeCalculator;
+
+    @Test
+    void returnsRefreshedWalkingRouteWhenExternalRestaurantIsAddedToCourse() {
+        UUID courseId = UUID.randomUUID();
+        Course course = new Course("day", null, null);
+        ReflectionTestUtils.setField(course, "id", courseId);
+
+        Place tourismPlace = new Place("1", "경포대", "강릉", "nature", "", 37.0, 128.0, null, "KTO");
+        ReflectionTestUtils.setField(tourismPlace, "id", UUID.randomUUID());
+        CourseStop tourismStop = new CourseStop(course, tourismPlace, 1, true);
+        CourseExternalPlace restaurant = new CourseExternalPlace(
+                "KAKAO", "new-restaurant", "안목반점", "음식점 > 중식", "restaurant",
+                "강릉", "강릉", "", "https://place.map.kakao.com/new-restaurant",
+                37.005, 128.005
+        );
+        AtomicReference<CourseStop> addedStop = new AtomicReference<>();
+        when(courses.findById(courseId)).thenReturn(Optional.of(course));
+        when(externalPlaces.save(any(CourseExternalPlace.class))).thenReturn(restaurant);
+        when(stops.findByCourseOrderBySequenceAsc(course)).thenAnswer(invocation -> addedStop.get() == null
+                ? List.of(tourismStop)
+                : List.of(tourismStop, addedStop.get()));
+        when(stops.save(any(CourseStop.class))).thenAnswer(invocation -> {
+            CourseStop savedStop = invocation.getArgument(0);
+            addedStop.set(savedStop);
+            return savedStop;
+        });
+        List<List<Double>> polyline = List.of(List.of(128.0, 37.0), List.of(128.005, 37.005));
+        CourseResponse.RouteSegmentResponse segment = new CourseResponse.RouteSegmentResponse(
+                null, null, 850, 720, polyline
+        );
+        when(routeCalculator.calculate(any()))
+                .thenReturn(new CourseRouteCalculator.Result("READY", 850, 12, List.of(segment)));
+
+        CoursePlaceService service = new CoursePlaceService(
+                courses,
+                stops,
+                externalPlaces,
+                localClient,
+                routeCalculator,
+                new KakaoLocalProperties("https://example.test", "secret", null, 2_000, 15)
+        );
+        AddExternalStopRequest request = new AddExternalStopRequest(
+                "new-restaurant",
+                "안목반점",
+                "restaurant",
+                "음식점 > 중식",
+                "강릉",
+                "강릉",
+                "",
+                "https://place.map.kakao.com/new-restaurant",
+                128.005,
+                37.005
+        );
+
+        CourseResponse response = service.addExternalStop(courseId.toString(), request);
+
+        assertThat(response.stops()).extracting(CourseResponse.StopResponse::name)
+                .containsExactly("경포대", "안목반점");
+        assertThat(response.stops().get(1).external()).isTrue();
+        assertThat(response.routeStatus()).isEqualTo("READY");
+        assertThat(response.totalDistanceMeters()).isEqualTo(850);
+        assertThat(response.totalTravelMinutes()).isEqualTo(12);
+        assertThat(response.routeSegments()).containsExactly(segment);
+        verify(routeCalculator).calculate(org.mockito.ArgumentMatchers.argThat(currentStops ->
+                currentStops.size() == 2
+                        && currentStops.get(0) == tourismStop
+                        && currentStops.get(1) == addedStop.get()
+                        && currentStops.get(1).getLatitude().equals(37.005)
+                        && currentStops.get(1).getLongitude().equals(128.005)
+        ));
+    }
 
     @Test
     void mergesRestaurantsAroundAllTourismStopsAndSortsByNearestDistance() {

@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mirigangneung.common.error.ApiException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -18,17 +21,23 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 
+@ExtendWith(OutputCaptureExtension.class)
 class HttpKakaoRouteClientTest {
     private static final String RESPONSE = """
             {
-              "routes": [{
-                "result_code": 0,
-                "summary": {"distance": 1234, "duration": 987},
-                "sections": [{
-                  "roads": [{"vertexes": [128.948, 37.772, 128.949, 37.773]}]
+              "route": {
+                "properties": {"totalDistance": 1234, "totalTime": 987},
+                "legs": [{
+                  "properties": {"distance": 1234, "time": 987},
+                  "steps": [{
+                    "path": {"points": [[128.948, 37.772], [128.949, 37.773]]}
+                  }]
                 }]
-              }]
+              },
+              "status": "OK"
             }
             """;
 
@@ -53,14 +62,17 @@ class HttpKakaoRouteClientTest {
         Fixture fixture = fixture("secret");
         fixture.server.expect(once(), request -> {
             assertThat(request.getMethod()).isEqualTo(GET);
-            assertThat(request.getURI().getPath()).isEqualTo("/affiliate/walking/v1/directions");
+            assertThat(request.getURI().getHost()).isEqualTo("dapi.kakao.com");
+            assertThat(request.getURI().getPath()).isEqualTo("/v2/routing/walk");
             var query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
-            assertThat(query.getFirst("origin")).isEqualTo("128.948,37.772");
-            assertThat(query.getFirst("destination")).isEqualTo("128.949,37.773");
-            assertThat(query.getFirst("priority")).isEqualTo("DISTANCE");
-            assertThat(query.getFirst("summary")).isEqualTo("false");
+            assertThat(query.getFirst("start_x")).isEqualTo("128.948");
+            assertThat(query.getFirst("start_y")).isEqualTo("37.772");
+            assertThat(query.getFirst("end_x")).isEqualTo("128.949");
+            assertThat(query.getFirst("end_y")).isEqualTo("37.773");
+            assertThat(query.getFirst("route_mode")).isEqualTo("SHORTEST");
+            assertThat(query.getFirst("input_coord")).isEqualTo("WGS84");
+            assertThat(query.getFirst("output_coord")).isEqualTo("WGS84");
         }).andExpect(header("Authorization", "KakaoAK secret"))
-                .andExpect(header("Content-Type", "application/json"))
                 .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
 
         KakaoRouteClient.RouteResult result = fixture.client.walking(37.772, 128.948, 37.773, 128.949);
@@ -75,7 +87,7 @@ class HttpKakaoRouteClientTest {
     @Test
     void parsesCurrentKakaoWalkingRouteShape() {
         Fixture fixture = fixture("secret");
-        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/affiliate/walking/v1/directions")))
+        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/v2/routing/walk")))
                 .andRespond(withSuccess(CURRENT_RESPONSE, MediaType.APPLICATION_JSON));
 
         KakaoRouteClient.RouteResult result = fixture.client.walking(37.772, 128.948, 37.774, 128.946);
@@ -104,7 +116,7 @@ class HttpKakaoRouteClientTest {
     @Test
     void mapsUpstreamFailureToApiError() {
         Fixture fixture = fixture("secret");
-        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/affiliate/walking/v1/directions")))
+        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/v2/routing/walk")))
                 .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
 
         assertThatThrownBy(() -> fixture.client.walking(37.772, 128.948, 37.773, 128.949))
@@ -113,11 +125,40 @@ class HttpKakaoRouteClientTest {
         fixture.server.verify();
     }
 
+    @Test
+    void mapsForbiddenWalkingRouteToKakaoApiError() {
+        Fixture fixture = fixture("secret");
+        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/v2/routing/walk")))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withForbiddenRequest());
+
+        assertThatThrownBy(() -> fixture.client.walking(37.772, 128.948, 37.773, 128.949))
+                .isInstanceOfSatisfying(ApiException.class, exception ->
+                        assertThat(exception.getCode()).isEqualTo("KAKAO_API_ERROR"));
+        fixture.server.verify();
+    }
+
+    @Test
+    void logsUpstreamStatusAndResponseMessageWithoutLeakingApiKey(CapturedOutput output) {
+        String apiKey = "secret-kakao-key";
+        Fixture fixture = fixture(apiKey);
+        fixture.server.expect(once(), requestTo(org.hamcrest.Matchers.containsString("/v2/routing/walk")))
+                .andRespond(withStatus(FORBIDDEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"message\":\"denied for " + apiKey + "\"}"));
+
+        assertThatThrownBy(() -> fixture.client.walking(37.772, 128.948, 37.773, 128.949))
+                .isInstanceOf(ApiException.class);
+
+        assertThat(output.toString()).contains("HTTP 403").contains("denied for [REDACTED]");
+        assertThat(output.toString()).doesNotContain(apiKey);
+        fixture.server.verify();
+    }
+
     private Fixture fixture(String key) {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://dapi.kakao.com");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         KakaoRouteClient client = new HttpKakaoRouteClient(
-                new KakaoRouteProperties("https://example.test", key),
+                new KakaoRouteProperties("https://dapi.kakao.com", key),
                 builder.build(),
                 new ObjectMapper());
         return new Fixture(client, server);

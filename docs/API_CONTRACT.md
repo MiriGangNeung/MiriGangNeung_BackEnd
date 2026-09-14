@@ -202,6 +202,7 @@ Content-Type: application/json
 DELETE /api/v1/courses/{courseId}/stops/{stopId}
 PUT /api/v1/courses/{courseId}/stops/order
 Content-Type: application/json
+POST /api/v1/courses/{courseId}/stops/optimize
 ```
 
 ```json
@@ -209,6 +210,8 @@ Content-Type: application/json
 ```
 
 원픽 장소는 삭제할 수 없으며, 순서 변경 요청은 현재 코스의 모든 `stopId`를 중복 없이 정확히 한 번씩 포함해야 한다. 추가·삭제·순서 변경 후에는 도보 거리·시간과 `routeSegments`를 다시 계산한다.
+
+경로 최적화 요청은 body 없이 호출한다. 관광지와 사용자가 추가한 장소를 구분하지 않고 전체 방문 순서를 바꿀 수 있다. 백엔드는 좌표 직선거리 기반 최근접 이웃/2-opt로 최대 3개의 후보 순서를 만들고, 각 후보의 Kakao 실제 도보 거리 합계를 현재 경로와 비교한다. 실제 도보 거리가 더 짧은 경우에만 새 순서를 저장하며, 개선 후보가 없거나 기존 경로를 계산할 수 없으면 기존 순서를 유지한다. 전역 최단 경로를 보장하는 완전 탐색은 아니며, 응답은 표준 `CourseResponse`로 업데이트된 stop 순서·도착 시간·도보 경로를 반환한다.
 
 외부 연동 기준은 [Kakao Local 카테고리 검색 가이드](https://developers.kakao.com/docs/ko/local/dev-guide)와 [Kakao 지도 REST API 가이드](https://developers.kakao.com/docs/ko/kakaomap/rest-api)다. 카페·음식점은 현재 자동으로 코스에 삽입하지 않고 이 API로 조회한 뒤 사용자가 선택해 추가한다.
 
@@ -366,7 +369,7 @@ Provider 선택은 Agent 측 `AI_PROVIDER` 설정의 책임이며 백엔드는 �
 
 ## 7. 도보 경로 API
 
-코스 생성·장소 추가·삭제·순서 변경 응답은 인접한 코스 장소 간 Kakao 도보 경로를 합산한 `totalDistanceMeters`, `totalTravelMinutes`, `routeSegments`를 포함한다. 외부 API를 사용할 수 없을 때도 장소 목록은 반환하고 `routeStatus=UNAVAILABLE`로 표시한다. 현재 Client는 Kakao Mobility Affiliate Walking의 `GET /affiliate/walking/v1/directions`에 `origin=longitude,latitude`, `destination=longitude,latitude`, `priority=DISTANCE`, `summary=false`를 전달한다. 이 API는 별도 제휴·승인이 필요하며 권한이 없으면 403이므로 코드에서는 코스 CRUD를 유지하면서 unavailable로 처리한다.
+코스 생성·조회·장소 추가·삭제·순서 변경 응답은 인접한 코스 장소 간 Kakao 도보 경로를 합산한 `totalDistanceMeters`, `totalTravelMinutes`, `routeSegments`를 포함한다. 외부 API를 사용할 수 없을 때도 장소 목록은 반환하고 `routeStatus=UNAVAILABLE`로 표시한다. Client는 Kakao Developers REST API의 `GET https://dapi.kakao.com/v2/routing/walk`를 호출하며 `start_x/start_y`(출발 경도/위도), `end_x/end_y`(도착 경도/위도), `route_mode=SHORTEST`, WGS84 좌표계 파라미터와 `Authorization: KakaoAK {KAKAO_API_KEY}` 헤더를 전달한다. 응답 `route.legs[].steps[].path.points`는 `[longitude, latitude]` 순서로 `routeSegments[].polyline`에 담긴다. 호출 실패 로그에는 HTTP 상태와 응답 메시지를 기록하되 API 키는 마스킹한다.
 
 현재 백엔드 계약은 두 지점 사이의 POST 요청이다.
 

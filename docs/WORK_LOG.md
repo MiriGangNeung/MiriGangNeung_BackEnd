@@ -512,6 +512,36 @@ AI 에이전트는 `sessionId`를 키로 시간당 생성 횟수를 세고, 값�
 
 - 없음 (현재 작업 트리 변경)
 
+### 2026-09-14 16:43 ~ 16:47 — Kakao 도보 경로 주소 수정 및 장소 추가 후 경로 재계산 검증
+
+**Agent:** Codex
+**작업 유형:** Bugfix / Configuration / Regression Tests
+
+**작업 내용:**
+
+- 도보 길찾기 API 경로는 Affiliate Walking 규격과 맞았지만, 애플리케이션·Docker Compose의 기본 호스트가 Kakao Local 검색용 `dapi.kakao.com`으로 잘못 설정되어 있었다. 기본 호스트를 공식 도보 API 호스트 `apis-navi.kakaomobility.com`으로 변경했다.
+- 주변 카페·음식점 검색이 사용하는 `KAKAO_LOCAL_API_BASE_URL=https://dapi.kakao.com`은 변경하지 않았다. 두 API 주소의 용도를 README와 `.env.example`에 구분해 적었다.
+- Kakao 응답의 HTTP 상태를 로그에 남기며, 특히 403이면 제휴 권한과 REST 키 접근 권한을 확인하도록 로그를 보강했다. 인증키나 응답 본문은 기록하지 않는다.
+- 장소 추가 endpoint가 저장 직후 최신 순서의 stop 목록으로 `CourseRouteCalculator`를 호출하고, 계산된 도보 구간·거리·시간을 응답하는 회귀 테스트를 추가했다. 외부 음식점을 관광지 사이에 넣은 경우 좌표 기준으로 양쪽 경로가 생성되는 계산 테스트도 추가했다.
+- 프론트는 이미 장소 추가 응답을 course state에 반영하고 `routeSegments`를 지도에 전달하므로 프론트 소스 수정은 필요하지 않았다.
+
+**검증 결과:**
+
+- 새 기본 호스트 설정 테스트는 수정 전 `dapi.kakao.com`을 받아 실패하는 것을 확인했다.
+- 도보 API 요청 host/path/params, 정상 응답 polyline 파싱, 403/서버 오류 처리, 외부 음식점 삽입 시 인접 구간 2개 재계산, 음식점 추가 응답의 최신 경로 반환 테스트가 통과했다.
+- 실제 Kakao Affiliate Walking API 호출은 이 변경에서 수행하지 않았다. 공식 문서상 제휴 파트너 전용이라 계정 권한을 실제 테스트해야 하며, 403은 코드가 아니라 해당 권한/키 문제일 수 있다.
+
+**주요 파일:**
+
+- `src/main/java/com/mirigangneung/infrastructure/kakao/HttpKakaoRouteClient.java`
+- `src/main/resources/application.yml`
+- `docker-compose.yml`, `.env.example`, `README.md`
+- `src/test/java/com/mirigangneung/infrastructure/kakao/`
+- `src/test/java/com/mirigangneung/course/service/Course{PlaceService,RouteCalculator}Test.java`
+- `docs/PROJECT_STATUS.md`, `docs/API_CONTRACT.md`
+
+**관련 commit:** 없음 (별도 작업 브랜치)
+
 ### 2026-09-10 14:29 ~ 14:31 — 관광지 shortDescription 최종 검증 및 명칭 alias 보완
 
 **Agent:** Codex
@@ -1315,3 +1345,79 @@ AI 에이전트는 `sessionId`를 키로 시간당 생성 횟수를 세고, 값�
 **관련 commit:**
 
 - 없음 (현재 작업 트리 변경)
+
+### 2026-09-14 19:43 — 프론트 도보 경로 구현과 백엔드 Kakao API 규격 일치
+
+**Agent:** Codex
+**작업 유형:** Bugfix / Backend / Regression Tests / Local Verification
+
+**배경 및 정정:**
+
+- 앞서 기록한 16:43 작업에서는 백엔드가 Kakao Mobility Affiliate Walking API를 쓰도록 바꿨다. 프론트의 실제 참조 구현과 이번 요청을 다시 대조한 결과 이 변경은 계약을 어긋나게 한 것이므로, 이전 로그는 이 항목으로 정정한다. 현재 구현은 프론트와 동일한 Kakao Developers REST API `/v2/routing/walk`를 사용한다.
+- 프론트 저장소는 수정하지 않았다. 장소 추가·삭제·순서 변경 후 경로를 다시 계산하는 기존 백엔드 흐름과 `GET /api/v1/courses/{courseId}` 응답 계약은 유지했다.
+
+**구현 내용:**
+
+- `KAKAO_API_KEY`를 `Authorization: KakaoAK ...` 헤더로 전달하고, `start_x/start_y/end_x/end_y`, `route_mode=SHORTEST`, `input_coord/output_coord=WGS84`를 요청한다. 기존의 Affiliate Walking `origin/destination/priority` 파라미터는 제거했다.
+- 응답 `route.legs[].steps[].path.points`를 연속 중복 좌표 제거 후 `[longitude, latitude]` 순서의 polyline으로 파싱한다. 총 거리와 시간은 route-level properties를 우선 사용하고 없으면 leg 단위 값을 합산한다.
+- Kakao HTTP 실패 시 코스 응답은 기존처럼 `UNAVAILABLE`로 유지한다. 서버 로그에는 HTTP status 및 최대 500자 응답 내용을 남기고 설정된 API 키 문자열은 `[REDACTED]`로 치환한다. 성공 응답과 요청 헤더는 로그로 남기지 않는다.
+
+**검증:**
+
+- Mock 기반 테스트에서 `/v2/routing/walk` host/path, 좌표·route mode·WGS84 query parameters, Authorization 헤더 및 프론트 형식 응답의 polyline 파싱을 확인했다.
+- 403 응답 테스트는 로그에 HTTP 상태와 응답 내용을 남기면서 테스트용 API 키 문자열은 출력되지 않는지 확인한다.
+- `CourseService.get()` 응답을 JSON으로 직렬화해 `routeStatus=READY`, 비어 있지 않은 `routeSegments`, 두 개 이상 좌표와 `[longitude, latitude]` 순서를 검증한다.
+- `./gradlew --no-daemon test` — 전체 테스트 성공.
+- 로컬 Docker 앱 health `UP`. DB/Redis는 유지하고 앱만 재빌드·재생성했다.
+- 실제 `POST /api/v1/routes/walking` 결과: HTTP 200, 거리 598m, 도보 560초, polyline 20점. 테스트는 안목해변에서 솔바람다리까지 로컬 저장 좌표를 사용했다.
+- Compose의 유효 route host가 `https://dapi.kakao.com`이고 로컬 API 키 설정이 존재하는지만 확인했다. 실제 키 값은 출력하거나 로그에 기록하지 않았다.
+
+**주요 파일:**
+
+- `src/main/java/com/mirigangneung/infrastructure/kakao/HttpKakaoRouteClient.java`
+- `src/test/java/com/mirigangneung/infrastructure/kakao/HttpKakaoRouteClientTest.java`
+- `src/test/java/com/mirigangneung/course/service/CourseServiceTest.java`
+- `src/test/java/com/mirigangneung/course/service/CourseRouteCalculatorTest.java`
+- `docs/API_CONTRACT.md`, `docs/PROJECT_STATUS.md`, `README.md`, `.env.example`
+
+**관련 commit:** 없음 (현재 작업 트리 변경)
+
+### 2026-09-14 시간 미기록~20:40 KST — 전체 코스 도보 경로 최적화
+
+**Agent:** Codex
+**작업 유형:** Backend / Frontend / Route Optimization / Regression Tests
+
+**작업 내용:**
+
+- 코스 결과 헤더에 `경로 최적화하기` 버튼을 추가했다. 처리 중에는 버튼을 비활성화하고, 완료 후 도보 거리 감소 여부나 경로 조회 실패를 표시한다.
+- `POST /api/v1/courses/{courseId}/stops/optimize`를 추가했다. 관광지와 사용자가 추가한 장소를 구분하지 않고 전체 방문 순서를 최적화할 수 있다.
+- 최근접 이웃과 2-opt로 직선거리 기반 후보를 생성하고, 상위 후보 최대 3개의 실제 Kakao 도보 경로 거리 합계를 계산한다. 현재보다 실제 거리가 줄어든 후보만 저장한다. 개선 후보가 없거나 기존 경로를 계산할 수 없으면 순서는 바꾸지 않는다.
+- 적용한 후보의 `routeSegments`, 총 거리·시간 및 도착 시간으로 코스 응답을 반환하므로 프론트 지도와 카드 순서가 함께 갱신된다.
+- API 계약과 OpenAPI 명세를 갱신했다. 이 휴리스틱은 전역 최단 경로를 보장하지 않는다.
+
+**주요 변경 파일:**
+
+- `src/main/java/com/mirigangneung/course/service/CourseRouteOrderOptimizer.java`
+- `src/main/java/com/mirigangneung/course/service/CoursePlaceService.java`
+- `src/main/java/com/mirigangneung/course/controller/CourseController.java`
+- `src/test/java/com/mirigangneung/course/service/CourseRouteOrderOptimizerTest.java`
+- `src/test/java/com/mirigangneung/course/service/CourseRouteOptimizationServiceTest.java`
+- `docs/API_CONTRACT.md`, `docs/openapi.yaml`, `docs/PROJECT_STATUS.md`
+- `src/lib/courseApi.ts`, `src/lib/courseApi.test.ts`
+- `src/pages/CourseResultPage.tsx`
+- `src/components/organisms/CourseResult.tsx`, `CourseResult.test.tsx`
+- `src/components/organisms/CourseResultHeader.tsx`, `CourseResultHeader.test.tsx`
+
+**검증 결과:**
+
+- 백엔드 `./gradlew --no-daemon test`: `BUILD SUCCESSFUL`, 185개 테스트 중 실패 0·오류 0·건너뜀 1.
+- 프론트 `npm test -- --run`: 51개 파일, 152개 테스트 통과.
+- 프론트 `npm run build`: TypeScript 검사와 Vite production build 통과.
+- 프론트 `npm run lint`: 오류 0개. 변경하지 않은 `src/components/organisms/CourseMap.tsx:282`에서 기존 `previewStop` effect dependency 경고 1개.
+
+**문제와 해결:**
+
+- 초기 테스트에서 미구현 optimizer/service 메서드가 없어 예상대로 컴파일 실패했다. 구현 후 통과했다.
+- 두 정거장 코스도 방향별 실제 도보거리가 다를 수 있어 역순 후보를 포함하도록 보완하고 회귀 테스트를 추가했다.
+
+**관련 commit:** 없음 (현재 작업 트리 변경)
