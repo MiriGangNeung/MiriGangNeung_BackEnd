@@ -1,5 +1,32 @@
 # Work Log
 
+## 2026-09-14
+
+### GitHub Actions CI: main 병합 시 배포 이미지 게시
+
+**Agent:** Claude (Opus 5)
+**작업 유형:** CI
+
+### 작업 내용
+
+- `.github/workflows/ci.yml` 추가.
+  - PR (→ main): `./gradlew build`(테스트 포함) → Docker 이미지 빌드 (게시 안 함)
+  - main 병합: 같은 검사 → 이미지 빌드 → `ghcr.io/mirigangneung/mirigangneung_backend` 게시 (`latest`, `sha-<커밋>`)
+  - 테스트 실패 시 리포트를 아티팩트로 남긴다.
+- 테스트는 `src/test/resources/application.properties`의 인메모리 H2로 돌아 CI에 MySQL·Redis가 필요 없다.
+
+### 검증
+
+- PR #22 CI 실행(34804685506): Build & test 1분 28초, Build image 2분 38초, 모두 성공.
+
+### 다음 담당자에게
+
+- 이 워크플로는 **main 병합 기준**이다. develop PR에서도 검사를 돌리려면 `branches`에 develop을 추가한다.
+- 처음 게시되는 GHCR 패키지는 **비공개**가 기본이다. 서버에서 받으려면 공개로 바꾸거나 토큰으로 `docker login` 한다.
+- 서버 자동 배포는 아직 없다.
+
+---
+
 ## 2026-09-09 (2)
 
 ### sessionId 전달 — AI 시간당 생성 한도를 사용자 단위로 복구
