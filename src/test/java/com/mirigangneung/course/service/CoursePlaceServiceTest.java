@@ -245,6 +245,40 @@ class CoursePlaceServiceTest {
     }
 
     @Test
+    void ignoresNonRestaurantDetailTypesWhenBuildingCuisineSearches() {
+        UUID courseId = UUID.randomUUID();
+        Course course = new Course(
+                "day",
+                null,
+                null,
+                List.of("rest", "food"),
+                List.of("food:chinese", "rest:coffee"),
+                "solo"
+        );
+        Place tourismPlace = new Place("1", "경포대", "강릉", "nature", "", 37.0, 128.0, null, "KTO");
+        when(courses.findById(courseId)).thenReturn(Optional.of(course));
+        when(stops.findByCourseOrderBySequenceAsc(course)).thenReturn(List.of(
+                new CourseStop(course, tourismPlace, 1, true)
+        ));
+        when(localClient.searchByCategory(
+                anyDouble(), anyDouble(), eq("FD6"), anyInt(), anyInt(), eq(15)
+        )).thenReturn(List.of());
+
+        CoursePlaceService service = new CoursePlaceService(
+                courses,
+                stops,
+                externalPlaces,
+                localClient,
+                routeCalculator,
+                new KakaoLocalProperties("https://example.test", "secret", null, 2_000, 15)
+        );
+
+        var response = service.nearby(courseId.toString(), "restaurant");
+
+        assertThat(response).isNotNull();
+    }
+
+    @Test
     void expandsNearbySearchToFiveKilometersWhenFiveKilometersProvideEnoughExactMatches() {
         UUID courseId = UUID.randomUUID();
         Course course = new Course(

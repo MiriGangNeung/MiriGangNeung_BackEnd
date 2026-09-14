@@ -50,11 +50,15 @@ public class CourseStop {
     }
 
     public CourseStop(Course course, CourseExternalPlace externalPlace, int sequence, boolean onePick) {
+        this(course, externalPlace, sequence, onePick, "코스에 추가한 주변 장소");
+    }
+
+    public CourseStop(Course course, CourseExternalPlace externalPlace, int sequence, boolean onePick, String note) {
         this.course = course;
         this.externalPlace = externalPlace;
         this.sequence = sequence;
         this.isOnePick = onePick;
-        initializeDefaults("코스에 추가한 주변 장소");
+        initializeDefaults(note);
         this.latitudeSnapshot = externalPlace.getLatitude();
         this.longitudeSnapshot = externalPlace.getLongitude();
     }

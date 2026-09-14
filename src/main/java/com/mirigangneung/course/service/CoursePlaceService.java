@@ -16,26 +16,30 @@ import com.mirigangneung.course.repository.CourseStopRepository;
 import com.mirigangneung.infrastructure.kakao.KakaoLocalClient;
 import com.mirigangneung.infrastructure.kakao.KakaoLocalProperties;
 import com.mirigangneung.place.service.PlaceNameNormalizer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.Locale;
 
 @Service
 public class CoursePlaceService {
+    private static final Logger log = LoggerFactory.getLogger(CoursePlaceService.class);
     private static final int MAX_KAKAO_PAGES = 3;
     private static final int MAX_PAGE_SIZE = 15;
     private static final int MAX_KAKAO_PAGE = 44;
     private static final int TARGET_PREFERENCE_CANDIDATES_PER_STOP = 5;
+    private static final int TARGET_AUTOMATIC_CANDIDATES = 5;
     private static final int FIVE_KILOMETER_RADIUS_METERS = 5_000;
     private static final int TEN_KILOMETER_RADIUS_METERS = 10_000;
     private static final int FIFTEEN_KILOMETER_RADIUS_METERS = 15_000;
@@ -112,17 +116,31 @@ public class CoursePlaceService {
             String sort,
             int pageSize
     ) {
+        return nearby(courseId, category, stopId, sort, pageSize, RecommendationMode.USER_REQUEST);
+    }
+
+    private NearbyPlacesResponse nearby(
+            String courseId,
+            String category,
+            String stopId,
+            String sort,
+            int pageSize,
+            RecommendationMode recommendationMode
+    ) {
         Course course = findCourse(courseId);
         String normalizedCategory = normalizeCategory(category);
         String normalizedSort = normalizeSort(sort);
         String categoryCode = categoryCode(normalizedCategory);
-        Set<String> existingTourismNames = tourismStops(course, null).stream()
+        List<CourseStop> allTourismStops = tourismStops(course, null);
+        List<CourseStop> tourismStops = stopId == null || stopId.isBlank()
+                ? allTourismStops
+                : tourismStops(course, stopId);
+        Set<String> existingTourismNames = allTourismStops.stream()
                 .map(CourseStop::getDisplayName)
                 .map(PlaceNameNormalizer::normalize)
                 .filter(name -> !name.isBlank())
                 .collect(java.util.stream.Collectors.toSet());
 
-        List<CourseStop> tourismStops = tourismStops(course, stopId);
         Map<String, NearbyCandidate> merged = new LinkedHashMap<>();
         List<PreferenceSearch> preferenceSearches = preferenceSearches(course, normalizedCategory);
         Map<PreferenceBucket, Set<String>> preferenceMatches = initializePreferenceMatches(
@@ -165,13 +183,15 @@ public class CoursePlaceService {
                     normalizedCategory,
                     merged,
                     preferenceSearches,
-                    preferenceMatches
+                    preferenceMatches,
+                    recommendationMode
             )) {
                 break;
             }
         }
 
         int finalSearchRadiusMeters = searchRadiusMeters;
+        List<String> travelTypesForScoring = scoringTravelTypes(course, normalizedCategory, recommendationMode);
         List<ScoredNearbyCandidate> scored = merged.values().stream()
                 .map(candidate -> new ScoredNearbyCandidate(
                         candidate,
@@ -180,7 +200,7 @@ public class CoursePlaceService {
                                 normalizedCategory,
                                 candidate.distanceMeters(),
                                 finalSearchRadiusMeters,
-                                course.getTravelTypes(),
+                                travelTypesForScoring,
                                 course.getDetailTypes(),
                                 course.getCompanion()
                         )
@@ -208,6 +228,196 @@ public class CoursePlaceService {
                 finalSearchRadiusMeters,
                 response
         );
+    }
+
+    @Transactional
+    public void addTopFoodAndCafeStops(String courseId) {
+        Course course = findCourse(courseId);
+        List<CourseStop> courseStops = stops.findByCourseOrderBySequenceAsc(course);
+        List<CourseStop> tourismStops = courseStops.stream()
+                .filter(stop -> stop.getPlace() != null)
+                .toList();
+        if (tourismStops.isEmpty()) {
+            return;
+        }
+
+        NearbyPlaceResponse restaurant = bestAutomaticCandidate(courseId, "restaurant");
+        NearbyPlaceResponse cafe = bestAutomaticCandidate(courseId, "cafe");
+        if (restaurant == null && cafe == null) {
+            return;
+        }
+
+        CourseStop restaurantStop = restaurant == null
+                ? null
+                : automaticStop(course, restaurant, "restaurant", "자동 추천 식당");
+        CourseStop cafeStop = cafe == null
+                ? null
+                : automaticStop(course, cafe, "cafe", "자동 추천 카페");
+        List<CourseStop> orderedStops = orderAutomaticStops(tourismStops, restaurantStop, cafeStop);
+        for (int index = 0; index < orderedStops.size(); index++) {
+            orderedStops.get(index).changeSequence(index + 1);
+        }
+        stops.saveAll(orderedStops);
+
+        log.info(
+                "Automatic course places added: courseId={}, restaurant={}, cafe={}",
+                courseId,
+                restaurant == null ? "skipped" : restaurant.name(),
+                cafe == null ? "skipped" : cafe.name()
+        );
+    }
+
+    private NearbyPlaceResponse bestAutomaticCandidate(String courseId, String category) {
+        try {
+            return nearby(
+                    courseId,
+                    category,
+                    null,
+                    "recommended",
+                    MAX_PAGE_SIZE,
+                    RecommendationMode.COURSE_AUTO_ADD
+            ).places().stream()
+                    .filter(place -> place.externalPlaceId() != null && !place.externalPlaceId().isBlank())
+                    .filter(place -> place.name() != null && !place.name().isBlank())
+                    .filter(place -> place.recommendationScore() != null)
+                    .filter(CoursePlaceService::hasValidGangneungCoordinates)
+                    .findFirst()
+                    .orElse(null);
+        } catch (ApiException exception) {
+            if (!"KAKAO_API_NOT_CONFIGURED".equals(exception.getCode())
+                    && !"KAKAO_API_ERROR".equals(exception.getCode())) {
+                throw exception;
+            }
+            log.warn(
+                    "Automatic course place recommendation skipped: courseId={}, category={}, reason={}",
+                    courseId,
+                    category,
+                    exception.getCode()
+            );
+            return null;
+        }
+    }
+
+    private CourseStop automaticStop(
+            Course course,
+            NearbyPlaceResponse place,
+            String category,
+            String note
+    ) {
+        CourseExternalPlace snapshot = saveKakaoSnapshot(KakaoPlaceSnapshot.from(place, category));
+        return new CourseStop(course, snapshot, 0, false, note);
+    }
+
+    private CourseExternalPlace saveKakaoSnapshot(KakaoPlaceSnapshot place) {
+        return externalPlaces.save(new CourseExternalPlace(
+                "KAKAO",
+                place.externalPlaceId().trim(),
+                place.name().trim(),
+                trimToEmpty(place.categoryName()),
+                place.category(),
+                trimToEmpty(place.address()),
+                trimToEmpty(place.roadAddress()),
+                trimToEmpty(place.phone()),
+                trimToEmpty(place.placeUrl()),
+                place.latitude(),
+                place.longitude()
+        ));
+    }
+
+    private static List<CourseStop> orderAutomaticStops(
+            List<CourseStop> tourismStops,
+            CourseStop restaurant,
+            CourseStop cafe
+    ) {
+        int tourismCount = tourismStops.size();
+        int restaurantDefaultPosition = restaurant == null ? 0 : 1;
+        int cafeDefaultPosition = cafe == null ? 0 : Math.min(tourismCount, tourismCount <= 2 ? 1 : 2);
+        InsertionPlan bestPlan = null;
+
+        int restaurantStart = restaurant == null ? 0 : 1;
+        int restaurantEnd = restaurant == null ? 0 : tourismCount;
+        for (int restaurantPosition = restaurantStart;
+             restaurantPosition <= restaurantEnd;
+             restaurantPosition++) {
+            int cafeStart = cafe == null ? 0 : (restaurant == null ? 1 : restaurantPosition);
+            int cafeEnd = cafe == null ? 0 : tourismCount;
+            for (int cafePosition = cafeStart; cafePosition <= cafeEnd; cafePosition++) {
+                List<CourseStop> ordered = new ArrayList<>();
+                for (int index = 1; index <= tourismCount; index++) {
+                    ordered.add(tourismStops.get(index - 1));
+                    if (index == restaurantPosition && restaurant != null) {
+                        ordered.add(restaurant);
+                    }
+                    if (index == cafePosition && cafe != null) {
+                        ordered.add(cafe);
+                    }
+                }
+                int preferenceDeviation = Math.abs(restaurantPosition - restaurantDefaultPosition)
+                        + Math.abs(cafePosition - cafeDefaultPosition);
+                InsertionPlan plan = new InsertionPlan(
+                        ordered,
+                        routeLengthMeters(ordered),
+                        preferenceDeviation
+                );
+                if (bestPlan == null
+                        || Comparator.comparingDouble(InsertionPlan::routeLengthMeters)
+                        .thenComparingInt(InsertionPlan::preferenceDeviation)
+                        .compare(plan, bestPlan) < 0) {
+                    bestPlan = plan;
+                }
+            }
+        }
+        return bestPlan == null ? List.copyOf(tourismStops) : bestPlan.stops();
+    }
+
+    private static double routeLengthMeters(List<CourseStop> stops) {
+        double totalDistance = 0;
+        for (int index = 1; index < stops.size(); index++) {
+            CourseStop previous = stops.get(index - 1);
+            CourseStop current = stops.get(index);
+            if (previous.getLatitude() == null || previous.getLongitude() == null
+                    || current.getLatitude() == null || current.getLongitude() == null) {
+                return Double.POSITIVE_INFINITY;
+            }
+            totalDistance += distanceMeters(
+                    previous.getLatitude(),
+                    previous.getLongitude(),
+                    current.getLatitude(),
+                    current.getLongitude()
+            );
+        }
+        return totalDistance;
+    }
+
+    private static boolean hasValidGangneungCoordinates(NearbyPlaceResponse place) {
+        return Double.isFinite(place.latitude())
+                && Double.isFinite(place.longitude())
+                && place.latitude() >= 33.0 && place.latitude() <= 39.0
+                && place.longitude() >= 124.0 && place.longitude() <= 132.0;
+    }
+
+    private static List<String> scoringTravelTypes(
+            Course course,
+            String category,
+            RecommendationMode recommendationMode
+    ) {
+        List<String> travelTypes = course.getTravelTypes() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(course.getTravelTypes());
+        if (recommendationMode != RecommendationMode.COURSE_AUTO_ADD) {
+            return travelTypes;
+        }
+        String fallbackType = switch (category) {
+            case "restaurant" -> "food";
+            case "cafe" -> "rest";
+            default -> null;
+        };
+        if (fallbackType != null && travelTypes.stream()
+                .map(type -> type == null ? "" : type.trim().toLowerCase(Locale.ROOT))
+                .noneMatch(fallbackType::equals)) {
+            travelTypes.add(fallbackType);
+        }
+        return travelTypes;
     }
 
     private static List<Integer> automaticSearchRadii(int configuredRadiusMeters) {
@@ -410,8 +620,12 @@ public class CoursePlaceService {
             String normalizedCategory,
             Map<String, NearbyCandidate> candidates,
             List<PreferenceSearch> preferenceSearches,
-            Map<PreferenceBucket, Set<String>> preferenceMatches
+            Map<PreferenceBucket, Set<String>> preferenceMatches,
+            RecommendationMode recommendationMode
     ) {
+        if (recommendationMode == RecommendationMode.COURSE_AUTO_ADD && preferenceSearches.isEmpty()) {
+            return candidates.size() < TARGET_AUTOMATIC_CANDIDATES;
+        }
         if (!recommendationScorer.hasApplicableDetailPreference(
                 normalizedCategory,
                 course.getTravelTypes(),
@@ -447,9 +661,11 @@ public class CoursePlaceService {
         return course.getDetailTypes().stream()
                 .map(type -> type == null ? "" : type.trim().toLowerCase(Locale.ROOT))
                 .distinct()
-                .map(type -> Map.entry(type, RESTAURANT_PREFERENCE_SEARCH_QUERIES.get(type)))
-                .filter(entry -> entry.getValue() != null)
-                .map(entry -> new PreferenceSearch(entry.getKey(), entry.getValue()))
+                .filter(RESTAURANT_PREFERENCE_SEARCH_QUERIES::containsKey)
+                .map(type -> new PreferenceSearch(
+                        type,
+                        RESTAURANT_PREFERENCE_SEARCH_QUERIES.get(type)
+                ))
                 .toList();
     }
 
@@ -598,19 +814,7 @@ public class CoursePlaceService {
             );
         }
 
-        CourseExternalPlace snapshot = externalPlaces.save(new CourseExternalPlace(
-                "KAKAO",
-                externalPlaceId,
-                request.name().trim(),
-                trimToEmpty(request.categoryName()),
-                category,
-                trimToEmpty(request.address()),
-                trimToEmpty(request.roadAddress()),
-                trimToEmpty(request.phone()),
-                trimToEmpty(request.placeUrl()),
-                request.latitude(),
-                request.longitude()
-        ));
+        CourseExternalPlace snapshot = saveKakaoSnapshot(KakaoPlaceSnapshot.from(request, category));
         List<CourseStop> currentStops = stops.findByCourseOrderBySequenceAsc(course);
         stops.save(new CourseStop(course, snapshot, currentStops.size() + 1, false));
         return response(course);
@@ -903,5 +1107,56 @@ public class CoursePlaceService {
     }
 
     private record PreferenceBucket(CourseStop stop, String detailType) {
+    }
+
+    private enum RecommendationMode {
+        USER_REQUEST,
+        COURSE_AUTO_ADD
+    }
+
+    private record InsertionPlan(List<CourseStop> stops, double routeLengthMeters, int preferenceDeviation) {
+    }
+
+    private record KakaoPlaceSnapshot(
+            String externalPlaceId,
+            String name,
+            String categoryName,
+            String category,
+            String address,
+            String roadAddress,
+            String phone,
+            String placeUrl,
+            Double latitude,
+            Double longitude
+    ) {
+        private static KakaoPlaceSnapshot from(NearbyPlaceResponse place, String category) {
+            return new KakaoPlaceSnapshot(
+                    place.externalPlaceId(),
+                    place.name(),
+                    place.categoryName(),
+                    category,
+                    place.address(),
+                    place.roadAddress(),
+                    place.phone(),
+                    place.placeUrl(),
+                    place.latitude(),
+                    place.longitude()
+            );
+        }
+
+        private static KakaoPlaceSnapshot from(AddExternalStopRequest place, String category) {
+            return new KakaoPlaceSnapshot(
+                    place.externalPlaceId(),
+                    place.name(),
+                    place.categoryName(),
+                    category,
+                    place.address(),
+                    place.roadAddress(),
+                    place.phone(),
+                    place.placeUrl(),
+                    place.latitude(),
+                    place.longitude()
+            );
+        }
     }
 }

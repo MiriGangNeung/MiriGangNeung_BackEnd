@@ -38,6 +38,7 @@ public class CourseService {
     private final PlaceService places;
     private final CourseRecommendationEngine engine;
     private final CourseRouteCalculator routeCalculator;
+    private final CoursePlaceService coursePlaceService;
     private final CourseScheduleCalculator scheduleCalculator = new CourseScheduleCalculator();
 
     public CourseService(
@@ -45,13 +46,15 @@ public class CourseService {
             CourseStopRepository stops,
             PlaceService places,
             CourseRecommendationEngine engine,
-            CourseRouteCalculator routeCalculator
+            CourseRouteCalculator routeCalculator,
+            CoursePlaceService coursePlaceService
     ) {
         this.courses = courses;
         this.stops = stops;
         this.places = places;
         this.engine = engine;
         this.routeCalculator = routeCalculator;
+        this.coursePlaceService = coursePlaceService;
     }
 
     @Transactional
@@ -87,6 +90,7 @@ public class CourseService {
         for (Place place : recommended) {
             stops.save(new CourseStop(course, place, sequence++, place.getId().equals(onePick.getId())));
         }
+        coursePlaceService.addTopFoodAndCafeStops(course.getId().toString());
         return response(course);
     }
 

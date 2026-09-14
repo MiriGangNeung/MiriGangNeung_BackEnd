@@ -338,6 +338,40 @@ class NearbyPlaceRecommendationScorerTest {
     }
 
     @Test
+    void appliesAFranchisePenaltyToEdiyaAndPaikDabangCafeRecommendations() {
+        int localCafe = scorer.score(
+                nearby("강릉 로컬 커피 전문점", "음식점 > 카페 > 커피전문점", "강릉시"),
+                "cafe",
+                500,
+                2_000,
+                List.of("rest"),
+                List.of("rest:coffee"),
+                "couple"
+        ).score();
+        int ediya = scorer.score(
+                nearby("이디야커피 강릉점", "음식점 > 카페 > 커피전문점", "강릉시"),
+                "cafe",
+                500,
+                2_000,
+                List.of("rest"),
+                List.of("rest:coffee"),
+                "couple"
+        ).score();
+        int paikDabang = scorer.score(
+                nearby("빽다방 강릉점", "음식점 > 카페 > 커피전문점", "강릉시"),
+                "cafe",
+                500,
+                2_000,
+                List.of("rest"),
+                List.of("rest:coffee"),
+                "couple"
+        ).score();
+
+        assertThat(localCafe - ediya).isEqualTo(8);
+        assertThat(localCafe - paikDabang).isEqualTo(8);
+    }
+
+    @Test
     void normalizesMultipleCuisineMatchesWithinTheFixedDetailWeight() {
         int bothCuisines = scorer.score(
                 nearby("한식 중식 맛집", "음식점", "강릉시"),

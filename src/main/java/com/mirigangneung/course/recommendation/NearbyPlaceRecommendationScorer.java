@@ -180,7 +180,9 @@ public final class NearbyPlaceRecommendationScorer {
             "메가커피",
             "컴포즈커피",
             "스타벅스",
-            "투썸플레이스"
+            "투썸플레이스",
+            "이디야",
+            "빽다방"
     );
 
     /**

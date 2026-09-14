@@ -30,10 +30,12 @@ class CourseServiceTest {
     private CourseRecommendationEngine engine;
     @Mock
     private CourseRouteCalculator routeCalculator;
+    @Mock
+    private CoursePlaceService coursePlaceService;
 
     @Test
     void rejectsDetailedPreferenceThatDoesNotBelongToSelectedTravelType() {
-        CourseService service = new CourseService(courses, stops, places, engine, routeCalculator);
+        CourseService service = new CourseService(courses, stops, places, engine, routeCalculator, coursePlaceService);
         CreateCourseRequest request = new CreateCourseRequest(
                 List.of("place-id"),
                 "place-id",
@@ -52,7 +54,7 @@ class CourseServiceTest {
                     org.assertj.core.api.Assertions.assertThat(exception.getStatus())
                             .isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
                 });
-        verifyNoInteractions(courses, stops, places, engine, routeCalculator);
+        verifyNoInteractions(courses, stops, places, engine, routeCalculator, coursePlaceService);
     }
 
     @Test
@@ -105,7 +107,7 @@ class CourseServiceTest {
 
     @Test
     void rejectsAnUnknownDetailPreferenceWhenItsBroadTypeIsSelected() {
-        CourseService service = new CourseService(courses, stops, places, engine, routeCalculator);
+        CourseService service = new CourseService(courses, stops, places, engine, routeCalculator, coursePlaceService);
         CreateCourseRequest request = new CreateCourseRequest(
                 List.of("place-id"),
                 "place-id",
@@ -120,6 +122,6 @@ class CourseServiceTest {
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("INVALID_PREFERENCE"));
-        verifyNoInteractions(courses, stops, places, engine, routeCalculator);
+        verifyNoInteractions(courses, stops, places, engine, routeCalculator, coursePlaceService);
     }
 }
