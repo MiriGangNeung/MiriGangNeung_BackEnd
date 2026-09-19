@@ -14,7 +14,9 @@ public record KakaoLocalProperties(
         int pageSize,
         String allSearchRect
 ) {
-    public static final String DEFAULT_GANGNEUNG_RECT = "128.70,37.95,129.05,37.65";
+    // 강릉시 행정구역 전체(카카오 좌표→행정구역 조회로 측정). 이전 값은 위도 37.65에서 잘려
+    // 안반데기·노추산·옥계 등 왕산면·옥계면 남쪽이 검색되지 않았다.
+    public static final String DEFAULT_GANGNEUNG_RECT = "128.58,38.00,129.18,37.49";
 
     public KakaoLocalProperties(
             String baseUrl,
