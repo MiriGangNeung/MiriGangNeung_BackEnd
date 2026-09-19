@@ -50,6 +50,7 @@ public class CoursePlaceService {
             "culture", "CT1"
     );
     private static final Set<String> ALL_SEARCH_CATEGORIES = Set.of(
+            "all",
             "restaurant",
             "cafe",
             "culture",
@@ -732,16 +733,11 @@ public class CoursePlaceService {
             int size
     ) {
         Course course = findCourse(courseId);
-        String normalizedCategory = normalizeCategory(category);
-        if (!ALL_SEARCH_CATEGORIES.contains(normalizedCategory)) {
-            throw new ApiException(
-                    "INVALID_CATEGORY",
-                    HttpStatus.BAD_REQUEST,
-                    "강릉 전체 검색은 restaurant, cafe, attraction 또는 culture만 지원합니다."
-            );
-        }
+        String normalizedCategory = normalizeAllSearchCategory(category);
 
-        String categoryCode = categoryCode(normalizedCategory);
+        String categoryCode = "all".equals(normalizedCategory)
+                ? ""
+                : categoryCode(normalizedCategory);
         String normalizedKeyword = trimToEmpty(keyword);
         if (normalizedKeyword.isBlank()) {
             return new NearbyPlacesResponse(
@@ -777,10 +773,15 @@ public class CoursePlaceService {
                 .collect(java.util.stream.Collectors.toSet());
 
         List<NearbyPlaceResponse> response = searchPage.places().stream()
-                .filter(place -> categoryCode.equals(place.categoryCode()))
+                .filter(place -> categoryCode.isBlank() || categoryCode.equals(place.categoryCode()))
                 .filter(place -> !existingKakaoIds.contains(trimToEmpty(place.externalPlaceId())))
                 .filter(place -> !existingNames.contains(PlaceNameNormalizer.normalize(place.name())))
-                .map(place -> NearbyPlaceResponse.fromWithoutDistance(place, normalizedCategory))
+                .map(place -> NearbyPlaceResponse.fromWithoutDistance(
+                        place,
+                        "all".equals(normalizedCategory)
+                                ? categoryFromKakao(place)
+                                : normalizedCategory
+                ))
                 .toList();
         return new NearbyPlacesResponse(
                 "all",
@@ -796,7 +797,7 @@ public class CoursePlaceService {
     @Transactional
     public CourseResponse addExternalStop(String courseId, AddExternalStopRequest request) {
         Course course = findCourse(courseId);
-        String category = normalizeCategory(request.category());
+        String category = normalizeExternalCategory(request.category());
         if (isTourismCategory(category) && existingTourismNames(course).contains(
                 PlaceNameNormalizer.normalize(request.name()))) {
             throw new ApiException(
@@ -993,6 +994,55 @@ public class CoursePlaceService {
             );
         }
         return normalized;
+    }
+
+    private static String normalizeAllSearchCategory(String category) {
+        String normalized = category == null ? "" : category.trim().toLowerCase(Locale.ROOT);
+        if (!ALL_SEARCH_CATEGORIES.contains(normalized)) {
+            throw new ApiException(
+                    "INVALID_CATEGORY",
+                    HttpStatus.BAD_REQUEST,
+                    "강릉 전체 검색은 all, restaurant, cafe, attraction 또는 culture만 지원합니다."
+            );
+        }
+        return normalized;
+    }
+
+    private static String normalizeExternalCategory(String category) {
+        String normalized = category == null ? "" : category.trim().toLowerCase(Locale.ROOT);
+        if (!KAKAO_CATEGORY_CODES.containsKey(normalized) && !"other".equals(normalized)) {
+            throw new ApiException(
+                    "INVALID_CATEGORY",
+                    HttpStatus.BAD_REQUEST,
+                    "외부 장소 category는 restaurant, cafe, attraction, culture 또는 other여야 합니다."
+            );
+        }
+        return normalized;
+    }
+
+    private static String categoryFromKakao(KakaoLocalClient.NearbyPlace place) {
+        return switch (trimToEmpty(place.categoryCode())) {
+            case "FD6" -> "restaurant";
+            case "CE7" -> "cafe";
+            case "AT4" -> "attraction";
+            case "CT1" -> "culture";
+            default -> categoryFromKakaoPath(place.categoryName());
+        };
+    }
+
+    private static String categoryFromKakaoPath(String categoryName) {
+        String normalized = trimToEmpty(categoryName).replace(" ", "");
+        if (normalized.contains("카페")) return "cafe";
+        if (normalized.contains("음식점")) return "restaurant";
+        if (normalized.contains("문화") || normalized.contains("공연")
+                || normalized.contains("전시") || normalized.contains("박물관")) {
+            return "culture";
+        }
+        if (normalized.contains("여행") || normalized.contains("관광")
+                || normalized.contains("명소")) {
+            return "attraction";
+        }
+        return "other";
     }
 
     private static String normalizeScope(String scope) {

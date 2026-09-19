@@ -164,15 +164,20 @@ public class HttpKakaoLocalClient implements KakaoLocalClient {
 
         try {
             String body = client.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/v2/local/search/keyword.json")
-                            .queryParam("query", query)
-                            .queryParam("category_group_code", categoryCode)
-                            .queryParam("rect", rect)
-                            .queryParam("page", page + 1)
-                            .queryParam("size", size)
-                            .queryParam("sort", "accuracy")
-                            .build())
+                    .uri(uriBuilder -> {
+                        var builder = uriBuilder
+                                .path("/v2/local/search/keyword.json")
+                                .queryParam("query", query);
+                        if (categoryCode != null && !categoryCode.isBlank()) {
+                            builder.queryParam("category_group_code", categoryCode);
+                        }
+                        return builder
+                                .queryParam("rect", rect)
+                                .queryParam("page", page + 1)
+                                .queryParam("size", size)
+                                .queryParam("sort", "accuracy")
+                                .build();
+                    })
                     .header("Authorization", "KakaoAK " + properties.key())
                     .retrieve()
                     .body(String.class);

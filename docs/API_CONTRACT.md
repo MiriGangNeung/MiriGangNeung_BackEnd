@@ -163,7 +163,7 @@ Content-Type: application/json
 
 `arrivalTime`은 저장된 고정값을 그대로 반복하지 않는다. 현재 stop 순서의 첫 장소는 09:00이며, 다음 장소부터 직전 장소의 `stayMinutes`와 확인된 직전 `routeSegments.durationSeconds`를 누적해 계산한다. 도보 경로가 unavailable이면 이동시간을 0으로 두고 체류시간만 누적한 표시용 일정으로 반환한다.
 
-### 코스 주변 카페·음식점 조회
+### 코스 주변 장소 및 전체검색
 
 코스에 포함된 관광지 좌표를 모두 기준으로 Kakao Local 카테고리 API를 조회한다. 같은 Kakao 장소가 여러 관광지 주변에서 발견되면 가장 가까운 거리만 남겨 거리순으로 정렬한다. 카카오 REST 키는 백엔드의 `KAKAO_API_KEY`로만 설정한다.
 
@@ -172,7 +172,20 @@ GET /api/v1/courses/{courseId}/nearby-places?category=cafe
 GET /api/v1/courses/{courseId}/nearby-places?category=restaurant
 ```
 
-`cafe`는 Kakao `CE7`, `restaurant`는 Kakao `FD6`으로 변환되며 기본 반경은 2km다. 응답은 가장 가까운 관광지와의 거리·이름을 포함한다.
+`scope=nearby`에서는 `cafe`를 Kakao `CE7`, `restaurant`를 `FD6`, `culture`를 `CT1`,
+`attraction`을 `AT4`로 변환한다. 기본 반경은 2km이며 조건에 맞는 후보가 부족하면
+5km → 10km → 15km 순서로 자동 확장한다. 응답은 가장 가까운 관광지와의 거리·이름을 포함한다.
+
+카테고리 탭과 무관한 장소명 전체검색은 다음처럼 호출한다.
+
+```http
+GET /api/v1/courses/{courseId}/nearby-places?scope=all&category=all&keyword=안반데기&page=0&size=15
+```
+
+`category=all`은 Kakao 키워드 검색에 `category_group_code`를 전달하지 않는다. 각 결과의
+`category`는 Kakao 응답에 따라 `restaurant`, `cafe`, `culture`, `attraction`, `other` 중 하나로
+정규화된다. 기존의 카테고리별 전체검색도 하위 호환을 위해 유지한다. `keyword`가 비어 있으면
+Kakao를 호출하지 않고 빈 결과를 반환하며, 이미 코스에 들어 있는 Kakao ID 또는 정규화된 동일 이름은 제외한다.
 
 ### 주변 장소 추가·삭제·순서 변경
 
@@ -196,7 +209,8 @@ Content-Type: application/json
 }
 ```
 
-추가 시 Kakao 응답을 코스 전용 snapshot으로 DB에 저장하고 `CourseStop`을 마지막 순서에 붙인다. 전역 관광지 카탈로그에는 추가하지 않는다.
+추가 시 Kakao 응답을 코스 전용 snapshot으로 DB에 저장하고 `CourseStop`을 마지막 순서에 붙인다.
+전체검색에서 반환되는 일반 장소는 `category=other`로 추가할 수 있다. 전역 관광지 카탈로그에는 추가하지 않는다.
 
 ```http
 DELETE /api/v1/courses/{courseId}/stops/{stopId}

@@ -769,6 +769,47 @@ class CoursePlaceServiceTest {
     }
 
     @Test
+    void searchesAllKakaoCategoriesWhenWholeSearchIsSelected() {
+        UUID courseId = UUID.randomUUID();
+        Course course = new Course("day", null, null);
+        when(courses.findById(courseId)).thenReturn(Optional.of(course));
+        when(stops.findByCourseOrderBySequenceAsc(course)).thenReturn(List.of());
+        when(localClient.searchByKeywordInRect(
+                eq("안반데기"), eq("128.58,38.00,129.18,37.49"), eq(""), eq(0), eq(15)))
+                .thenReturn(new KakaoLocalClient.SearchPage(List.of(
+                        nearby("attraction-id", "안반데기", 37.6229, 128.7391,
+                                "여행 > 관광,명소", "AT4"),
+                        nearby("cafe-id", "안반데기 카페", 37.6230, 128.7392,
+                                "음식점 > 카페", "CE7"),
+                        nearby("other-id", "안반데기 주차장", 37.6231, 128.7393,
+                                "교통,수송 > 주차장", "PK6")
+                ), 0, true));
+
+        CoursePlaceService service = new CoursePlaceService(
+                courses,
+                stops,
+                externalPlaces,
+                localClient,
+                routeCalculator,
+                new KakaoLocalProperties(
+                        "https://example.test", "secret", null, 2_000, 15,
+                        "128.58,38.00,129.18,37.49"
+                )
+        );
+
+        var response = service.search(
+                courseId.toString(), "all", "all", null, "recommended", "안반데기", 0, 15
+        );
+
+        verify(localClient).searchByKeywordInRect(
+                "안반데기", "128.58,38.00,129.18,37.49", "", 0, 15
+        );
+        assertThat(response.category()).isEqualTo("all");
+        assertThat(response.places()).extracting(NearbyPlaceResponse::category)
+                .containsExactly("attraction", "cafe", "other");
+    }
+
+    @Test
     void rejectsAllSearchWhenSortIsUnsupported() {
         CoursePlaceService service = new CoursePlaceService(
                 courses,

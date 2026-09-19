@@ -1448,3 +1448,41 @@ AI 에이전트는 `sessionId`를 키로 시간당 생성 횟수를 세고, 값�
 - 두 정거장 코스도 방향별 실제 도보거리가 다를 수 있어 역순 후보를 포함하도록 보완하고 회귀 테스트를 추가했다.
 
 **관련 commit:** 없음 (현재 작업 트리 변경)
+
+## 2026-09-20
+
+### 시간 미기록 ~ 00:38 — 코스 장소 전체검색 및 로비 복귀 UX 보완
+
+**Agent:** Codex
+**작업 유형:** Backend / Frontend / API Contract / Tests
+
+**작업 내용:**
+
+- 프론트 저장소를 최신 `origin/main`(`0c289e9`)으로 강제 동기화한 뒤 작업했다.
+- 주변 추천과 기존 카테고리 탭은 유지하고, `scope=all&category=all`에서만 Kakao `category_group_code`를 제거해 선택 탭과 무관한 키워드 전체검색을 지원했다.
+- 전체검색 결과의 Kakao category code/path를 기존 네 카테고리 또는 `other`로 정규화하고, `other` 장소도 코스 snapshot으로 추가할 수 있게 했다.
+- 장소 추가 패널의 검색 진입 버튼에 `전체검색` 문구를 표시했다.
+- 왼쪽 상단 미리강릉 로고를 홈 버튼으로 변경했다. 진행 화면에서 누르면 확인창을 표시하고, 확인한 경우 세션 진행 상태를 초기화한 뒤 로비로 이동한다.
+- 강릉 전체 검색 영역을 확장한 최신 main 변경과 주변 추천 2→5→10→15km 자동 확장 로직은 수정하지 않았다.
+
+**주요 변경 파일:**
+
+- 백엔드: `CoursePlaceService.java`, `HttpKakaoLocalClient.java`, 관련 테스트와 API 문서
+- 프론트엔드: `CoursePlaceSidebar.tsx`, `ProgressHeader.tsx`, `useAppStore.ts`, API/query/type 및 관련 테스트
+
+**테스트 결과:**
+
+- 백엔드 관련 테스트: `BUILD SUCCESSFUL`
+- 백엔드 전체 테스트: `BUILD SUCCESSFUL`
+- 프론트 관련 테스트: 23개 통과
+- 프론트 전체 테스트: 51개 파일, 160개 테스트 통과
+- 프론트 production build: 통과
+- 프론트 lint: 오류 0개, 기존 `CourseMap.tsx` Hook dependency 경고 1개
+- 실제 Kakao 무카테고리 `안반데기` 검색: 안반데기마을, 주차장, 카페, 관광명소 등 15개 결과 확인. 기존 AT4 필터에서 제외되던 category code 공백 결과도 확인했다.
+
+**발생한 문제와 해결 방법:**
+
+- 전체검색 결과에 기존 네 카테고리 밖의 Kakao 장소가 포함될 수 있어 `other` 정규화 값을 추가하고 코스 추가 계약까지 일치시켰다.
+- 타입 확장 후 지도 라벨의 카테고리 이름 매핑이 누락돼 TypeScript 빌드가 실패했고 `기타 장소` 매핑을 추가해 해결했다.
+
+**관련 commit:** 없음 (현재 작업 트리 변경)

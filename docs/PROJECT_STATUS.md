@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-09-14 20:40 KST
+Last Updated: 2026-09-20 00:38 KST
 Last Updated By: Codex
 
 기준일: 2026-09-14
@@ -15,6 +15,9 @@ Last Updated By: Codex
 - 최신 AI 에이전트 인수인계 문서 커밋은 `0b6090f` (`docs: improve AI agent onboarding`)이다.
 
 ## 현재 코드에 존재하는 영역
+
+- 코스 장소 패널의 `scope=all&category=all` 전체검색은 선택된 카테고리 탭과 무관하게 Kakao 키워드 검색을 수행한다. 주변 추천과 기존 카테고리별 검색 계약은 유지한다. Kakao의 실제 category code/path를 내부 카테고리로 정규화하고 분류되지 않는 결과는 `other`로 코스 snapshot에 추가할 수 있다.
+- 프론트 최신 main 기준으로 장소 검색 진입 버튼을 `전체검색`으로 명시했고, 왼쪽 상단 미리강릉 로고를 누르면 확인창을 거쳐 로컬 진행 상태를 초기화한 뒤 로비(`/`)로 이동한다.
 
 - `/api/v1/places` 응답에 백엔드 관리 `shortDescription`을 추가했다. Agent가 분석한 합성 가능 장소와 별개로, 현재 큐레이션 대상 23개 장소의 소개 문구를 exact-name 카탈로그에서 제공한다.
 

@@ -126,6 +126,27 @@ class HttpKakaoLocalClientTest {
     }
 
     @Test
+    void omitsCategoryFilterForWholeKeywordSearch() {
+        Fixture fixture = fixture("secret");
+        fixture.server.expect(once(), request -> {
+            assertThat(request.getMethod()).isEqualTo(GET);
+            assertThat(request.getURI().getPath()).isEqualTo("/v2/local/search/keyword.json");
+            var query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
+            assertThat(URLDecoder.decode(query.getFirst("query"), StandardCharsets.UTF_8))
+                    .isEqualTo("안반데기");
+            assertThat(query).doesNotContainKey("category_group_code");
+            assertThat(query.getFirst("rect")).isEqualTo("128.58,38.00,129.18,37.49");
+        }).andExpect(header("Authorization", "KakaoAK secret"))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+
+        KakaoLocalClient.SearchPage result = fixture.client.searchByKeywordInRect(
+                "안반데기", "128.58,38.00,129.18,37.49", "", 0, 15);
+
+        assertThat(result.places()).hasSize(1);
+        fixture.server.verify();
+    }
+
+    @Test
     void requestsKeywordResultsForKakaoPlaceEnrichment() {
         Fixture fixture = fixture("secret");
         fixture.server.expect(once(), request -> {

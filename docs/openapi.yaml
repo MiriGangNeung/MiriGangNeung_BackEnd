@@ -233,7 +233,7 @@ paths:
     get:
       tags: [Courses]
       summary: 코스 주변 또는 강릉 전체 장소 조회
-      description: scope=nearby는 코스 관광지 주변을 추천/거리순으로 조회하며 반경은 사용자 선택 없이 2km → 5km → 10km → 15km로 자동 확장한다. 세부 취향이 있고 현재 반경 안의 정확한 일치 후보가 3개 미만이면 다음 반경을 조회하고, 최종 반경은 응답의 searchRadiusMeters로 안내한다. scope=all은 사용자가 제출한 키워드로 기준 좌표 없는 Gangneung rect 안의 선택 카테고리를 조회한다. scope=all에 keyword가 없으면 외부 API를 호출하지 않고 빈 결과를 반환한다. 강릉 대표 모드는 현재 클라이언트 준비 상태이며 이 API scope로 전송하지 않는다.
+      description: scope=nearby는 코스 관광지 주변을 추천/거리순으로 조회하며 반경은 사용자 선택 없이 2km → 5km → 10km → 15km로 자동 확장한다. 세부 취향이 있고 현재 반경 안의 정확한 일치 후보가 3개 미만이면 다음 반경을 조회하고, 최종 반경은 응답의 searchRadiusMeters로 안내한다. scope=all은 사용자가 제출한 키워드로 Gangneung rect 안을 검색한다. category=all이면 Kakao category_group_code 없이 전체검색하고, 기존 네 카테고리를 지정하면 해당 카테고리만 검색한다. scope=all에 keyword가 없으면 외부 API를 호출하지 않고 빈 결과를 반환한다. 강릉 대표 모드는 현재 클라이언트 준비 상태이며 이 API scope로 전송하지 않는다.
       parameters:
         - {$ref: '#/components/parameters/CourseId'}
         - name: scope
@@ -244,7 +244,8 @@ paths:
         - name: category
           in: query
           required: true
-          schema: {type: string, enum: [restaurant, cafe, culture, attraction]}
+          description: nearby에서는 restaurant, cafe, culture, attraction. scope=all 전체검색에서는 all도 허용한다.
+          schema: {type: string, enum: [all, restaurant, cafe, culture, attraction]}
         - name: stopId
           in: query
           required: false
@@ -514,7 +515,7 @@ components:
       type: object
       properties:
         scope: {type: string, enum: [nearby, all]}
-        category: {type: string, enum: [restaurant, cafe, culture, attraction]}
+        category: {type: string, enum: [all, restaurant, cafe, culture, attraction]}
         page: {type: integer, minimum: 0}
         size: {type: integer, minimum: 1, maximum: 15, description: nearby는 Kakao 페이지 요청 크기이며 places 배열은 여러 관광지·페이지 결과를 합쳐 15개를 초과할 수 있음}
         isEnd: {type: boolean}
@@ -525,7 +526,7 @@ components:
       properties:
         externalPlaceId: {type: string}
         name: {type: string}
-        category: {type: string, enum: [restaurant, cafe, culture, attraction]}
+        category: {type: string, enum: [restaurant, cafe, culture, attraction, other]}
         categoryName: {type: string, nullable: true}
         address: {type: string, nullable: true}
         roadAddress: {type: string, nullable: true}
@@ -544,7 +545,7 @@ components:
       properties:
         externalPlaceId: {type: string}
         name: {type: string}
-        category: {type: string, enum: [restaurant, cafe, attraction, culture]}
+        category: {type: string, enum: [restaurant, cafe, attraction, culture, other]}
         categoryName: {type: string, nullable: true}
         address: {type: string, nullable: true}
         roadAddress: {type: string, nullable: true}
