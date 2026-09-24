@@ -372,48 +372,45 @@ class NearbyPlaceRecommendationScorerTest {
     }
 
     @Test
-    void normalizesMultipleCuisineMatchesWithinTheFixedDetailWeight() {
-        int bothCuisines = scorer.score(
-                nearby("한식 중식 맛집", "음식점", "강릉시"),
+    void usesOrSemanticsForTwoOrMoreSelectedCuisines() {
+        List<String> twoCuisines = List.of("food:korean", "food:chinese");
+        int chineseWithTwoSelections = scorer.score(
+                nearby("중식당", "음식점 > 중식", "강릉시"),
                 "restaurant",
                 500,
                 2_000,
                 List.of("food"),
-                List.of("food:korean", "food:chinese"),
+                twoCuisines,
                 "solo"
         ).score();
-        int oneCuisine = scorer.score(
-                nearby("한식 맛집", "음식점", "강릉시"),
+        int koreanWithTwoSelections = scorer.score(
+                nearby("한식당", "음식점 > 한식", "강릉시"),
                 "restaurant",
                 500,
                 2_000,
                 List.of("food"),
-                List.of("food:korean", "food:chinese"),
+                twoCuisines,
                 "solo"
         ).score();
 
-        assertThat(bothCuisines).isGreaterThan(oneCuisine);
-        assertThat(bothCuisines - oneCuisine).isLessThanOrEqualTo(60);
-    }
+        List<String> threeCuisines = List.of(
+                "food:korean", "food:chinese", "food:japanese"
+        );
+        int chineseWithThreeSelections = scorer.score(
+                nearby("중식당", "음식점 > 중식", "강릉시"),
+                "restaurant",
+                500,
+                2_000,
+                List.of("food"),
+                threeCuisines,
+                "solo"
+        ).score();
 
-    @Test
-    void treatsAllCuisineDetailsAsNoSpecificCuisinePreference() {
-        var place = nearby("일반 레스토랑", "음식점", "강릉시");
         List<String> allCuisines = List.of(
                 "food:korean", "food:chinese", "food:japanese", "food:western"
         );
-
-        int withoutDetails = scorer.score(
-                place,
-                "restaurant",
-                500,
-                2_000,
-                List.of("food"),
-                List.of(),
-                "solo"
-        ).score();
-        int withAllDetails = scorer.score(
-                place,
+        int koreanWithAllSelections = scorer.score(
+                nearby("한식당", "음식점 > 한식", "강릉시"),
                 "restaurant",
                 500,
                 2_000,
@@ -422,7 +419,38 @@ class NearbyPlaceRecommendationScorerTest {
                 "solo"
         ).score();
 
-        assertThat(withAllDetails).isEqualTo(withoutDetails);
+        assertThat(koreanWithTwoSelections).isEqualTo(chineseWithTwoSelections);
+        assertThat(chineseWithThreeSelections).isEqualTo(chineseWithTwoSelections);
+        assertThat(koreanWithAllSelections).isEqualTo(chineseWithTwoSelections);
+        assertThat(chineseWithTwoSelections).isEqualTo(80);
+    }
+
+    @Test
+    void keepsAnExactCuisineAtFullDetailWeightWhenAllCuisineDetailsAreSelected() {
+        List<String> allCuisines = List.of(
+                "food:korean", "food:chinese", "food:japanese", "food:western"
+        );
+
+        int exactCuisine = scorer.score(
+                nearby("중식당", "음식점 > 중식", "강릉시"),
+                "restaurant",
+                500,
+                2_000,
+                List.of("food"),
+                allCuisines,
+                "solo"
+        ).score();
+        int unclassifiedRestaurant = scorer.score(
+                nearby("일반 식당", "음식점", "강릉시"),
+                "restaurant",
+                500,
+                2_000,
+                List.of("food"),
+                allCuisines,
+                "solo"
+        ).score();
+
+        assertThat(exactCuisine).isGreaterThan(unclassifiedRestaurant);
     }
 
     @Test
