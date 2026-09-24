@@ -322,40 +322,30 @@ public final class NearbyPlaceRecommendationScorer {
 
         List<DetailPreference> selectedPreferences = selectedDetailPreferences(profile, detailTypes);
         if (!selectedPreferences.isEmpty()) {
-            long primaryStrongMatches = selectedPreferences.stream()
-                    .filter(preference -> preference.keywords().stream().anyMatch(text::containsDetailPrimary))
-                    .count();
-            if (primaryStrongMatches > 0) {
-                return (int) Math.round(
-                        DETAIL_FIT_SCORE * (double) primaryStrongMatches / selectedPreferences.size()
-                );
+            // Selected details are alternatives (OR), not additive weights.
+            // Matching any one selected detail earns the fixed tier once.
+            boolean hasPrimaryStrongMatch = selectedPreferences.stream()
+                    .anyMatch(preference -> preference.keywords().stream().anyMatch(text::containsDetailPrimary));
+            if (hasPrimaryStrongMatch) {
+                return DETAIL_FIT_SCORE;
             }
 
-            long primaryRelatedMatches = selectedPreferences.stream()
-                    .filter(preference -> preference.relatedKeywords().stream().anyMatch(text::containsDetailPrimary))
-                    .count();
-            if (primaryRelatedMatches > 0) {
-                return (int) Math.round(
-                        RELATED_DETAIL_FIT_SCORE * (double) primaryRelatedMatches / selectedPreferences.size()
-                );
+            boolean hasPrimaryRelatedMatch = selectedPreferences.stream()
+                    .anyMatch(preference -> preference.relatedKeywords().stream().anyMatch(text::containsDetailPrimary));
+            if (hasPrimaryRelatedMatch) {
+                return RELATED_DETAIL_FIT_SCORE;
             }
 
-            long addressStrongMatches = selectedPreferences.stream()
-                    .filter(preference -> preference.keywords().stream().anyMatch(text::containsAddress))
-                    .count();
-            if (addressStrongMatches > 0) {
-                return (int) Math.round(
-                        ADDRESS_ONLY_DETAIL_FIT_SCORE * (double) addressStrongMatches / selectedPreferences.size()
-                );
+            boolean hasAddressStrongMatch = selectedPreferences.stream()
+                    .anyMatch(preference -> preference.keywords().stream().anyMatch(text::containsAddress));
+            if (hasAddressStrongMatch) {
+                return ADDRESS_ONLY_DETAIL_FIT_SCORE;
             }
 
-            long addressRelatedMatches = selectedPreferences.stream()
-                    .filter(preference -> preference.relatedKeywords().stream().anyMatch(text::containsAddress))
-                    .count();
-            if (addressRelatedMatches > 0) {
-                return (int) Math.round(
-                        ADDRESS_ONLY_RELATED_FIT_SCORE * (double) addressRelatedMatches / selectedPreferences.size()
-                );
+            boolean hasAddressRelatedMatch = selectedPreferences.stream()
+                    .anyMatch(preference -> preference.relatedKeywords().stream().anyMatch(text::containsAddress));
+            if (hasAddressRelatedMatch) {
+                return ADDRESS_ONLY_RELATED_FIT_SCORE;
             }
 
             // A selected detail preference is a ranking signal, not a hard
@@ -436,7 +426,7 @@ public final class NearbyPlaceRecommendationScorer {
         }
 
         Set<String> selectedIds = selectedDetailIds(profile, detailTypes);
-        if (selectedIds.isEmpty() || selectedIds.size() == profile.detailPreferences().size()) {
+        if (selectedIds.isEmpty()) {
             return List.of();
         }
         return profile.detailPreferences().entrySet().stream()
